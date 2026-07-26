@@ -1,0 +1,2377 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Interface de test du backend comptable NestJS"
+    />
+    <title>Atelier NestJS — Plateforme comptable</title>
+    <link rel="stylesheet" href="/styles.css?v=2" />
+  </head>
+  <body>
+    <aside>
+      <div class="brand">
+        <span>N</span>
+        <div>
+          <strong>Atelier NestJS</strong><small>Plateforme comptable</small>
+        </div>
+      </div>
+      <nav>
+        <button class="active" data-page="dashboard">Tableau de bord</button>
+        <button data-page="auth">Authentification</button>
+        <button data-page="organization">Organisation</button>
+        <button data-page="dossiers">Dossiers clients</button>
+        <button data-page="obligations">Obligations fiscales</button>
+        <button data-page="tasks">Tâches</button>
+        <button data-page="accounting">Comptabilité</button>
+        <button data-page="operations">Modules métier</button>
+        <button data-page="console">Console HTTP</button>
+      </nav>
+      <p class="aside-note">
+        Interface locale sans framework frontend. Les jetons restent dans cet
+        onglet.
+      </p>
+    </aside>
+
+    <main>
+      <header>
+        <div>
+          <span class="dot" id="dot"></span
+          ><strong id="healthText">Vérification de l’API…</strong>
+        </div>
+        <div class="session">
+          <span id="sessionText">Session inactive</span
+          ><button id="logout">Effacer</button>
+        </div>
+      </header>
+
+      <section class="page active" id="dashboard">
+        <p class="kicker">Backend TypeScript</p>
+        <h1>Testez votre espace <em>comptable.</em></h1>
+        <p class="lead">
+          Cette interface appelle directement les endpoints NestJS, conserve le
+          JWT et sélectionne automatiquement votre organisation.
+        </p>
+        <div class="metrics">
+          <article>
+            <small>API</small><strong id="metricApi">—</strong
+            ><span>http://localhost:3000</span>
+          </article>
+          <article>
+            <small>Utilisateur</small
+            ><strong id="metricUser">Non connecté</strong
+            ><span id="metricEmail">—</span>
+          </article>
+          <article>
+            <small>Organisation</small
+            ><strong id="metricOrg">Non choisie</strong
+            ><span id="metricRole">—</span>
+          </article>
+        </div>
+        <div class="panel">
+          <h2>Parcours conseillé</h2>
+          <ol>
+            <li>
+              Créez le premier administrateur dans <b>Authentification</b>.
+            </li>
+            <li>
+              Chargez les rôles et testez une invitation dans
+              <b>Organisation</b>.
+            </li>
+            <li>Configurez la société, l’exercice et le plan comptable.</li>
+            <li>Utilisez la console pour les routes avancées.</li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="page" id="auth">
+        <p class="kicker">Identité et accès</p>
+        <h1>Authentification</h1>
+        <div class="grid">
+          <form class="panel" id="registerForm">
+            <div class="endpoint">
+              <b>POST</b><code>/api/auth/register</code>
+            </div>
+            <h2>Créer un espace</h2>
+            <label
+              >Nom complet<input
+                name="fullName"
+                value="Administrateur Démo"
+                required
+            /></label>
+            <label
+              >E-mail<input
+                name="email"
+                type="email"
+                value="admin@demo.fr"
+                required
+            /></label>
+            <label
+              >Mot de passe<input
+                name="password"
+                type="password"
+                value="MotDePasse123"
+                required
+            /></label>
+            <label
+              >Organisation<input
+                name="organizationName"
+                value="Cabinet Démo"
+                required
+            /></label>
+            <button class="primary">Créer et se connecter</button>
+          </form>
+          <form class="panel" id="loginForm">
+            <div class="endpoint"><b>POST</b><code>/api/auth/login</code></div>
+            <h2>Ouvrir une session</h2>
+            <label
+              >E-mail<input
+                name="email"
+                type="email"
+                value="admin@demo.fr"
+                required
+            /></label>
+            <label
+              >Mot de passe<input
+                name="password"
+                type="password"
+                value="MotDePasse123"
+                required
+            /></label>
+            <button class="primary">Se connecter</button>
+            <button type="button" class="secondary action" data-action="me">
+              Voir mon profil
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="refresh"
+            >
+              Renouveler le jeton
+            </button>
+          </form>
+          <form class="panel" id="invitationAcceptForm">
+            <div class="endpoint">
+              <b>POST</b><code>/api/auth/accept-invitation</code>
+            </div>
+            <h2>Accepter une invitation</h2>
+            <label
+              >Jeton<textarea name="token" rows="3" required></textarea>
+            </label>
+            <label
+              >Nom complet<input
+                name="fullName"
+                value="Nouveau membre"
+                required
+            /></label>
+            <label
+              >Mot de passe<input
+                name="password"
+                type="password"
+                value="MotDePasse123"
+                required
+            /></label>
+            <button class="primary">Rejoindre l’organisation</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="page" id="organization">
+        <p class="kicker">Équipe et sécurité</p>
+        <h1>Organisation</h1>
+        <div class="toolbar">
+          <label
+            >Organisation active<select id="organizationSelect">
+              <option>Aucune</option>
+            </select></label
+          >
+          <button class="secondary action" data-action="organizations">
+            Actualiser
+          </button>
+          <button class="secondary action" data-action="details">
+            Détails
+          </button>
+        </div>
+        <div class="grid">
+          <article class="panel">
+            <h2>Membres</h2>
+            <button class="primary action" data-action="members">
+              Charger
+            </button>
+            <div class="results" id="members"></div>
+          </article>
+          <article class="panel">
+            <h2>Rôles et permissions</h2>
+            <button class="primary action" data-action="roles">Rôles</button
+            ><button class="secondary action" data-action="permissions">
+              Permissions
+            </button>
+            <div class="results" id="roles"></div>
+          </article>
+          <form class="panel" id="inviteForm">
+            <h2>Inviter un membre</h2>
+            <label>E-mail<input name="email" type="email" required /></label
+            ><label
+              >Rôle<select name="roleId" id="roleSelect" required>
+                <option>Chargez les rôles</option>
+              </select></label
+            ><button class="primary">Créer l’invitation</button>
+          </form>
+          <form class="panel" id="roleForm">
+            <h2>Créer un rôle</h2>
+            <label>Nom<input name="name" value="Réviseur" required /></label
+            ><label
+              >Permissions<textarea name="permissions" rows="4">
+accounting.view,audit.view,documents.view</textarea></label
+            ><button class="primary">Créer le rôle</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="page" id="dossiers">
+        <p class="kicker">Cabinet et clientèle</p>
+        <h1>Dossiers clients</h1>
+        <div class="toolbar">
+          <label
+            >Dossier actif<select id="dossierSelect">
+              <option>Aucun dossier</option>
+            </select></label
+          >
+          <button class="secondary action" data-action="dossiers">
+            Actualiser les dossiers
+          </button>
+          <button class="secondary action" data-action="contacts">
+            Afficher les contacts
+          </button>
+        </div>
+        <div class="grid">
+          <form class="panel wide" id="dossierForm">
+            <div class="endpoint">
+              <b>POST</b
+              ><code>/api/organizations/{organizationId}/dossiers</code>
+            </div>
+            <h2>Créer un dossier tunisien</h2>
+            <div class="fields">
+              <label
+                >Raison sociale<input
+                  name="legalName"
+                  value="Société Exemple SARL"
+                  required
+              /></label>
+              <label
+                >Nom commercial<input name="tradeName" value="Société Exemple"
+              /></label>
+              <label
+                >Matricule fiscal<input
+                  name="taxIdentifier"
+                  value="1234567ABC000"
+              /></label>
+              <label
+                >Numéro RNE<input name="rneNumber" value="B1234562026"
+              /></label>
+              <label>Code TVA<input name="vatCode" value="A" /></label>
+              <label
+                >Forme juridique<select name="legalForm">
+                  <option>SARL</option>
+                  <option>SUARL</option>
+                  <option>SA</option>
+                  <option value="PERSONNE_PHYSIQUE">Personne physique</option>
+                  <option value="ASSOCIATION">Association</option>
+                  <option value="AUTRE">Autre</option>
+                </select></label
+              >
+              <label
+                >Régime fiscal<select name="taxRegime">
+                  <option value="REEL">Réel</option>
+                  <option value="REEL_SIMPLIFIE">Réel simplifié</option>
+                  <option value="FORFAITAIRE">Forfaitaire</option>
+                  <option value="AUTRE">Autre</option>
+                </select></label
+              >
+              <label
+                >Secteur d’activité<input
+                  name="activitySector"
+                  value="Services"
+              /></label>
+              <label
+                >Numéro employeur CNSS<input name="cnssEmployerNumber"
+              /></label>
+              <label
+                >Nombre d’employés<input
+                  name="employeeCount"
+                  type="number"
+                  min="0"
+                  value="0"
+              /></label>
+              <label
+                >Honoraires mensuels TND<input
+                  name="monthlyFee"
+                  value="450.000"
+                  pattern="\d+(\.\d{1,3})?"
+              /></label>
+              <label>Tags<input name="tags" value="TVA, Mensuel" /></label>
+            </div>
+            <label class="check"
+              ><input name="isVatSubject" type="checkbox" checked /> Assujetti à
+              la TVA</label
+            >
+            <label class="check"
+              ><input name="hasVatSuspension" type="checkbox" /> En suspension
+              de TVA</label
+            >
+            <label class="check"
+              ><input name="isTotallyExporting" type="checkbox" /> Totalement
+              exportateur</label
+            >
+            <label
+              >Notes internes<textarea name="internalNotes" rows="3">
+Dossier créé depuis l’interface de test.</textarea>
+            </label>
+            <button class="primary">Créer le dossier</button>
+          </form>
+          <article class="panel">
+            <h2>Liste des dossiers</h2>
+            <button class="primary action" data-action="dossiers">
+              Charger
+            </button>
+            <div class="results" id="dossierResults"></div>
+          </article>
+          <form class="panel" id="contactForm">
+            <div class="endpoint">
+              <b>POST</b><code>/dossiers/{dossierId}/contacts</code>
+            </div>
+            <h2>Ajouter un contact</h2>
+            <label
+              >Nom complet<input
+                name="fullName"
+                value="Contact Principal"
+                required
+            /></label>
+            <label>Fonction<input name="role" value="Gérant" /></label>
+            <label
+              >Téléphone<input name="phone" value="+216 20 000 000"
+            /></label>
+            <label
+              >E-mail<input
+                name="email"
+                type="email"
+                value="contact@example.tn"
+            /></label>
+            <label
+              >WhatsApp<input name="whatsappNumber" value="+216 20 000 000"
+            /></label>
+            <label class="check"
+              ><input name="isPrimary" type="checkbox" checked /> Contact
+              principal</label
+            >
+            <button class="primary">Ajouter au dossier sélectionné</button>
+            <div class="results" id="contacts"></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="page" id="obligations">
+        <p class="kicker">Calendrier fiscal automatisé</p>
+        <h1>Obligations fiscales</h1>
+        <p class="lead">
+          Sélectionnez d’abord un dossier dans <b>Dossiers clients</b>, puis
+          générez son calendrier. Les échéances restent liées à un modèle
+          versionné et à sa source.
+        </p>
+        <div class="toolbar">
+          <label
+            >Obligation active<select id="obligationSelect">
+              <option>Aucune obligation</option>
+            </select></label
+          >
+          <button class="secondary action" data-action="obligationTemplates">
+            Voir les règles
+          </button>
+          <button class="secondary action" data-action="obligations">
+            Actualiser le calendrier
+          </button>
+        </div>
+        <div class="grid">
+          <form class="panel" id="obligationGenerateForm">
+            <div class="endpoint">
+              <b>POST</b><code>/dossiers/{dossierId}/obligations/generate</code>
+            </div>
+            <h2>Générer un calendrier</h2>
+            <label
+              >Année<input
+                name="year"
+                type="number"
+                min="2000"
+                max="2100"
+                value="2026"
+                required
+            /></label>
+            <button class="primary">Générer les obligations</button>
+            <small> Relancer la génération ne crée pas de doublons. </small>
+          </form>
+          <article class="panel">
+            <h2>Règles applicables</h2>
+            <button class="primary action" data-action="obligationTemplates">
+              Charger les modèles
+            </button>
+            <div class="results" id="obligationTemplates"></div>
+          </article>
+          <article class="panel wide">
+            <h2>Calendrier du dossier</h2>
+            <button class="primary action" data-action="obligations">
+              Charger les obligations
+            </button>
+            <div class="results" id="obligationsList"></div>
+          </article>
+          <article class="panel">
+            <h2>Faire avancer l’obligation</h2>
+            <p>Sélectionnez une obligation dans la liste ci-dessus.</p>
+            <button class="secondary action" data-action="obligationStart">
+              Commencer
+            </button>
+            <button class="secondary action" data-action="obligationReview">
+              Envoyer en révision
+            </button>
+            <button class="secondary action" data-action="obligationValidate">
+              Valider
+            </button>
+            <button class="secondary action" data-action="obligationFile">
+              Marquer déposée
+            </button>
+          </article>
+        </div>
+      </section>
+
+      <section class="page" id="tasks">
+        <p class="kicker">Organisation du travail</p>
+        <h1>Tâches du cabinet</h1>
+        <p class="lead">
+          Les obligations fiscales créent automatiquement leurs tâches. Vous
+          pouvez également ajouter des tâches manuelles pour le dossier
+          sélectionné.
+        </p>
+        <div class="toolbar">
+          <label
+            >Tâche active<select id="taskSelect">
+              <option>Aucune tâche</option>
+            </select></label
+          >
+          <button class="secondary action" data-action="tasks">
+            Actualiser les tâches
+          </button>
+          <button class="secondary action" data-action="taskComments">
+            Voir les commentaires
+          </button>
+        </div>
+        <div class="grid">
+          <form class="panel" id="taskForm">
+            <div class="endpoint">
+              <b>POST</b><code>/dossiers/{dossierId}/tasks</code>
+            </div>
+            <h2>Créer une tâche manuelle</h2>
+            <label
+              >Titre<input
+                name="title"
+                value="Récupérer le relevé bancaire"
+                required
+            /></label>
+            <label
+              >Échéance<input
+                name="dueOn"
+                type="date"
+                value="2026-08-10"
+                required
+            /></label>
+            <label
+              >Priorité<select name="priority">
+                <option value="NORMALE">Normale</option>
+                <option value="HAUTE">Haute</option>
+                <option value="URGENTE">Urgente</option>
+                <option value="BASSE">Basse</option>
+              </select></label
+            >
+            <label
+              >Description<textarea name="description" rows="3">
+Demander le relevé au client et contrôler la période.</textarea>
+            </label>
+            <label
+              >Checklist, séparée par des virgules<input
+                name="checklist"
+                value="Envoyer la demande, Recevoir le relevé, Contrôler le document"
+            /></label>
+            <button class="primary">Créer la tâche</button>
+          </form>
+          <article class="panel wide">
+            <h2>Liste du dossier</h2>
+            <button class="primary action" data-action="tasks">
+              Charger les tâches
+            </button>
+            <div class="results" id="tasksList"></div>
+          </article>
+          <article class="panel">
+            <h2>Workflow</h2>
+            <button class="secondary action" data-action="taskStart">
+              Commencer
+            </button>
+            <button class="secondary action" data-action="taskChecklistNext">
+              Terminer le prochain contrôle
+            </button>
+            <button class="secondary action" data-action="taskReview">
+              Envoyer en révision
+            </button>
+            <button class="secondary action" data-action="taskComplete">
+              Valider et terminer
+            </button>
+          </article>
+          <form class="panel" id="taskCommentForm">
+            <h2>Ajouter un commentaire</h2>
+            <label
+              >Commentaire<textarea name="body" rows="4" required>
+Le client a été contacté.</textarea>
+            </label>
+            <button class="primary">Publier</button>
+            <div class="results" id="taskComments"></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="page" id="accounting">
+        <p class="kicker">Configuration</p>
+        <h1>Comptabilité</h1>
+        <div class="grid">
+          <form class="panel wide" id="companyForm">
+            <h2>Profil de la société</h2>
+            <div class="fields">
+              <label
+                >Raison sociale<input
+                  name="legalName"
+                  value="Cabinet Démo SARL"
+                  required
+              /></label>
+              <label
+                >Nom commercial<input name="tradingName" value="Cabinet Démo"
+              /></label>
+              <label
+                >Identifiant fiscal<input
+                  name="taxIdentifier"
+                  value="MF-123456"
+              /></label>
+              <label
+                >Registre<input name="registrationNumber" value="RC-123456"
+              /></label>
+              <label
+                >Pays<input name="countryCode" value="TN" required
+              /></label>
+              <label
+                >Devise<input name="baseCurrencyCode" value="TND" required
+              /></label>
+              <label
+                >Adresse<input
+                  name="addressLine1"
+                  value="1 avenue de la Comptabilité"
+              /></label>
+              <label>Ville<input name="city" value="Tunis" /></label>
+              <label>Code postal<input name="postalCode" value="1000" /></label>
+              <label
+                >E-mail<input name="email" type="email" value="contact@demo.fr"
+              /></label>
+            </div>
+            <button class="primary">Enregistrer</button
+            ><button
+              type="button"
+              class="secondary action"
+              data-action="company"
+            >
+              Charger
+            </button>
+          </form>
+          <form class="panel" id="yearForm">
+            <h2>Nouvel exercice</h2>
+            <label
+              >Nom<input name="name" value="Exercice 2026" required
+            /></label>
+            <label
+              >Début<input
+                name="startsOn"
+                type="date"
+                value="2026-01-01"
+                required
+            /></label>
+            <label
+              >Fin<input name="endsOn" type="date" value="2026-12-31" required
+            /></label>
+            <button class="primary">Créer</button
+            ><button type="button" class="secondary action" data-action="years">
+              Afficher
+            </button>
+            <div class="results" id="years"></div>
+          </form>
+          <form class="panel" id="accountForm">
+            <h2>Nouveau compte</h2>
+            <label>Code<input name="code" value="530000" required /></label>
+            <label>Nom<input name="name" value="Caisse" required /></label>
+            <label
+              >Description<input
+                name="description"
+                value="Disponibilités en caisse"
+            /></label>
+            <label
+              >Type<select name="type">
+                <option>Actif</option>
+                <option>Passif</option>
+                <option>CapitauxPropres</option>
+                <option>Produit</option>
+                <option>Charge</option>
+                <option>HorsBilan</option>
+              </select></label
+            >
+            <label
+              >Sens<select name="normalBalance">
+                <option>Débit</option>
+                <option>Crédit</option>
+              </select></label
+            >
+            <label class="check"
+              ><input name="allowsPosting" type="checkbox" checked /> Autoriser
+              les écritures</label
+            >
+            <button class="primary">Créer</button
+            ><button
+              type="button"
+              class="secondary action"
+              data-action="accounts"
+            >
+              Afficher
+            </button>
+            <div class="results" id="accounts"></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="page" id="operations">
+        <p class="kicker">MVP intégré</p>
+        <h1>Les nouveaux modules métier</h1>
+        <p class="lead">
+          Sélectionnez d’abord une organisation et un dossier. Tous les montants
+          utilisent le TND avec trois décimales.
+        </p>
+        <div class="grid">
+          <form class="panel wide" id="fiscalParameterForm">
+            <h2>Paramètres fiscaux et sociaux</h2>
+            <p>
+              Les valeurs sont versionnées par date. Laissez les taux vides dans
+              la déclaration ou la paie pour utiliser la version applicable.
+            </p>
+            <div class="fields">
+              <label
+                >Code<select name="code">
+                  <option value="TFP_TAUX_AUTRES">
+                    TFP — autres activités
+                  </option>
+                  <option value="TFP_TAUX_INDUSTRIE">
+                    TFP — activités industrielles
+                  </option>
+                  <option value="FOPROLOS_TAUX">FOPROLOS</option>
+                  <option value="TCL_TAUX">TCL</option>
+                  <option value="TIMBRE_MONTANT">Droit de timbre</option>
+                  <option value="CNSS_RSNA_SALARIE">CNSS salarié</option>
+                  <option value="CNSS_RSNA_EMPLOYEUR">CNSS employeur</option>
+                </select></label
+              >
+              <label
+                >Libellé<input name="label" value="Taux TFP autres"
+              /></label>
+              <label
+                >Type<select name="valueType">
+                  <option value="TAUX">Taux</option>
+                  <option value="MONTANT">Montant</option>
+                </select></label
+              >
+              <label>Valeur<input name="value" value="0.02000" /></label>
+              <label
+                >Applicable depuis<input
+                  name="effectiveFrom"
+                  type="date"
+                  value="2026-01-01"
+              /></label>
+              <label
+                >Source<input name="sourceLabel" placeholder="Texte officiel"
+              /></label>
+              <label
+                >Lien source<input name="sourceUrl" placeholder="https://..."
+              /></label>
+            </div>
+            <button class="primary">Créer une version</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="fiscalSettings"
+            >
+              Charger les paramètres applicables
+            </button>
+            <div class="results" id="fiscalSettingsList"></div>
+          </form>
+
+          <form class="panel" id="withholdingRateForm">
+            <h2>Retenue à la source</h2>
+            <label>Nature<input name="natureCode" value="HONORAIRES" /></label>
+            <label
+              >Libellé<input name="label" value="Retenue sur honoraires"
+            /></label>
+            <label>Taux<input name="rate" value="0.03000" /></label>
+            <label
+              >Applicable depuis<input
+                name="effectiveFrom"
+                type="date"
+                value="2026-01-01"
+            /></label>
+            <button class="primary">Ajouter le taux</button>
+          </form>
+
+          <form class="panel" id="thirdPartyForm">
+            <h2>Clients et fournisseurs</h2>
+            <p>
+              Le tiers centralise son identité, ses comptes comptables et ses
+              soldes restant à encaisser ou à payer.
+            </p>
+            <label
+              >Type<select name="type">
+                <option value="CLIENT">Client</option>
+                <option value="FOURNISSEUR">Fournisseur</option>
+                <option value="CLIENT_ET_FOURNISSEUR">Les deux</option>
+              </select></label
+            >
+            <label>Nom<input name="name" value="Client Démo" /></label>
+            <label
+              >Matricule fiscal<input name="taxIdentifier" placeholder="MF..."
+            /></label>
+            <label>RNE<input name="rneNumber" placeholder="RNE..." /></label>
+            <label
+              >Compte client<select
+                name="receivableAccountId"
+                id="thirdPartyReceivableAccount"
+              ></select
+            ></label>
+            <label
+              >Compte fournisseur<select
+                name="payableAccountId"
+                id="thirdPartyPayableAccount"
+              ></select
+            ></label>
+            <button class="primary">Créer le tiers</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="thirdParties"
+            >
+              Charger les tiers
+            </button>
+            <div class="results" id="thirdPartiesList"></div>
+          </form>
+
+          <form class="panel" id="paymentForm">
+            <h2>Règlements et lettrage</h2>
+            <p>
+              Un règlement génère une écriture brouillon et réduit le solde de
+              la facture lorsqu’il est comptabilisé.
+            </p>
+            <label
+              >Sens<select name="direction">
+                <option value="ENCAISSEMENT">Encaissement client</option>
+                <option value="DECAISSEMENT">Décaissement fournisseur</option>
+              </select></label
+            >
+            <label
+              >Tiers<select
+                name="thirdPartyId"
+                id="paymentThirdPartySelect"
+              ></select
+            ></label>
+            <label
+              >Facture<select
+                name="invoiceId"
+                id="paymentInvoiceSelect"
+              ></select
+            ></label>
+            <div class="fields">
+              <label
+                >Date<input name="paymentDate" type="date" value="2026-07-18"
+              /></label>
+              <label>Montant<input name="amount" value="100.000" /></label>
+              <label>Moyen<input name="method" value="VIREMENT" /></label>
+              <label
+                >Référence<input name="reference" value="REG-2026-001"
+              /></label>
+              <label
+                >Journal banque/caisse<select
+                  name="journalId"
+                  id="paymentJournalSelect"
+                ></select
+              ></label>
+              <label
+                >Compte banque/caisse<select
+                  name="cashAccountId"
+                  id="paymentCashAccount"
+                ></select
+              ></label>
+              <label
+                >Compte tiers<select
+                  name="thirdPartyAccountId"
+                  id="paymentThirdPartyAccount"
+                ></select
+              ></label>
+            </div>
+            <button class="primary">Créer le règlement</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="payments"
+            >
+              Charger
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="paymentPost"
+            >
+              Comptabiliser et lettrer
+            </button>
+            <div class="results" id="paymentsList"></div>
+          </form>
+
+          <form class="panel" id="bankAccountForm">
+            <h2>Comptes bancaires</h2>
+            <p>
+              Reliez chaque compte bancaire à son compte comptable et à un
+              journal de type BANQUE.
+            </p>
+            <label
+              >Nom interne<input name="name" value="Compte bancaire principal"
+            /></label>
+            <label>Banque<input name="bankName" value="Banque Démo" /></label>
+            <label>IBAN<input name="iban" placeholder="TN59..." /></label>
+            <label
+              >Compte comptable<select
+                name="ledgerAccountId"
+                id="bankLedgerAccountSelect"
+              ></select
+            ></label>
+            <label
+              >Journal bancaire<select
+                name="journalId"
+                id="bankAccountJournalSelect"
+              ></select
+            ></label>
+            <button class="primary">Créer le compte bancaire</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="bankAccounts"
+            >
+              Charger
+            </button>
+            <div class="results" id="bankAccountsList"></div>
+          </form>
+
+          <form class="panel" id="bankStatementImportForm">
+            <h2>Importer un relevé</h2>
+            <p>
+              CSV ou XLSX avec Date, Libellé et Montant, ou avec Débit et
+              Crédit. Les formats décimaux tunisiens sont acceptés.
+              <a href="/exemple-releve-bancaire.csv" download
+                >Télécharger un exemple CSV</a
+              >.
+            </p>
+            <label
+              >Compte bancaire<select
+                name="bankAccountId"
+                id="bankStatementAccountSelect"
+              ></select
+            ></label>
+            <div class="fields">
+              <label
+                >Du<input name="periodStart" type="date" value="2026-07-01"
+              /></label>
+              <label
+                >Au<input name="periodEnd" type="date" value="2026-07-31"
+              /></label>
+              <label
+                >Solde initial<input name="openingBalance" value="0.000"
+              /></label>
+              <label
+                >Solde final<input name="closingBalance" value="0.000"
+              /></label>
+            </div>
+            <label
+              >Fichier<input
+                name="file"
+                type="file"
+                accept=".csv,.xlsx"
+                required
+            /></label>
+            <button class="primary">Importer et contrôler</button>
+          </form>
+
+          <div class="panel wide">
+            <h2>Rapprochement bancaire</h2>
+            <p id="bankStatementSummary">
+              Chargez un relevé pour comparer la banque et la comptabilité.
+            </p>
+            <label>Relevé<select id="bankStatementSelect"></select></label>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="bankStatements"
+            >
+              Charger les relevés
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="bankStatement"
+            >
+              Voir les opérations
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="bankAutoMatch"
+            >
+              Rapprocher automatiquement
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="bankReconcile"
+            >
+              Valider le mois
+            </button>
+            <div class="results" id="bankStatementsList"></div>
+
+            <h3>Opération sélectionnée</h3>
+            <label>Opération<select id="bankTransactionSelect"></select></label>
+            <div class="fields">
+              <label
+                >Règlement existant<select id="bankPaymentMatchSelect"></select
+              ></label>
+              <label
+                >Écriture existante<select id="bankEntryMatchSelect"></select
+              ></label>
+            </div>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="bankMatchPayment"
+            >
+              Rapprocher au règlement
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="bankMatchEntry"
+            >
+              Rapprocher à l’écriture
+            </button>
+
+            <form id="bankGenerateEntryForm">
+              <h3>Générer une écriture brouillon</h3>
+              <div class="fields">
+                <label
+                  >Contrepartie<select
+                    name="counterpartAccountId"
+                    id="bankCounterpartAccountSelect"
+                  ></select
+                ></label>
+                <label
+                  >Description<input
+                    name="description"
+                    placeholder="Frais bancaires, virement..."
+                /></label>
+                <label
+                  >Référence<input name="pieceReference" placeholder="FB-001"
+                /></label>
+              </div>
+              <button class="primary">Créer l’écriture</button>
+            </form>
+            <div class="results" id="bankTransactionsList"></div>
+          </div>
+
+          <form class="panel" id="fixedAssetCategoryForm">
+            <h2>Catégories d’immobilisations</h2>
+            <p>
+              Définissez les comptes utilisés automatiquement pour l’acquisition
+              et les dotations.
+            </p>
+            <div class="fields">
+              <label>Code<input name="code" value="INFO" /></label>
+              <label
+                >Libellé<input name="name" value="Matériel informatique"
+              /></label>
+              <label
+                >Compte d’immobilisation<select
+                  name="assetAccountId"
+                  id="fixedAssetAccountSelect"
+                ></select
+              ></label>
+              <label
+                >Amortissements cumulés<select
+                  name="accumulatedDepreciationAccountId"
+                  id="fixedAssetAccumulatedAccountSelect"
+                ></select
+              ></label>
+              <label
+                >Charge de dotation<select
+                  name="depreciationExpenseAccountId"
+                  id="fixedAssetExpenseAccountSelect"
+                ></select
+              ></label>
+              <label
+                >Méthode par défaut<select name="defaultMethod">
+                  <option value="LINEAIRE">Linéaire</option>
+                  <option value="DEGRESSIF">Dégressif</option>
+                </select></label
+              >
+              <label
+                >Durée (mois)<input
+                  name="defaultUsefulLifeMonths"
+                  type="number"
+                  value="36"
+              /></label>
+              <label
+                >Taux dégressif<input
+                  name="defaultDecliningRate"
+                  placeholder="0.30000"
+              /></label>
+            </div>
+            <button class="primary">Créer la catégorie</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="fixedAssetCategories"
+            >
+              Charger les catégories
+            </button>
+            <div class="results" id="fixedAssetCategoriesList"></div>
+          </form>
+
+          <form class="panel wide" id="fixedAssetForm">
+            <h2>Nouvelle immobilisation</h2>
+            <p>
+              Le plan comptable et le plan fiscal sont calculés séparément, en
+              millimes, à partir de la date de mise en service.
+            </p>
+            <div class="fields">
+              <label
+                >Catégorie<select
+                  name="categoryId"
+                  id="fixedAssetCategorySelect"
+                ></select
+              ></label>
+              <label>Code<input name="code" value="IMMO-2026-001" /></label>
+              <label
+                >Désignation<input name="name" value="Ordinateur portable"
+              /></label>
+              <label
+                >Date d’acquisition<input
+                  name="acquisitionDate"
+                  type="date"
+                  value="2026-01-01"
+              /></label>
+              <label
+                >Mise en service<input
+                  name="serviceDate"
+                  type="date"
+                  value="2026-01-01"
+              /></label>
+              <label
+                >Facture d’achat<select
+                  name="purchaseInvoiceId"
+                  id="fixedAssetPurchaseInvoiceSelect"
+                ></select
+              ></label>
+              <label
+                >Fournisseur<select
+                  name="supplierId"
+                  id="fixedAssetSupplierSelect"
+                ></select
+              ></label>
+              <label
+                >Coût d’acquisition<input
+                  name="acquisitionCost"
+                  value="1200.000"
+              /></label>
+              <label
+                >Valeur résiduelle<input name="residualValue" value="0.000"
+              /></label>
+              <label
+                >Méthode comptable<select name="accountingMethod">
+                  <option value="LINEAIRE">Linéaire</option>
+                  <option value="DEGRESSIF">Dégressif</option>
+                </select></label
+              >
+              <label
+                >Durée comptable (mois)<input
+                  name="usefulLifeMonths"
+                  type="number"
+                  value="12"
+              /></label>
+              <label
+                >Taux comptable dégressif<input
+                  name="accountingDecliningRate"
+                  placeholder="0.30000"
+              /></label>
+              <label
+                >Méthode fiscale<select name="fiscalMethod">
+                  <option value="LINEAIRE">Linéaire</option>
+                  <option value="DEGRESSIF">Dégressif</option>
+                </select></label
+              >
+              <label
+                >Durée fiscale (mois)<input
+                  name="fiscalUsefulLifeMonths"
+                  type="number"
+                  value="24"
+              /></label>
+              <label
+                >Taux fiscal dégressif<input
+                  name="fiscalDecliningRate"
+                  placeholder="0.30000"
+              /></label>
+            </div>
+            <label
+              >Description<textarea name="description" rows="2"></textarea>
+            </label>
+            <button class="primary">Créer l’immobilisation</button>
+          </form>
+
+          <div class="panel wide">
+            <h2>Plan et dotations d’amortissement</h2>
+            <label>Immobilisation<select id="fixedAssetSelect"></select></label>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="fixedAssets"
+            >
+              Charger
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="fixedAssetDetail"
+            >
+              Voir le plan
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="fixedAssetSchedule"
+            >
+              Générer le plan
+            </button>
+            <div class="results" id="fixedAssetsList"></div>
+            <h3>Dotation sélectionnée</h3>
+            <div class="fields">
+              <label
+                >Période<select id="fixedAssetPeriodSelect"></select
+              ></label>
+              <label
+                >Journal OD<select id="fixedAssetJournalSelect"></select
+              ></label>
+            </div>
+            <button
+              type="button"
+              class="primary action"
+              data-action="fixedAssetPostDepreciation"
+            >
+              Comptabiliser la dotation
+            </button>
+            <div class="results" id="fixedAssetPeriodsList"></div>
+
+            <h3>Rapport annuel et clôture</h3>
+            <div class="fields">
+              <label
+                >Exercice<input
+                  id="fixedAssetReportYear"
+                  type="number"
+                  value="2026"
+              /></label>
+            </div>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="fixedAssetReport"
+            >
+              Rapport comptable / fiscal
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="fixedAssetValidateYear"
+            >
+              Clôturer l’exercice
+            </button>
+            <div class="results" id="fixedAssetReportList"></div>
+          </div>
+
+          <form class="panel" id="fixedAssetDisposalForm">
+            <h2>Sortie ou cession</h2>
+            <p>
+              La sortie génère l’écriture de solde et calcule automatiquement la
+              plus-value ou la moins-value comptable.
+            </p>
+            <label
+              >Date de sortie<input
+                name="disposalDate"
+                type="date"
+                value="2027-01-15"
+            /></label>
+            <label
+              >Prix de cession<input name="proceeds" value="0.000"
+            /></label>
+            <label
+              >Journal OD<select
+                name="journalId"
+                id="fixedAssetDisposalJournalSelect"
+              ></select
+            ></label>
+            <label
+              >Compte de règlement<select
+                name="settlementAccountId"
+                id="fixedAssetSettlementAccountSelect"
+              ></select
+            ></label>
+            <label
+              >Compte de plus-value<select
+                name="gainAccountId"
+                id="fixedAssetGainAccountSelect"
+              ></select
+            ></label>
+            <label
+              >Compte de moins-value<select
+                name="lossAccountId"
+                id="fixedAssetLossAccountSelect"
+              ></select
+            ></label>
+            <button class="primary">Enregistrer la sortie</button>
+          </form>
+
+          <form class="panel wide" id="businessInvoiceForm">
+            <h2>Factures d’achat et de vente</h2>
+            <p>
+              Le backend calcule les lignes, la TVA, le timbre et la retenue. La
+              validation génère automatiquement une écriture comptable.
+            </p>
+            <div class="fields">
+              <label
+                >Type<select name="type">
+                  <option value="VENTE">Vente</option>
+                  <option value="ACHAT">Achat</option>
+                </select></label
+              >
+              <label
+                >Document<select name="kind">
+                  <option value="FACTURE">Facture</option>
+                  <option value="AVOIR">Avoir</option>
+                </select></label
+              >
+              <label>Numéro<input name="number" value="FV-2026-001" /></label>
+              <label
+                >Date<input name="invoiceDate" type="date" value="2026-07-16"
+              /></label>
+              <label
+                >Échéance<input name="dueDate" type="date" value="2026-08-16"
+              /></label>
+              <label
+                >Tiers enregistré<select
+                  name="thirdPartyId"
+                  id="businessInvoiceThirdPartySelect"
+                ></select
+              ></label>
+              <label
+                >Nom affiché<input name="thirdPartyName" value="Client Démo"
+              /></label>
+              <label
+                >Facture originale<select
+                  name="originalInvoiceId"
+                  id="businessInvoiceOriginalSelect"
+                ></select
+              ></label>
+              <label
+                >Journal<select
+                  name="journalId"
+                  id="businessInvoiceJournalSelect"
+                ></select
+              ></label>
+              <label
+                >Compte tiers<select
+                  name="thirdPartyAccountId"
+                  id="businessInvoiceThirdPartyAccount"
+                ></select
+              ></label>
+              <label
+                >Compte produit/charge<select
+                  name="lineAccountId"
+                  id="businessInvoiceLineAccount"
+                ></select
+              ></label>
+              <label
+                >Description<input name="lineDescription" value="Prestation"
+              /></label>
+              <label>Quantité<input name="quantity" value="1.000" /></label>
+              <label
+                >Prix unitaire HT<input name="unitPrice" value="1000.000"
+              /></label>
+              <label>Remise<input name="discountRate" value="0.00000" /></label>
+              <label>Code TVA<input name="vatCode" value="TVA19" /></label>
+              <label
+                >Compte TVA<select
+                  name="vatAccountId"
+                  id="businessInvoiceVatAccount"
+                ></select
+              ></label>
+              <label
+                >Compte timbre<select
+                  name="stampAccountId"
+                  id="businessInvoiceStampAccount"
+                ></select
+              ></label>
+              <label
+                >Nature retenue<input
+                  name="withholdingNature"
+                  placeholder="HONORAIRES"
+              /></label>
+              <label
+                >Compte retenue<select
+                  name="withholdingAccountId"
+                  id="businessInvoiceWithholdingAccount"
+                ></select
+              ></label>
+            </div>
+            <button class="primary">Calculer et créer</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="businessInvoices"
+            >
+              Charger
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="businessInvoiceValidate"
+            >
+              Valider et générer l’écriture
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="businessInvoicePost"
+            >
+              Comptabiliser
+            </button>
+            <div class="results" id="businessInvoicesList"></div>
+          </form>
+
+          <form class="panel" id="documentForm">
+            <h2>Documents</h2>
+            <label>Fichier<input name="file" type="file" required /></label>
+            <label
+              >Catégorie<select name="category">
+                <option value="BOITE_RECEPTION">Boîte de réception</option>
+                <option value="FACTURES_ACHATS">Factures achats</option>
+                <option value="FACTURES_VENTES">Factures ventes</option>
+                <option value="RELEVES_BANCAIRES">Relevés bancaires</option>
+                <option value="DECLARATIONS">Déclarations</option>
+                <option value="PAIE">Paie</option>
+                <option value="DIVERS">Divers</option>
+              </select></label
+            >
+            <div class="fields">
+              <label
+                >Année<input name="periodYear" type="number" value="2026"
+              /></label>
+              <label
+                >Mois<input
+                  name="periodMonth"
+                  type="number"
+                  min="1"
+                  max="12"
+                  value="7"
+              /></label>
+            </div>
+            <button class="primary">Téléverser</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="documents"
+            >
+              Charger
+            </button>
+            <div class="results" id="documentsList"></div>
+          </form>
+
+          <div class="panel wide">
+            <h2>Verrouillage des périodes comptables</h2>
+            <p>
+              Une période verrouillée refuse les nouvelles écritures provenant
+              de tous les modules. Seul le propriétaire peut la rouvrir avant la
+              clôture annuelle.
+            </p>
+            <div class="fields">
+              <label
+                >Année<input id="closingPeriodYear" type="number" value="2025"
+              /></label>
+              <label
+                >Mois<select id="closingPeriodMonth">
+                  <option value="1">Janvier</option>
+                  <option value="2">Février</option>
+                  <option value="3">Mars</option>
+                  <option value="4">Avril</option>
+                  <option value="5">Mai</option>
+                  <option value="6">Juin</option>
+                  <option value="7">Juillet</option>
+                  <option value="8">Août</option>
+                  <option value="9">Septembre</option>
+                  <option value="10">Octobre</option>
+                  <option value="11">Novembre</option>
+                  <option value="12">Décembre</option>
+                </select></label
+              >
+              <label
+                >Note ou motif<input
+                  id="closingPeriodNote"
+                  value="Contrôles mensuels terminés"
+              /></label>
+            </div>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="closingPeriods"
+            >
+              Charger les périodes
+            </button>
+            <button
+              type="button"
+              class="primary action"
+              data-action="closingPeriodLock"
+            >
+              Verrouiller le mois
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="closingPeriodReopen"
+            >
+              Rouvrir le mois
+            </button>
+            <div class="results" id="closingPeriodsList"></div>
+          </div>
+
+          <form class="panel wide" id="closingAdjustmentForm">
+            <h2>Écriture de régularisation</h2>
+            <p>
+              Crée une écriture comptabilisée et, si nécessaire, son extourne
+              automatique au début de la période suivante.
+            </p>
+            <div class="fields">
+              <label
+                >Nature<select name="type">
+                  <option value="CHARGE_A_PAYER">Charge à payer</option>
+                  <option value="PRODUIT_A_RECEVOIR">Produit à recevoir</option>
+                  <option value="CHARGE_CONSTATEE_AVANCE">
+                    Charge constatée d’avance
+                  </option>
+                  <option value="PRODUIT_CONSTATE_AVANCE">
+                    Produit constaté d’avance
+                  </option>
+                  <option value="PROVISION">Provision</option>
+                  <option value="AUTRE">Autre</option>
+                </select></label
+              >
+              <label
+                >Date<input name="entryDate" type="date" value="2025-12-31"
+              /></label>
+              <label
+                >Date d’extourne<input
+                  name="reversalDate"
+                  type="date"
+                  value="2026-01-01"
+              /></label>
+              <label
+                >Journal OD<select
+                  name="journalId"
+                  id="closingAdjustmentJournalSelect"
+                ></select
+              ></label>
+              <label
+                >Compte débité<select
+                  name="debitAccountId"
+                  id="closingAdjustmentDebitAccountSelect"
+                ></select
+              ></label>
+              <label
+                >Compte crédité<select
+                  name="creditAccountId"
+                  id="closingAdjustmentCreditAccountSelect"
+                ></select
+              ></label>
+              <label>Montant<input name="amount" value="100.000" /></label>
+            </div>
+            <label
+              >Description<input
+                name="description"
+                value="Charge à rattacher à l’exercice"
+            /></label>
+            <button class="primary">Comptabiliser la régularisation</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="closingAdjustments"
+            >
+              Charger les régularisations
+            </button>
+            <div class="results" id="closingAdjustmentsList"></div>
+          </form>
+
+          <div class="panel wide">
+            <h2>Clôture annuelle et report à nouveau</h2>
+            <p>
+              Tous les mois de l’exercice doivent être verrouillés. Le backend
+              solde les comptes de charges et produits, calcule le résultat et
+              crée l’écriture d’ouverture suivante.
+            </p>
+            <div class="fields">
+              <label
+                >Exercice commençant en<input
+                  id="closingYear"
+                  type="number"
+                  value="2025"
+              /></label>
+              <label
+                >Journal de clôture<select id="closingJournalSelect"></select
+              ></label>
+              <label
+                >Journal d’ouverture<select id="openingJournalSelect"></select
+              ></label>
+              <label
+                >Compte de résultat<select
+                  id="closingResultAccountSelect"
+                ></select
+              ></label>
+            </div>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="closingYearReadiness"
+            >
+              Vérifier les prérequis
+            </button>
+            <button
+              type="button"
+              class="primary action"
+              data-action="closingYearClose"
+            >
+              Clôturer et générer les à-nouveaux
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="closingYears"
+            >
+              Historique des clôtures
+            </button>
+            <div class="results" id="closingYearReadinessList"></div>
+            <div class="results" id="closingYearsList"></div>
+          </div>
+
+          <div class="panel wide">
+            <h2>États financiers tunisiens · NC 01</h2>
+            <p>
+              Génère le bilan, l’état de résultat et l’état des flux de
+              trésorerie avec comparaison N / N-1. Le mapping automatique est
+              adaptable compte par compte selon l’activité du client.
+            </p>
+            <div class="fields">
+              <label
+                >Exercice commençant en<input
+                  id="financialStatementYear"
+                  type="number"
+                  value="2025"
+              /></label>
+              <label
+                >Compte à configurer<select
+                  id="financialMappingAccountSelect"
+                ></select
+              ></label>
+              <label
+                >Rubrique NC 01<select id="financialStatementSection">
+                  <option value="">Non classé</option>
+                  <optgroup label="Bilan · Actifs">
+                    <option value="BILAN_IMMOB_INCORPORELLES">
+                      Immobilisations incorporelles
+                    </option>
+                    <option value="BILAN_IMMOB_CORPORELLES">
+                      Immobilisations corporelles
+                    </option>
+                    <option value="BILAN_IMMOB_FINANCIERES">
+                      Immobilisations financières
+                    </option>
+                    <option value="BILAN_AUTRES_ACTIFS_NON_COURANTS">
+                      Autres actifs non courants
+                    </option>
+                    <option value="BILAN_STOCKS">Stocks</option>
+                    <option value="BILAN_CLIENTS">
+                      Clients et comptes rattachés
+                    </option>
+                    <option value="BILAN_AUTRES_ACTIFS_COURANTS">
+                      Autres actifs courants
+                    </option>
+                    <option value="BILAN_PLACEMENTS_COURT_TERME">
+                      Placements à court terme
+                    </option>
+                    <option value="BILAN_LIQUIDITES">
+                      Liquidités et équivalents
+                    </option>
+                  </optgroup>
+                  <optgroup label="Bilan · Capitaux propres et passifs">
+                    <option value="BILAN_CAPITAL">Capital social</option>
+                    <option value="BILAN_RESERVES">Réserves</option>
+                    <option value="BILAN_AUTRES_CAPITAUX_PROPRES">
+                      Autres capitaux propres
+                    </option>
+                    <option value="BILAN_RESULTATS_REPORTES">
+                      Résultats reportés
+                    </option>
+                    <option value="BILAN_RESULTAT_EXERCICE">
+                      Résultat de l’exercice
+                    </option>
+                    <option value="BILAN_EMPRUNTS">Emprunts</option>
+                    <option value="BILAN_AUTRES_PASSIFS_NON_COURANTS">
+                      Autres passifs non courants
+                    </option>
+                    <option value="BILAN_PROVISIONS">Provisions</option>
+                    <option value="BILAN_FOURNISSEURS">Fournisseurs</option>
+                    <option value="BILAN_AUTRES_PASSIFS_COURANTS">
+                      Autres passifs courants
+                    </option>
+                    <option value="BILAN_CONCOURS_BANCAIRES">
+                      Concours bancaires
+                    </option>
+                  </optgroup>
+                  <optgroup label="État de résultat">
+                    <option value="RESULTAT_REVENUS">Revenus</option>
+                    <option value="RESULTAT_AUTRES_PRODUITS_EXPLOITATION">
+                      Autres produits d’exploitation
+                    </option>
+                    <option value="RESULTAT_PRODUCTION_IMMOBILISEE">
+                      Production immobilisée
+                    </option>
+                    <option value="RESULTAT_VARIATION_STOCKS">
+                      Variation des stocks
+                    </option>
+                    <option value="RESULTAT_ACHATS_MARCHANDISES">
+                      Achats de marchandises
+                    </option>
+                    <option value="RESULTAT_ACHATS_APPROVISIONNEMENTS">
+                      Achats d’approvisionnements
+                    </option>
+                    <option value="RESULTAT_CHARGES_PERSONNEL">
+                      Charges de personnel
+                    </option>
+                    <option value="RESULTAT_DOTATIONS">Dotations</option>
+                    <option value="RESULTAT_AUTRES_CHARGES_EXPLOITATION">
+                      Autres charges d’exploitation
+                    </option>
+                    <option value="RESULTAT_CHARGES_FINANCIERES">
+                      Charges financières
+                    </option>
+                    <option value="RESULTAT_PRODUITS_PLACEMENTS">
+                      Produits des placements
+                    </option>
+                    <option value="RESULTAT_AUTRES_GAINS_ORDINAIRES">
+                      Autres gains ordinaires
+                    </option>
+                    <option value="RESULTAT_AUTRES_PERTES_ORDINAIRES">
+                      Autres pertes ordinaires
+                    </option>
+                    <option value="RESULTAT_IMPOT_BENEFICES">
+                      Impôt sur les bénéfices
+                    </option>
+                    <option value="RESULTAT_ELEMENTS_EXTRAORDINAIRES">
+                      Éléments extraordinaires
+                    </option>
+                    <option value="RESULTAT_MODIFICATIONS_COMPTABLES">
+                      Modifications comptables
+                    </option>
+                  </optgroup>
+                </select></label
+              >
+              <label
+                >Catégorie de flux<select id="financialCashFlowCategory">
+                  <option value="">Non classé</option>
+                  <option value="TRESORERIE">Compte de trésorerie</option>
+                  <option value="EXPLOITATION_CLIENTS">
+                    Encaissements clients
+                  </option>
+                  <option value="EXPLOITATION_FOURNISSEURS_PERSONNEL">
+                    Fournisseurs et personnel
+                  </option>
+                  <option value="EXPLOITATION_INTERETS">Intérêts payés</option>
+                  <option value="EXPLOITATION_IMPOT_BENEFICES">
+                    Impôt sur les bénéfices
+                  </option>
+                  <option value="EXPLOITATION_AUTRE">
+                    Autre flux d’exploitation
+                  </option>
+                  <option value="INVESTISSEMENT_IMMOB_CORP_INCORP">
+                    Immobilisations corporelles/incorporelles
+                  </option>
+                  <option value="INVESTISSEMENT_IMMOB_FINANCIERES">
+                    Immobilisations financières
+                  </option>
+                  <option value="FINANCEMENT_CAPITAUX_PROPRES">
+                    Capitaux propres
+                  </option>
+                  <option value="FINANCEMENT_DIVIDENDES">Dividendes</option>
+                  <option value="FINANCEMENT_EMPRUNTS">Emprunts</option>
+                  <option value="EFFET_CHANGE">Effet de change</option>
+                </select></label
+              >
+            </div>
+            <small id="financialMappingSource"
+              >Chargez le mapping du dossier.</small
+            >
+            <div>
+              <button
+                type="button"
+                class="secondary action"
+                data-action="financialMappings"
+              >
+                Charger le mapping
+              </button>
+              <button
+                type="button"
+                class="secondary action"
+                data-action="financialMappingDefaults"
+              >
+                Appliquer les valeurs NC 01
+              </button>
+              <button
+                type="button"
+                class="secondary action"
+                data-action="financialMappingSave"
+              >
+                Enregistrer ce compte
+              </button>
+              <button
+                type="button"
+                class="primary action"
+                data-action="financialStatement"
+              >
+                Générer les états
+              </button>
+              <button
+                type="button"
+                class="primary action"
+                data-action="financialStatementFinalize"
+              >
+                Valider et figer
+              </button>
+              <button
+                type="button"
+                class="secondary action"
+                data-action="financialStatementPdf"
+              >
+                Télécharger PDF
+              </button>
+              <button
+                type="button"
+                class="secondary action"
+                data-action="financialStatementXlsx"
+              >
+                Télécharger Excel
+              </button>
+              <button
+                type="button"
+                class="secondary action"
+                data-action="financialSnapshots"
+              >
+                Historique des versions
+              </button>
+            </div>
+            <div class="results" id="financialStatementsList"></div>
+            <div class="results" id="financialSnapshotsList"></div>
+            <details>
+              <summary>Voir le mapping de tous les comptes</summary>
+              <div class="results" id="financialMappingsList"></div>
+            </details>
+            <hr />
+            <h3>Notes aux états financiers · Annexes NC 01</h3>
+            <p>
+              Les tableaux des immobilisations, tiers, taxes, paie et
+              provisions sont alimentés automatiquement. Complétez les
+              commentaires obligatoires, joignez les justificatifs puis
+              envoyez les annexes au propriétaire pour validation.
+            </p>
+            <div class="fields">
+              <label
+                >Commentaire du réviseur<input
+                  id="financialNotesReviewComment"
+                  placeholder="Correction demandée ou motif de réouverture"
+              /></label>
+              <label
+                >Statut des annexes<input
+                  id="financialNotesStatus"
+                  value="Non générées"
+                  readonly
+              /></label>
+            </div>
+            <div>
+              <button
+                type="button"
+                class="secondary action"
+                data-action="financialNotesGenerate"
+              >
+                Générer / actualiser
+              </button>
+              <button
+                type="button"
+                class="secondary action"
+                data-action="financialNotesLoad"
+              >
+                Charger les annexes
+              </button>
+              <button
+                type="button"
+                class="primary action"
+                data-action="financialNotesSubmit"
+              >
+                Envoyer en révision
+              </button>
+              <button
+                type="button"
+                class="secondary action"
+                data-action="financialNotesReject"
+              >
+                Rejeter avec commentaire
+              </button>
+              <button
+                type="button"
+                class="primary action"
+                data-action="financialNotesValidate"
+              >
+                Valider les annexes
+              </button>
+              <button
+                type="button"
+                class="secondary action"
+                data-action="financialNotesReopen"
+              >
+                Rouvrir
+              </button>
+            </div>
+            <div
+              class="results financial-notes"
+              id="financialNotesSections"
+            ></div>
+          </div>
+
+          <article class="panel">
+            <h2>Notifications</h2>
+            <button class="primary action" data-action="notifications">
+              Mes notifications
+            </button>
+            <button class="secondary action" data-action="scanNotifications">
+              Scanner les échéances
+            </button>
+            <div class="results" id="notificationsList"></div>
+          </article>
+
+          <form class="panel wide" id="declarationForm">
+            <h2>Déclaration mensuelle</h2>
+            <div class="fields">
+              <label
+                >Année<input name="periodYear" type="number" value="2026"
+              /></label>
+              <label
+                >Mois<input
+                  name="periodMonth"
+                  type="number"
+                  min="1"
+                  max="12"
+                  value="7"
+              /></label>
+              <label
+                >TVA collectée<input name="vatCollected" value="1000.000"
+              /></label>
+              <label
+                >TVA déductible<input name="vatDeductible" value="300.000"
+              /></label>
+              <label
+                >Report TVA<input name="vatCreditPrevious" value="0.000"
+              /></label>
+              <label
+                >Retenue à la source<input name="withholdingTax" value="50.000"
+              /></label>
+              <label
+                >Base de retenue<input
+                  name="withholdingBase"
+                  placeholder="1000.000"
+              /></label>
+              <label
+                >Nature de retenue<input
+                  name="withholdingNature"
+                  placeholder="HONORAIRES"
+              /></label>
+              <label>Base TFP<input name="tfpBase" value="10000.000" /></label>
+              <label
+                >Taux TFP<input name="tfpRate" placeholder="Automatique"
+              /></label>
+              <label
+                >Base FOPROLOS<input name="foprolosBase" value="10000.000"
+              /></label>
+              <label
+                >Taux FOPROLOS<input
+                  name="foprolosRate"
+                  placeholder="Automatique"
+              /></label>
+              <label>Base TCL<input name="tclBase" value="10000.000" /></label>
+              <label
+                >Taux TCL<input name="tclRate" placeholder="Automatique"
+              /></label>
+              <label
+                >Timbre<input name="stampDuty" placeholder="Automatique"
+              /></label>
+            </div>
+            <button class="primary">Calculer et enregistrer</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="declarations"
+            >
+              Charger
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="declarationReview"
+            >
+              Envoyer en révision
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="declarationValidate"
+            >
+              Valider
+            </button>
+            <div class="results" id="declarationsList"></div>
+          </form>
+
+          <form class="panel" id="journalForm">
+            <h2>Journaux</h2>
+            <label>Code<input name="code" value="VT" /></label>
+            <label>Nom<input name="name" value="Journal des ventes" /></label>
+            <label
+              >Type<select name="type">
+                <option value="VENTES">Ventes</option>
+                <option value="ACHATS">Achats</option>
+                <option value="BANQUE">Banque</option>
+                <option value="CAISSE">Caisse</option>
+                <option value="OPERATIONS_DIVERSES">Opérations diverses</option>
+                <option value="PAIE">Paie</option>
+              </select></label
+            >
+            <button class="primary">Créer</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="journals"
+            >
+              Charger
+            </button>
+            <div class="results" id="journalsList"></div>
+          </form>
+
+          <form class="panel wide" id="entryForm">
+            <h2>Écriture équilibrée</h2>
+            <div class="fields">
+              <label
+                >Journal<select name="journalId" id="journalSelect"></select
+              ></label>
+              <label
+                >Date<input name="entryDate" type="date" value="2026-07-16"
+              /></label>
+              <label
+                >Référence<input name="pieceReference" value="PIECE-001"
+              /></label>
+              <label
+                >Compte débit<select
+                  name="debitAccountId"
+                  id="debitAccountSelect"
+                ></select
+              ></label>
+              <label
+                >Compte crédit<select
+                  name="creditAccountId"
+                  id="creditAccountSelect"
+                ></select
+              ></label>
+              <label>Montant<input name="amount" value="1000.000" /></label>
+            </div>
+            <label
+              >Description<input
+                name="description"
+                value="Écriture de démonstration"
+            /></label>
+            <button class="primary">Créer le brouillon</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="entries"
+            >
+              Charger
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="entryPost"
+            >
+              Comptabiliser
+            </button>
+            <div class="results" id="entriesList"></div>
+          </form>
+
+          <article class="panel">
+            <h2>Rapports</h2>
+            <button class="primary action" data-action="trialBalance">
+              Balance générale
+            </button>
+            <button class="secondary action" data-action="generalLedger">
+              Grand livre
+            </button>
+            <button class="secondary action" data-action="financialSummary">
+              Bilan et résultat
+            </button>
+            <div class="results" id="reportsList"></div>
+          </article>
+
+          <form class="panel" id="invoiceForm">
+            <h2>Honoraires</h2>
+            <label
+              >Date<input name="issueDate" type="date" value="2026-07-16"
+            /></label>
+            <label
+              >Échéance<input name="dueDate" type="date" value="2026-07-31"
+            /></label>
+            <label
+              >Description<input name="description" value="Honoraires mensuels"
+            /></label>
+            <label>Montant HT<input name="netAmount" value="500.000" /></label>
+            <label>Taux TVA<input name="vatRate" value="0.19000" /></label>
+            <label>Timbre<input name="stampDuty" value="1.000" /></label>
+            <button class="primary">Créer la facture</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="invoices"
+            >
+              Charger
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="invoiceSend"
+            >
+              Envoyer
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="invoicePay"
+            >
+              Régler totalement
+            </button>
+            <div class="results" id="invoicesList"></div>
+          </form>
+
+          <form class="panel" id="assignmentEconomicsForm">
+            <h2>Affectation et budget temps</h2>
+            <label
+              >Collaborateur<select
+                name="membershipId"
+                id="assignmentMemberSelect"
+              ></select
+            ></label>
+            <label
+              >Rôle dossier<select name="assignmentRole">
+                <option value="RESPONSABLE">Responsable</option>
+                <option value="SUPPORT">Support</option>
+              </select></label
+            >
+            <label
+              >Budget mensuel en minutes<input
+                name="monthlyTimeBudgetMinutes"
+                type="number"
+                min="0"
+                value="1200"
+              />
+            </label>
+            <label class="check"
+              ><input name="isActive" type="checkbox" checked /> Affectation
+              active</label
+            >
+            <button class="primary">Affecter et définir le budget</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="members"
+            >
+              Charger les membres
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="assignments"
+            >
+              Voir les affectations
+            </button>
+            <div class="results" id="assignmentsList"></div>
+          </form>
+
+          <form class="panel" id="teamCostForm">
+            <h2>Rémunération et coût employeur</h2>
+            <small>Données visibles uniquement par le propriétaire.</small>
+            <label
+              >Collaborateur<select
+                name="membershipId"
+                id="teamCostMemberSelect"
+              ></select
+            ></label>
+            <label
+              >Mode<select name="compensationType">
+                <option value="MENSUELLE">Mensuel</option>
+                <option value="HORAIRE">Horaire</option>
+              </select></label
+            >
+            <label
+              >Montant versé<input name="payRateAmount" value="1500.000"
+            /></label>
+            <label
+              >Coût total employeur<input
+                name="employerCostRateAmount"
+                value="2000.000"
+            /></label>
+            <label
+              >Objectif mensuel en minutes<input
+                name="monthlyTargetMinutes"
+                type="number"
+                value="9600"
+            /></label>
+            <label
+              >Applicable depuis<input
+                name="effectiveFrom"
+                type="date"
+                value="2026-07-01"
+            /></label>
+            <label
+              >Applicable jusqu’au<input name="effectiveTo" type="date"
+            /></label>
+            <button class="primary">Enregistrer la version</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="costRates"
+            >
+              Charger les coûts
+            </button>
+            <div class="results" id="costRatesList"></div>
+          </form>
+
+          <form class="panel" id="timeEntryForm">
+            <h2>Temps passé sur le client</h2>
+            <label
+              >Date<input name="workDate" type="date" value="2026-07-19"
+            /></label>
+            <label
+              >Durée en minutes<input
+                name="durationMinutes"
+                type="number"
+                min="1"
+                max="1440"
+                value="120"
+            /></label>
+            <label
+              >Tâche facultative<select
+                name="taskId"
+                id="timeEntryTaskSelect"
+              ></select
+            ></label>
+            <label
+              >Travail réalisé<input
+                name="description"
+                value="Tenue comptable mensuelle"
+            /></label>
+            <label class="check"
+              ><input name="billable" type="checkbox" checked /> Temps
+              facturable</label
+            >
+            <button class="primary">Ajouter le temps</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="timeEntries"
+            >
+              Charger
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="timeEntrySubmit"
+            >
+              Soumettre
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="timeEntryApprove"
+            >
+              Approuver
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="timeEntryReject"
+            >
+              Rejeter
+            </button>
+            <div class="results" id="timeEntriesList"></div>
+          </form>
+
+          <form class="panel wide" id="profitabilityForm">
+            <h2>Rentabilité clients et équipe</h2>
+            <div class="fields">
+              <label
+                >Du<input name="from" type="date" value="2026-07-01"
+              /></label>
+              <label
+                >Au<input name="to" type="date" value="2026-07-31"
+              /></label>
+            </div>
+            <button class="primary">Calculer la rentabilité</button>
+            <div class="results" id="profitabilityTotals"></div>
+            <h3>Par client</h3>
+            <div class="results" id="profitabilityDossiers"></div>
+            <h3>Par collaborateur</h3>
+            <div class="results" id="profitabilityMembers"></div>
+          </form>
+
+          <form class="panel" id="employeeForm">
+            <h2>Salariés</h2>
+            <label>Nom<input name="fullName" value="Salarié Démo" /></label>
+            <label>CIN<input name="cin" value="12345678" /></label>
+            <label>CNSS<input name="cnssNumber" value="CNSS-001" /></label>
+            <label
+              >Embauche<input name="hireDate" type="date" value="2026-01-01"
+            /></label>
+            <label>Contrat<input name="contractType" value="CDI" /></label>
+            <label
+              >Salaire brut<input name="grossSalary" value="2000.000"
+            /></label>
+            <button class="primary">Ajouter</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="employees"
+            >
+              Charger
+            </button>
+            <div class="results" id="employeesList"></div>
+          </form>
+
+          <form class="panel" id="payrollForm">
+            <h2>Paie et CNSS</h2>
+            <div class="fields">
+              <label
+                >Année<input name="periodYear" type="number" value="2026"
+              /></label>
+              <label
+                >Mois<input
+                  name="periodMonth"
+                  type="number"
+                  min="1"
+                  max="12"
+                  value="7"
+              /></label>
+              <label
+                >Taux salarié<input
+                  name="employeeRate"
+                  placeholder="CNSS automatique"
+              /></label>
+              <label
+                >Taux employeur<input
+                  name="employerRate"
+                  placeholder="CNSS automatique"
+              /></label>
+              <label
+                >Taux IRPP effectif<input
+                  name="incomeTaxRate"
+                  placeholder="Barème progressif"
+              /></label>
+            </div>
+            <button class="primary">Générer</button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="payroll"
+            >
+              Charger
+            </button>
+            <button
+              type="button"
+              class="secondary action"
+              data-action="payrollValidate"
+            >
+              Valider
+            </button>
+            <div class="results" id="payrollList"></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="page" id="console">
+        <p class="kicker">Laboratoire</p>
+        <h1>Console HTTP</h1>
+        <form class="panel" id="consoleForm">
+          <label>Modèle<select id="preset"></select></label>
+          <div class="request">
+            <select id="method">
+              <option>GET</option>
+              <option>POST</option>
+              <option>PUT</option>
+              <option>PATCH</option></select
+            ><input id="path" value="/health" />
+          </div>
+          <label>Corps JSON<textarea id="body" rows="12"></textarea></label>
+          <label class="check"
+            ><input id="authenticated" type="checkbox" checked /> Ajouter le
+            JWT</label
+          >
+          <button class="primary">Envoyer</button>
+        </form>
+      </section>
+    </main>
+
+    <aside class="response" id="response">
+      <button class="close" id="close">×</button>
+      <small>RÉPONSE API</small>
+      <h2 id="responseTitle">En attente</h2>
+      <div id="responseMeta">—</div>
+      <pre id="responseBody">Envoyez une requête.</pre>
+    </aside>
+    <div class="toast" id="toast"></div>
+    <script src="/app.js?v=16" defer></script>
+  </body>
+</html>
