@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: accounting_nest
+      POSTGRES_USER: accounting
+      POSTGRES_PASSWORD: accounting_dev
+    ports:
+      - "5435:5432"
+    volumes:
+      - accounting_nest_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U accounting -d accounting_nest"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - accounting_nest_minio:/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  api:
+    build: .
+    environment:
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: accounting
+      DB_PASSWORD: accounting_dev
+      DB_NAME: accounting_nest
+      DB_MIGRATIONS_RUN: "true"
+      JWT_SIGNING_KEY: DEVELOPMENT-NESTJS-DO-NOT-USE-IN-PRODUCTION-CHANGE-ME-1234567890
+      JWT_ISSUER: accounting-platform
+      JWT_AUDIENCE: accounting-platform-api
+      JWT_ACCESS_MINUTES: 30
+      JWT_REFRESH_DAYS: 14
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_PUBLIC_ENDPOINT: localhost
+      MINIO_PUBLIC_PORT: 9000
+      MINIO_PUBLIC_USE_SSL: "false"
+      MINIO_REGION: us-east-1
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: accounting-documents
+      APP_PUBLIC_URL: http://127.0.0.1:5173
+      INVITATION_EXPOSE_LINK: "true"
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_SECURE: "false"
+      SMTP_FROM: Compta TN <invitations@comptatn.local>
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      mailpit:
+        condition: service_started
+
+volumes:
+  accounting_nest_postgres:
+  accounting_nest_minio:
