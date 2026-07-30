@@ -16,6 +16,7 @@
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
     "platform-admin:grant": "node dist/platform-admin/grant-platform-admin.js",
+    "audit:prod": "npm audit --omit=dev --audit-level=moderate",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "lint:fix": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
@@ -36,6 +37,7 @@
     "@nestjs/swagger": "^11.4.5",
     "@nestjs/typeorm": "^11.0.3",
     "bcryptjs": "^3.0.3",
+    "brace-expansion": "file:vendor/brace-expansion-compat",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "exceljs": "^4.4.0",
@@ -52,6 +54,11 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "typeorm": "^0.3.31"
+  },
+  "overrides": {
+    "brace-expansion": "$brace-expansion",
+    "fast-uri": "3.1.4",
+    "uuid": "11.1.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
