@@ -168,7 +168,12 @@ export class OrganizationsService {
       invitation.id,
       { email: invitation.email, role: role.name },
     );
-    await this.deliverInvitation(invitation, organization.name, role.name, rawToken);
+    await this.deliverInvitation(
+      invitation,
+      organization.name,
+      role.name,
+      rawToken,
+    );
     return this.toInvitation(invitation, role.name, rawToken);
   }
 
@@ -217,7 +222,9 @@ export class OrganizationsService {
     if (!invitation)
       throw new NotFoundException('L’invitation est introuvable.');
     if (invitation.acceptedAtUtc)
-      throw new ConflictException('Une invitation acceptÃ©e ne peut pas Ãªtre rÃ©voquÃ©e.');
+      throw new ConflictException(
+        'Une invitation acceptÃ©e ne peut pas Ãªtre rÃ©voquÃ©e.',
+      );
     if (!invitation.revokedAtUtc) {
       invitation.revokedAtUtc = new Date();
       await this.invitations.save(invitation);
@@ -433,7 +440,9 @@ export class OrganizationsService {
     } catch (error) {
       invitation.deliveryStatus = 'ECHEC';
       invitation.deliveryError =
-        error instanceof Error ? error.message.slice(0, 2000) : 'Erreur SMTP inconnue';
+        error instanceof Error
+          ? error.message.slice(0, 2000)
+          : 'Erreur SMTP inconnue';
       await this.invitations.save(invitation);
       await this.addAudit(
         invitation.organizationId,

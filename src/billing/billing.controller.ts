@@ -5,6 +5,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -41,6 +42,26 @@ export class BillingController {
     @CurrentUser() user: JwtUser,
   ) {
     return this.service.list(organizationId, dossierId, user.userId);
+  }
+
+  @Get('dossiers/:dossierId/invoices/:invoiceId/pdf')
+  @RequirePermission(PermissionNames.BillingView)
+  async pdf(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    const result = await this.service.exportPdf(
+      organizationId,
+      dossierId,
+      invoiceId,
+      user.userId,
+    );
+    return new StreamableFile(result.buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${result.filename}"`,
+    });
   }
 
   @Post('dossiers/:dossierId/invoices')

@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
   OnModuleInit,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -14,6 +15,7 @@ import {
   AccountingDocument,
   AuditLog,
   DocumentProcessingStatus,
+  MalwareScanStatus,
   MissingDocumentExpectation,
   OrganizationMembership,
 } from '../database/entities';
@@ -25,6 +27,10 @@ import {
   UpdateDocumentDto,
   UploadDocumentDto,
 } from './dto';
+import {
+  MalwareScannerService,
+  MalwareScannerUnavailableError,
+} from './malware-scanner.service';
 
 @Injectable()
 export class DocumentsService implements OnModuleInit {
@@ -43,6 +49,7 @@ export class DocumentsService implements OnModuleInit {
     @InjectRepository(OrganizationMembership)
     private readonly memberships: Repository<OrganizationMembership>,
     private readonly dossiers: DossiersService,
+    private readonly malwareScanner: MalwareScannerService,
   ) {
     this.bucket = config.get('MINIO_BUCKET', 'accounting-documents');
     this.client = new Client({
@@ -136,6 +143,55 @@ export class DocumentsService implements OnModuleInit {
     ]);
     if (!allowed.has(file.mimetype))
       throw new BadRequestException('Ce type de fichier n’est pas accepté.');
+    this.validateFileContent(file);
+
+    let malwareScanStatus = MalwareScanStatus.NotScanned;
+    let malwareScannedAtUtc: Date | null = null;
+    try {
+      const scan = await this.malwareScanner.scan(file.buffer);
+      if (scan.status === 'INFECTED') {
+        const attemptId = crypto.randomUUID();
+        await this.audit(
+          organizationId,
+          userId,
+          'document.security_scan.infected',
+          attemptId,
+          {
+            dossierId,
+            name: file.originalname,
+            signature: scan.signature,
+            stored: false,
+          },
+        );
+        throw new BadRequestException(
+          `Le fichier a été bloqué par l’antivirus (${scan.signature}).`,
+        );
+      }
+      if (scan.status === 'CLEAN') {
+        malwareScanStatus = MalwareScanStatus.Clean;
+        malwareScannedAtUtc = new Date();
+      }
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      const attemptId = crypto.randomUUID();
+      await this.audit(
+        organizationId,
+        userId,
+        'document.security_scan.failed',
+        attemptId,
+        {
+          dossierId,
+          name: file.originalname,
+          stored: false,
+        },
+      );
+      if (error instanceof MalwareScannerUnavailableError) {
+        throw new ServiceUnavailableException(
+          'Le contrôle antivirus est indisponible. Le fichier n’a pas été stocké.',
+        );
+      }
+      throw error;
+    }
 
     let version = 1;
     if (dto.replacesDocumentId) {
@@ -179,6 +235,9 @@ export class DocumentsService implements OnModuleInit {
         replacesDocumentId: dto.replacesDocumentId ?? null,
         uploadedByUserId: userId,
         isClientVisible: client ? true : (dto.isClientVisible ?? false),
+        malwareScanStatus,
+        malwareSignature: null,
+        malwareScannedAtUtc,
         deletedAtUtc: null,
       }),
     );
@@ -187,6 +246,15 @@ export class DocumentsService implements OnModuleInit {
       name: file.originalname,
       version,
     });
+    if (malwareScanStatus === MalwareScanStatus.Clean) {
+      await this.audit(
+        organizationId,
+        userId,
+        'document.security_scan.clean',
+        item.id,
+        { dossierId, name: file.originalname },
+      );
+    }
     return this.toResponse(item);
   }
 
@@ -206,8 +274,12 @@ export class DocumentsService implements OnModuleInit {
       periodYear: dto.periodYear ?? null,
       periodMonth: dto.periodMonth ?? null,
       processingStatus: client ? item.processingStatus : dto.processingStatus,
-      extractionStatus: client ? item.extractionStatus : (dto.extractionStatus ?? item.extractionStatus),
-      isClientVisible: client ? true : (dto.isClientVisible ?? item.isClientVisible),
+      extractionStatus: client
+        ? item.extractionStatus
+        : (dto.extractionStatus ?? item.extractionStatus),
+      isClientVisible: client
+        ? true
+        : (dto.isClientVisible ?? item.isClientVisible),
     });
     await this.documents.save(item);
     return this.toResponse(item);
@@ -226,6 +298,7 @@ export class DocumentsService implements OnModuleInit {
       item,
       userId,
     );
+    await this.ensureSafeForAccess(item, userId);
     return {
       url: await this.publicClient.presignedGetObject(
         this.bucket,
@@ -249,6 +322,7 @@ export class DocumentsService implements OnModuleInit {
       item,
       userId,
     );
+    await this.ensureSafeForAccess(item, userId);
     const common = {
       originalName: item.originalName,
       mimeType: item.mimeType,
@@ -380,7 +454,8 @@ export class DocumentsService implements OnModuleInit {
   ) {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     await this.ensureCabinetMember(organizationId, userId);
-    await this.find(organizationId, dossierId, documentId);
+    const document = await this.find(organizationId, dossierId, documentId);
+    await this.ensureSafeForAccess(document, userId);
     const expectation = await this.expectations.findOneBy({
       id: expectationId,
       organizationId,
@@ -425,6 +500,9 @@ export class DocumentsService implements OnModuleInit {
       replacesDocumentId: item.replacesDocumentId,
       createdAtUtc: item.createdAtUtc,
       isClientVisible: item.isClientVisible,
+      malwareScanStatus: item.malwareScanStatus,
+      malwareSignature: item.malwareSignature,
+      malwareScannedAtUtc: item.malwareScannedAtUtc,
     };
   }
 
@@ -433,7 +511,10 @@ export class DocumentsService implements OnModuleInit {
       where: { organizationId, userId, isActive: true },
       relations: { role: true },
     });
-    return membership?.role.normalizedName === SystemRoleNames.ClientPortal.toUpperCase();
+    return (
+      membership?.role.normalizedName ===
+      SystemRoleNames.ClientPortal.toUpperCase()
+    );
   }
 
   private ensureClientDocumentAccess(
@@ -468,6 +549,132 @@ export class DocumentsService implements OnModuleInit {
     return value.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-180);
   }
 
+  private validateFileContent(file: Express.Multer.File) {
+    if (!file.buffer.length || file.size <= 0) {
+      throw new BadRequestException('Le fichier est vide.');
+    }
+    if (file.originalname.length > 300) {
+      throw new BadRequestException('Le nom du fichier est trop long.');
+    }
+
+    const extension = file.originalname
+      .slice(file.originalname.lastIndexOf('.'))
+      .toLowerCase();
+    const extensionsByMime: Record<string, string[]> = {
+      'application/pdf': ['.pdf'],
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/png': ['.png'],
+      'application/vnd.ms-excel': ['.xls'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [
+        '.xlsx',
+      ],
+      'application/xml': ['.xml'],
+      'text/xml': ['.xml'],
+      'text/csv': ['.csv'],
+    };
+    if (!extensionsByMime[file.mimetype]?.includes(extension)) {
+      throw new BadRequestException(
+        'L’extension du fichier ne correspond pas à son type.',
+      );
+    }
+
+    const content = file.buffer;
+    const startsWith = (signature: number[]) =>
+      signature.every((byte, index) => content[index] === byte);
+    const valid =
+      (file.mimetype === 'application/pdf' &&
+        content.subarray(0, 5).toString('ascii') === '%PDF-') ||
+      (file.mimetype === 'image/jpeg' && startsWith([0xff, 0xd8, 0xff])) ||
+      (file.mimetype === 'image/png' &&
+        startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ||
+      (file.mimetype === 'application/vnd.ms-excel' &&
+        startsWith([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) ||
+      (file.mimetype ===
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' &&
+        startsWith([0x50, 0x4b])) ||
+      ((file.mimetype === 'application/xml' || file.mimetype === 'text/xml') &&
+        content
+          .toString('utf8', 0, Math.min(content.length, 500))
+          .trimStart()[0] === '<') ||
+      (file.mimetype === 'text/csv' && !content.includes(0));
+    if (!valid) {
+      throw new BadRequestException(
+        'Le contenu du fichier ne correspond pas au format annoncé.',
+      );
+    }
+  }
+
+  private async ensureSafeForAccess(
+    item: AccountingDocument,
+    actorUserId: string,
+  ) {
+    if (item.malwareScanStatus === MalwareScanStatus.Clean) return;
+    if (item.malwareScanStatus === MalwareScanStatus.Infected) {
+      throw new ForbiddenException(
+        'Ce fichier est bloqué car une menace a été détectée.',
+      );
+    }
+
+    try {
+      const content = await this.readObject(item.objectKey);
+      const scan = await this.malwareScanner.scan(content);
+      if (scan.status === 'DISABLED') return;
+
+      item.malwareScannedAtUtc = new Date();
+      if (scan.status === 'INFECTED') {
+        item.malwareScanStatus = MalwareScanStatus.Infected;
+        item.malwareSignature = scan.signature;
+        await this.documents.save(item);
+        try {
+          await this.client.removeObject(this.bucket, item.objectKey);
+        } catch {
+          // Database status remains the access-control source of truth.
+        }
+        await this.audit(
+          item.organizationId,
+          actorUserId,
+          'document.security_scan.infected',
+          item.id,
+          {
+            dossierId: item.dossierId,
+            name: item.originalName,
+            signature: scan.signature,
+            stored: false,
+          },
+        );
+        throw new ForbiddenException(
+          'Ce fichier est bloqué car une menace a été détectée.',
+        );
+      }
+
+      item.malwareScanStatus = MalwareScanStatus.Clean;
+      item.malwareSignature = null;
+      await this.documents.save(item);
+      await this.audit(
+        item.organizationId,
+        actorUserId,
+        'document.security_scan.clean',
+        item.id,
+        { dossierId: item.dossierId, name: item.originalName },
+      );
+    } catch (error) {
+      if (error instanceof ForbiddenException) throw error;
+      item.malwareScanStatus = MalwareScanStatus.Failed;
+      item.malwareScannedAtUtc = new Date();
+      await this.documents.save(item);
+      await this.audit(
+        item.organizationId,
+        actorUserId,
+        'document.security_scan.failed',
+        item.id,
+        { dossierId: item.dossierId, name: item.originalName },
+      );
+      throw new ServiceUnavailableException(
+        'Le contrôle antivirus est indisponible. Le document reste bloqué.',
+      );
+    }
+  }
+
   private signedUrl(item: AccountingDocument) {
     return this.publicClient.presignedGetObject(
       this.bucket,
@@ -481,7 +688,7 @@ export class DocumentsService implements OnModuleInit {
       const stream = await this.client.getObject(this.bucket, objectKey);
       const chunks: Buffer[] = [];
       for await (const chunk of stream) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        chunks.push(Buffer.from(chunk as Uint8Array));
       }
       return Buffer.concat(chunks);
     } catch {
@@ -494,8 +701,12 @@ export class DocumentsService implements OnModuleInit {
   private cellPreviewValue(value: unknown): string | number | boolean | null {
     if (value == null) return null;
     if (value instanceof Date) return value.toISOString();
-    if (['string', 'number', 'boolean'].includes(typeof value))
-      return value as string | number | boolean;
+    if (
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean'
+    )
+      return value;
     if (typeof value === 'object') {
       const candidate = value as {
         result?: unknown;
@@ -507,8 +718,12 @@ export class DocumentsService implements OnModuleInit {
       if (typeof candidate.text === 'string') return candidate.text;
       if (Array.isArray(candidate.richText))
         return candidate.richText.map((part) => part.text ?? '').join('');
+      return JSON.stringify(value);
     }
-    return String(value);
+    if (typeof value === 'bigint') return value.toString();
+    if (typeof value === 'symbol') return value.description ?? '';
+    if (typeof value === 'function') return value.name;
+    return '';
   }
 
   private audit(

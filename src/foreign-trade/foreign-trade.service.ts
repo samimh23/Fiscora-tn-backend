@@ -568,7 +568,7 @@ export class ForeignTradeService {
     });
     if (!item)
       throw new BadRequestException(
-        `Aucun taux ${currencyCode}/TND n’est disponible Ã  la date de l’opÃ©ration.`,
+        `Aucun taux ${currencyCode}/TND n’est disponible à la date de l’opération.`,
       );
     return item.rate;
   }

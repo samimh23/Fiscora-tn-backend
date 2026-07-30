@@ -93,11 +93,7 @@ export class ElectronicInvoicesService {
     return { configuration, readiness: this.readiness(dossier, configuration) };
   }
 
-  async list(
-    organizationId: string,
-    dossierId: string,
-    userId: string,
-  ) {
+  async list(organizationId: string, dossierId: string, userId: string) {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     return this.submissions.find({
       where: { organizationId, dossierId },
@@ -146,7 +142,9 @@ export class ElectronicInvoicesService {
       isEnabled: true,
     });
     if (!configuration)
-      throw new ConflictException('Configurez et activez d’abord le raccordement TTN.');
+      throw new ConflictException(
+        'Configurez et activez d’abord le raccordement TTN.',
+      );
     const invoice = await this.invoices.findOne({
       where: { id: dto.invoiceId, organizationId, dossierId },
       relations: { lines: true, thirdParty: true },
@@ -161,8 +159,11 @@ export class ElectronicInvoicesService {
       );
     const errors = this.invoiceChecks(dossier, invoice, configuration);
     if (errors.length) throw new BadRequestException(errors);
-    const existing = await this.submissions.findOneBy({ invoiceId: invoice.id });
-    if (existing && existing.status === TtnSubmissionStatus.Accepted) return existing;
+    const existing = await this.submissions.findOneBy({
+      invoiceId: invoice.id,
+    });
+    if (existing && existing.status === TtnSubmissionStatus.Accepted)
+      return existing;
     const schemaVersion = configuration.schemaVersion || ADAPTER_SCHEMA;
     const payloadXml = buildNeutralTtnPayload(dossier, invoice, schemaVersion);
     return this.submissions.save(
@@ -294,14 +295,18 @@ export class ElectronicInvoicesService {
     configuration: TtnEInvoiceConfiguration,
   ) {
     const errors: string[] = [];
-    if (!dossier.taxIdentifier) errors.push('Matricule fiscale de l’Ã©metteur manquante.');
+    if (!dossier.taxIdentifier)
+      errors.push('Matricule fiscale de l’Ã©metteur manquante.');
     if (configuration.issuerTaxIdentifier !== dossier.taxIdentifier)
-      errors.push('La matricule fiscale configurÃ©e ne correspond pas au dossier.');
+      errors.push(
+        'La matricule fiscale configurÃ©e ne correspond pas au dossier.',
+      );
     if (!invoice.thirdPartyTaxIdentifier)
       errors.push('Matricule fiscale du destinataire manquante.');
     if (!invoice.thirdParty?.address)
       errors.push('Adresse du destinataire manquante dans la fiche tiers.');
-    if (!invoice.lines.length) errors.push('La facture ne contient aucune ligne.');
+    if (!invoice.lines.length)
+      errors.push('La facture ne contient aucune ligne.');
     return errors;
   }
 
@@ -314,7 +319,8 @@ export class ElectronicInvoicesService {
       where: { id: submissionId, organizationId, dossierId },
       relations: { invoice: true },
     });
-    if (!submission) throw new NotFoundException('La transmission est introuvable.');
+    if (!submission)
+      throw new NotFoundException('La transmission est introuvable.');
     return submission;
   }
 }

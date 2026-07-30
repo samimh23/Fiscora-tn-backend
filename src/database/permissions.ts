@@ -284,15 +284,39 @@ export const permissionSeed = [
     PermissionNames.FinancialStatementsValidate,
     'Valider et figer les états financiers définitifs',
   ],
-  [PermissionNames.ForeignTradeView, 'Consulter les devises et opÃ©rations de commerce extÃ©rieur'],
-  [PermissionNames.ForeignTradeManage, 'GÃ©rer les taux, attestations et opÃ©rations de commerce extÃ©rieur'],
-  [PermissionNames.ForeignTradePost, 'Comptabiliser les opÃ©rations et Ã©carts de change'],
-  [PermissionNames.ElectronicInvoicesView, 'Consulter les factures Ã©lectroniques TTN'],
-  [PermissionNames.ElectronicInvoicesManage, 'PrÃ©parer les factures Ã©lectroniques TTN'],
-  [PermissionNames.ElectronicInvoicesSubmit, 'Transmettre ou simuler la transmission TTN'],
-  [PermissionNames.ElectronicInvoicesConfigure, 'Configurer le raccordement TTN du dossier'],
+  [
+    PermissionNames.ForeignTradeView,
+    'Consulter les devises et opÃ©rations de commerce extÃ©rieur',
+  ],
+  [
+    PermissionNames.ForeignTradeManage,
+    'GÃ©rer les taux, attestations et opÃ©rations de commerce extÃ©rieur',
+  ],
+  [
+    PermissionNames.ForeignTradePost,
+    'Comptabiliser les opÃ©rations et Ã©carts de change',
+  ],
+  [
+    PermissionNames.ElectronicInvoicesView,
+    'Consulter les factures Ã©lectroniques TTN',
+  ],
+  [
+    PermissionNames.ElectronicInvoicesManage,
+    'PrÃ©parer les factures Ã©lectroniques TTN',
+  ],
+  [
+    PermissionNames.ElectronicInvoicesSubmit,
+    'Transmettre ou simuler la transmission TTN',
+  ],
+  [
+    PermissionNames.ElectronicInvoicesConfigure,
+    'Configurer le raccordement TTN du dossier',
+  ],
   [PermissionNames.ClientPortalView, 'Accéder au portail client sécurisé'],
-  [PermissionNames.ClientPortalMessage, 'Échanger des messages dans le portail client'],
+  [
+    PermissionNames.ClientPortalMessage,
+    'Échanger des messages dans le portail client',
+  ],
 ] as const;
 
 export const SystemRoleNames = {

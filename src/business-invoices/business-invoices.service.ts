@@ -15,6 +15,10 @@ import {
   BusinessInvoiceLine,
   BusinessInvoiceStatus,
   BusinessInvoiceType,
+  CommercialDocument,
+  CommercialDocumentDirection,
+  CommercialDocumentKind,
+  CommercialDocumentStatus,
   FiscalParameterCode,
   JournalEntry,
   JournalEntryLine,
@@ -22,6 +26,7 @@ import {
   JournalType,
   LedgerAccount,
   InvoiceSettlementStatus,
+  OrganizationMembership,
   ThirdParty,
   ThirdPartyType,
 } from '../database/entities';
@@ -29,6 +34,7 @@ import { DossiersService } from '../dossiers/dossiers.service';
 import { FiscalSettingsService } from '../fiscal-settings/fiscal-settings.service';
 import { SaveBusinessInvoiceDto } from './dto';
 import { PeriodLockService } from '../period-closing/period-lock.service';
+import { SystemRoleNames } from '../database/permissions';
 
 @Injectable()
 export class BusinessInvoicesService {
@@ -44,6 +50,10 @@ export class BusinessInvoicesService {
     private readonly documents: Repository<AccountingDocument>,
     @InjectRepository(ThirdParty)
     private readonly thirdParties: Repository<ThirdParty>,
+    @InjectRepository(CommercialDocument)
+    private readonly commercialDocuments: Repository<CommercialDocument>,
+    @InjectRepository(OrganizationMembership)
+    private readonly memberships: Repository<OrganizationMembership>,
     private readonly dossiers: DossiersService,
     private readonly fiscalSettings: FiscalSettingsService,
     private readonly periodLocks: PeriodLockService,
@@ -51,8 +61,13 @@ export class BusinessInvoicesService {
 
   async list(organizationId: string, dossierId: string, userId: string) {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const isClient = await this.isClient(organizationId, userId);
     return this.invoices.find({
-      where: { organizationId, dossierId },
+      where: {
+        organizationId,
+        dossierId,
+        ...(isClient ? { status: BusinessInvoiceStatus.Posted } : {}),
+      },
       relations: {
         journal: true,
         thirdParty: true,
@@ -71,7 +86,14 @@ export class BusinessInvoicesService {
     userId: string,
   ) {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
-    return this.find(organizationId, dossierId, invoiceId);
+    const invoice = await this.find(organizationId, dossierId, invoiceId);
+    if (
+      invoice.status !== BusinessInvoiceStatus.Posted &&
+      (await this.isClient(organizationId, userId))
+    ) {
+      throw new NotFoundException('La facture est introuvable.');
+    }
+    return invoice;
   }
 
   async save(
@@ -148,6 +170,48 @@ export class BusinessInvoicesService {
       }))
     )
       throw new NotFoundException('Le document source est introuvable.');
+    const commercialSource = dto.sourceCommercialDocumentId
+      ? await this.commercialDocuments.findOne({
+          where: {
+            id: dto.sourceCommercialDocumentId,
+            organizationId,
+            dossierId,
+          },
+          relations: { lines: true },
+        })
+      : null;
+    if (dto.sourceCommercialDocumentId && !commercialSource)
+      throw new NotFoundException(
+        'Le document commercial source est introuvable.',
+      );
+    if (commercialSource) {
+      const expectedDirection =
+        dto.type === BusinessInvoiceType.Sale
+          ? CommercialDocumentDirection.Sale
+          : CommercialDocumentDirection.Purchase;
+      const expectedKind =
+        dto.type === BusinessInvoiceType.Sale
+          ? CommercialDocumentKind.DeliveryNote
+          : CommercialDocumentKind.ReceiptNote;
+      if (
+        commercialSource.direction !== expectedDirection ||
+        commercialSource.kind !== expectedKind ||
+        ![
+          CommercialDocumentStatus.Confirmed,
+          CommercialDocumentStatus.Converted,
+        ].includes(commercialSource.status)
+      )
+        throw new BadRequestException(
+          'Le document commercial ne peut pas être transformé en facture.',
+        );
+      if (
+        commercialSource.businessInvoiceId &&
+        commercialSource.businessInvoiceId !== invoiceId
+      )
+        throw new ConflictException(
+          'Ce document commercial possède déjà une facture.',
+        );
+    }
 
     const calculation = await this.calculate(organizationId, dto);
     const original =
@@ -195,6 +259,7 @@ export class BusinessInvoicesService {
         stampAccountId: dto.stampAccountId ?? null,
         withholdingAccountId: dto.withholdingAccountId ?? null,
         sourceDocumentId: dto.sourceDocumentId ?? null,
+        sourceCommercialDocumentId: dto.sourceCommercialDocumentId ?? null,
         notes: dto.notes?.trim() || null,
         ...calculation.header,
       });
@@ -210,6 +275,11 @@ export class BusinessInvoicesService {
           }),
         ),
       );
+      if (commercialSource) {
+        commercialSource.status = CommercialDocumentStatus.Converted;
+        commercialSource.businessInvoiceId = saved.id;
+        await manager.save(commercialSource);
+      }
       return manager.findOneOrFail(BusinessInvoice, {
         where: { id: saved.id },
         relations: {
@@ -607,6 +677,17 @@ export class BusinessInvoicesService {
     });
     if (!invoice) throw new NotFoundException('La facture est introuvable.');
     return invoice;
+  }
+
+  private async isClient(organizationId: string, userId: string) {
+    const membership = await this.memberships.findOne({
+      where: { organizationId, userId, isActive: true },
+      relations: { role: true },
+    });
+    return (
+      membership?.role.normalizedName ===
+      SystemRoleNames.ClientPortal.toUpperCase()
+    );
   }
 
   private moneyValue(value: string) {

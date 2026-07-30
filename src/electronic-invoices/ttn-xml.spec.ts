@@ -26,14 +26,16 @@ describe('TTN neutral payload', () => {
         grossAmount: '120.000',
         withholdingAmount: '0.000',
         netPayable: '120.000',
-        lines: [{
-          description: 'Service & support',
-          quantity: '1.000',
-          unitPrice: '100.000',
-          netAmount: '100.000',
-          vatRate: '19.00000',
-          vatAmount: '19.000',
-        }],
+        lines: [
+          {
+            description: 'Service & support',
+            quantity: '1.000',
+            unitPrice: '100.000',
+            netAmount: '100.000',
+            vatRate: '19.00000',
+            vatAmount: '19.000',
+          },
+        ],
       } as never,
       'COMPTA-TN-ADAPTER-1.0',
     );

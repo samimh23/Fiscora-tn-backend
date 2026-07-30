@@ -52,8 +52,18 @@ import { ClientPortalModule } from './client-portal/client-portal.module';
 import { ClientDocumentSharing1784353100000 } from './database/migrations/1784353100000-client-document-sharing';
 import { DossierAccountingCore1784354000000 } from './database/migrations/1784354000000-dossier-accounting-core';
 import { FinanceLaw20261784355000000 } from './database/migrations/1784355000000-finance-law-2026';
+import { PlatformAdministration1784356000000 } from './database/migrations/1784356000000-platform-administration';
+import { PlatformAdminControls1784357000000 } from './database/migrations/1784357000000-platform-admin-controls';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { UniversalAuditInterceptor } from './common/universal-audit.interceptor';
+import { PlatformAdminModule } from './platform-admin/platform-admin.module';
+import { SaasSubscriptions1784358000000 } from './database/migrations/1784358000000-saas-subscriptions';
+import { SaasSubscriptionsModule } from './saas-subscriptions/saas-subscriptions.module';
+import { DocumentMalwareScanning1784359000000 } from './database/migrations/1784359000000-document-malware-scanning';
+import { CommercialDocuments1784360000000 } from './database/migrations/1784360000000-commercial-documents';
+import { CommercialDocumentsModule } from './commercial-documents/commercial-documents.module';
+import { ClientPortalWorkspace1784361000000 } from './database/migrations/1784361000000-client-portal-workspace';
+import { MetricsModule } from './metrics/metrics.module';
 
 @Module({
   imports: [
@@ -93,6 +103,12 @@ import { UniversalAuditInterceptor } from './common/universal-audit.interceptor'
           ClientDocumentSharing1784353100000,
           DossierAccountingCore1784354000000,
           FinanceLaw20261784355000000,
+          PlatformAdministration1784356000000,
+          PlatformAdminControls1784357000000,
+          SaasSubscriptions1784358000000,
+          DocumentMalwareScanning1784359000000,
+          CommercialDocuments1784360000000,
+          ClientPortalWorkspace1784361000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,
@@ -103,6 +119,7 @@ import { UniversalAuditInterceptor } from './common/universal-audit.interceptor'
       exclude: ['/api/{*path}', '/health', '/docs/{*path}'],
     }),
     ScheduleModule.forRoot(),
+    MetricsModule,
     AuthModule,
     OrganizationsModule,
     AccountingModule,
@@ -126,6 +143,9 @@ import { UniversalAuditInterceptor } from './common/universal-audit.interceptor'
     ForeignTradeModule,
     ElectronicInvoicesModule,
     ClientPortalModule,
+    PlatformAdminModule,
+    SaasSubscriptionsModule,
+    CommercialDocumentsModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -36,7 +36,11 @@ export class ElectronicInvoicesController {
     @Param('dossierId', ParseUUIDPipe) dossierId: string,
     @CurrentUser() user: JwtUser,
   ) {
-    return this.service.getConfiguration(organizationId, dossierId, user.userId);
+    return this.service.getConfiguration(
+      organizationId,
+      dossierId,
+      user.userId,
+    );
   }
 
   @Put('configuration')
@@ -72,7 +76,11 @@ export class ElectronicInvoicesController {
     @Param('dossierId', ParseUUIDPipe) dossierId: string,
     @CurrentUser() user: JwtUser,
   ) {
-    return this.service.eligibleInvoices(organizationId, dossierId, user.userId);
+    return this.service.eligibleInvoices(
+      organizationId,
+      dossierId,
+      user.userId,
+    );
   }
 
   @Post('prepare')

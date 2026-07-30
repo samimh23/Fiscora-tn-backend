@@ -7,6 +7,7 @@ import {
   AccountingJournal,
   BusinessInvoice,
   BusinessInvoiceLine,
+  CommercialDocument,
   JournalEntry,
   JournalEntryLine,
   LedgerAccount,
@@ -28,6 +29,7 @@ import { PeriodClosingModule } from '../period-closing/period-closing.module';
     TypeOrmModule.forFeature([
       BusinessInvoice,
       BusinessInvoiceLine,
+      CommercialDocument,
       AccountingJournal,
       JournalEntry,
       JournalEntryLine,

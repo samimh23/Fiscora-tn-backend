@@ -52,6 +52,26 @@ export class RefreshDto {
 
 export class RevokeTokenDto extends RefreshDto {}
 
+export class ChangePasswordDto {
+  @IsString()
+  @IsNotEmpty()
+  currentPassword!: string;
+
+  @IsString()
+  @MinLength(10)
+  @Matches(/[A-Z]/, { message: 'Le mot de passe doit contenir une majuscule.' })
+  @Matches(/[a-z]/, { message: 'Le mot de passe doit contenir une minuscule.' })
+  @Matches(/[0-9]/, { message: 'Le mot de passe doit contenir un chiffre.' })
+  newPassword!: string;
+}
+
+export class UpdateProfileDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(160)
+  fullName!: string;
+}
+
 export class AcceptInvitationDto {
   @IsString()
   @IsNotEmpty()

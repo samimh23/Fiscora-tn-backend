@@ -124,6 +124,10 @@ export class SaveBusinessInvoiceDto {
   sourceDocumentId?: string;
 
   @IsOptional()
+  @IsUUID()
+  sourceCommercialDocumentId?: string;
+
+  @IsOptional()
   @IsString()
   notes?: string;
 

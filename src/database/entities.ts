@@ -47,8 +47,20 @@ export class User extends AuditableEntity {
   @Column({ name: 'is_active', default: true })
   isActive!: boolean;
 
+  @Column({ name: 'disabled_at_utc', type: 'timestamptz', nullable: true })
+  disabledAtUtc!: Date | null;
+
+  @Column({ name: 'disabled_reason', type: 'text', nullable: true })
+  disabledReason!: string | null;
+
+  @Column({ name: 'disabled_by_user_id', type: 'uuid', nullable: true })
+  disabledByUserId!: string | null;
+
   @Column({ name: 'email_verified', default: false })
   emailVerified!: boolean;
+
+  @Column({ name: 'is_platform_admin', default: false })
+  isPlatformAdmin!: boolean;
 
   @Column({ name: 'last_login_at_utc', type: 'timestamptz', nullable: true })
   lastLoginAtUtc!: Date | null;
@@ -72,6 +84,15 @@ export class Organization extends AuditableEntity {
   @Column({ name: 'is_active', default: true })
   isActive!: boolean;
 
+  @Column({ name: 'suspended_at_utc', type: 'timestamptz', nullable: true })
+  suspendedAtUtc!: Date | null;
+
+  @Column({ name: 'suspension_reason', type: 'text', nullable: true })
+  suspensionReason!: string | null;
+
+  @Column({ name: 'suspended_by_user_id', type: 'uuid', nullable: true })
+  suspendedByUserId!: string | null;
+
   @OneToMany(() => Role, (role) => role.organization)
   roles!: Role[];
 
@@ -80,6 +101,185 @@ export class Organization extends AuditableEntity {
     (membership) => membership.organization,
   )
   memberships!: OrganizationMembership[];
+}
+
+export enum SaasBillingCycle {
+  Monthly = 'MENSUEL',
+  Annual = 'ANNUEL',
+}
+
+export enum SaasSubscriptionStatus {
+  Trialing = 'ESSAI',
+  Active = 'ACTIF',
+  PastDue = 'IMPAYE',
+  Suspended = 'SUSPENDU',
+  Cancelled = 'ANNULE',
+}
+
+export enum SaasInvoiceStatus {
+  Draft = 'BROUILLON',
+  Open = 'A_PAYER',
+  Paid = 'PAYEE',
+  Void = 'ANNULEE',
+}
+
+@Entity({ schema: 'accounting', name: 'saas_plans' })
+export class SaasPlan extends AuditableEntity {
+  @Index({ unique: true })
+  @Column({ length: 50 })
+  code!: string;
+
+  @Column({ length: 120 })
+  name!: string;
+
+  @Column({ type: 'text', nullable: true })
+  description!: string | null;
+
+  @Column({
+    name: 'monthly_price_tnd',
+    type: 'numeric',
+    precision: 12,
+    scale: 3,
+  })
+  monthlyPriceTnd!: string;
+
+  @Column({
+    name: 'annual_price_tnd',
+    type: 'numeric',
+    precision: 12,
+    scale: 3,
+  })
+  annualPriceTnd!: string;
+
+  @Column({ name: 'max_collaborators', type: 'integer' })
+  maxCollaborators!: number;
+
+  @Column({ name: 'max_active_dossiers', type: 'integer' })
+  maxActiveDossiers!: number;
+
+  @Column({ name: 'max_storage_bytes', type: 'bigint' })
+  maxStorageBytes!: string;
+
+  @Column({ name: 'monthly_ocr_documents', type: 'integer' })
+  monthlyOcrDocuments!: number;
+
+  @Column({ name: 'monthly_ttn_submissions', type: 'integer' })
+  monthlyTtnSubmissions!: number;
+
+  @Column({
+    name: 'features_json',
+    type: 'jsonb',
+    default: () => "'{}'::jsonb",
+  })
+  featuresJson!: Record<string, boolean>;
+
+  @Column({ name: 'is_active', default: true })
+  isActive!: boolean;
+
+  @Column({ name: 'is_public', default: true })
+  isPublic!: boolean;
+
+  @Column({ name: 'display_order', type: 'integer', default: 0 })
+  displayOrder!: number;
+}
+
+@Entity({ schema: 'accounting', name: 'organization_subscriptions' })
+@Unique(['organizationId'])
+export class OrganizationSubscription extends AuditableEntity {
+  @Column({ name: 'organization_id', type: 'uuid' })
+  organizationId!: string;
+
+  @OneToOne(() => Organization, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'organization_id' })
+  organization!: Organization;
+
+  @Column({ name: 'plan_id', type: 'uuid' })
+  planId!: string;
+
+  @ManyToOne(() => SaasPlan, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'plan_id' })
+  plan!: SaasPlan;
+
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: SaasSubscriptionStatus.Trialing,
+  })
+  status!: SaasSubscriptionStatus;
+
+  @Column({
+    name: 'billing_cycle',
+    type: 'varchar',
+    length: 20,
+    default: SaasBillingCycle.Monthly,
+  })
+  billingCycle!: SaasBillingCycle;
+
+  @Column({ name: 'trial_ends_at_utc', type: 'timestamptz', nullable: true })
+  trialEndsAtUtc!: Date | null;
+
+  @Column({ name: 'current_period_start_utc', type: 'timestamptz' })
+  currentPeriodStartUtc!: Date;
+
+  @Column({ name: 'current_period_end_utc', type: 'timestamptz' })
+  currentPeriodEndUtc!: Date;
+
+  @Column({ name: 'grace_ends_at_utc', type: 'timestamptz', nullable: true })
+  graceEndsAtUtc!: Date | null;
+
+  @Column({ name: 'cancel_at_period_end', default: false })
+  cancelAtPeriodEnd!: boolean;
+}
+
+@Entity({ schema: 'accounting', name: 'saas_subscription_invoices' })
+export class SaasSubscriptionInvoice extends AuditableEntity {
+  @Index({ unique: true })
+  @Column({ length: 60 })
+  number!: string;
+
+  @Column({ name: 'organization_id', type: 'uuid' })
+  organizationId!: string;
+
+  @ManyToOne(() => Organization, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'organization_id' })
+  organization!: Organization;
+
+  @Column({ name: 'subscription_id', type: 'uuid' })
+  subscriptionId!: string;
+
+  @ManyToOne(() => OrganizationSubscription, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'subscription_id' })
+  subscription!: OrganizationSubscription;
+
+  @Column({ name: 'period_start_utc', type: 'timestamptz' })
+  periodStartUtc!: Date;
+
+  @Column({ name: 'period_end_utc', type: 'timestamptz' })
+  periodEndUtc!: Date;
+
+  @Column({ name: 'amount_tnd', type: 'numeric', precision: 12, scale: 3 })
+  amountTnd!: string;
+
+  @Column({ name: 'due_at_utc', type: 'timestamptz' })
+  dueAtUtc!: Date;
+
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: SaasInvoiceStatus.Draft,
+  })
+  status!: SaasInvoiceStatus;
+
+  @Column({ name: 'paid_at_utc', type: 'timestamptz', nullable: true })
+  paidAtUtc!: Date | null;
+
+  @Column({
+    name: 'payment_reference',
+    type: 'varchar',
+    length: 160,
+    nullable: true,
+  })
+  paymentReference!: string | null;
 }
 
 @Entity({ schema: 'accounting', name: 'roles' })
@@ -1233,6 +1433,13 @@ export enum ExtractionStatus {
   Validated = 'VALIDEE',
 }
 
+export enum MalwareScanStatus {
+  NotScanned = 'NON_ANALYSE',
+  Clean = 'SAIN',
+  Infected = 'INFECTE',
+  Failed = 'ERREUR',
+}
+
 @Entity({ schema: 'accounting', name: 'accounting_documents' })
 @Index(['organizationId', 'dossierId', 'periodYear', 'periodMonth'])
 @Index(['organizationId', 'category', 'processingStatus'])
@@ -1300,6 +1507,29 @@ export class AccountingDocument extends AuditableEntity {
 
   @Column({ name: 'extracted_data', type: 'jsonb', nullable: true })
   extractedData!: Record<string, unknown> | null;
+
+  @Column({
+    name: 'malware_scan_status',
+    type: 'varchar',
+    length: 20,
+    default: MalwareScanStatus.NotScanned,
+  })
+  malwareScanStatus!: MalwareScanStatus;
+
+  @Column({
+    name: 'malware_signature',
+    type: 'varchar',
+    length: 300,
+    nullable: true,
+  })
+  malwareSignature!: string | null;
+
+  @Column({
+    name: 'malware_scanned_at_utc',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  malwareScannedAtUtc!: Date | null;
 
   @Column({ type: 'integer', default: 1 })
   version!: number;
@@ -2401,6 +2631,156 @@ export class ThirdParty extends AuditableEntity {
   isActive!: boolean;
 }
 
+export enum CommercialDocumentDirection {
+  Purchase = 'ACHAT',
+  Sale = 'VENTE',
+}
+
+export enum CommercialDocumentKind {
+  Quote = 'DEVIS',
+  Order = 'COMMANDE',
+  DeliveryNote = 'BON_LIVRAISON',
+  ReceiptNote = 'BON_RECEPTION',
+}
+
+export enum CommercialDocumentStatus {
+  Draft = 'BROUILLON',
+  Confirmed = 'CONFIRME',
+  Converted = 'CONVERTI',
+  Cancelled = 'ANNULE',
+}
+
+@Entity({ schema: 'accounting', name: 'commercial_documents' })
+@Unique(['dossierId', 'direction', 'kind', 'number'])
+@Index(['organizationId', 'dossierId', 'issueDate', 'kind'])
+export class CommercialDocument extends AuditableEntity {
+  @Column({ name: 'organization_id', type: 'uuid' })
+  organizationId!: string;
+
+  @Column({ name: 'dossier_id', type: 'uuid' })
+  dossierId!: string;
+
+  @ManyToOne(() => ClientDossier, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'dossier_id' })
+  dossier!: ClientDossier;
+
+  @Column({ type: 'varchar', length: 20 })
+  direction!: CommercialDocumentDirection;
+
+  @Column({ type: 'varchar', length: 30 })
+  kind!: CommercialDocumentKind;
+
+  @Column({ type: 'varchar', length: 25 })
+  status!: CommercialDocumentStatus;
+
+  @Column({ length: 80 })
+  number!: string;
+
+  @Column({ name: 'issue_date', type: 'date' })
+  issueDate!: string;
+
+  @Column({ name: 'valid_until', type: 'date', nullable: true })
+  validUntil!: string | null;
+
+  @Column({ name: 'third_party_id', type: 'uuid' })
+  thirdPartyId!: string;
+
+  @ManyToOne(() => ThirdParty, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'third_party_id' })
+  thirdParty!: ThirdParty;
+
+  @Column({ name: 'currency_code', type: 'varchar', length: 3, default: 'TND' })
+  currencyCode!: string;
+
+  @Column({ name: 'net_amount', type: 'decimal', precision: 15, scale: 3 })
+  netAmount!: string;
+
+  @Column({ name: 'vat_amount', type: 'decimal', precision: 15, scale: 3 })
+  vatAmount!: string;
+
+  @Column({ name: 'gross_amount', type: 'decimal', precision: 15, scale: 3 })
+  grossAmount!: string;
+
+  @Column({ name: 'source_document_id', type: 'uuid', nullable: true })
+  sourceDocumentId!: string | null;
+
+  @Column({ name: 'converted_to_document_id', type: 'uuid', nullable: true })
+  convertedToDocumentId!: string | null;
+
+  @Column({ name: 'business_invoice_id', type: 'uuid', nullable: true })
+  businessInvoiceId!: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  notes!: string | null;
+
+  @Column({ name: 'created_by_user_id', type: 'uuid' })
+  createdByUserId!: string;
+
+  @Column({ name: 'confirmed_by_user_id', type: 'uuid', nullable: true })
+  confirmedByUserId!: string | null;
+
+  @Column({ name: 'confirmed_at_utc', type: 'timestamptz', nullable: true })
+  confirmedAtUtc!: Date | null;
+
+  @OneToMany(() => CommercialDocumentLine, (line) => line.document)
+  lines!: CommercialDocumentLine[];
+}
+
+@Entity({ schema: 'accounting', name: 'commercial_document_lines' })
+@Index(['organizationId', 'documentId'])
+export class CommercialDocumentLine extends AuditableEntity {
+  @Column({ name: 'organization_id', type: 'uuid' })
+  organizationId!: string;
+
+  @Column({ name: 'document_id', type: 'uuid' })
+  documentId!: string;
+
+  @ManyToOne(() => CommercialDocument, (document) => document.lines, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'document_id' })
+  document!: CommercialDocument;
+
+  @Column({ name: 'account_id', type: 'uuid', nullable: true })
+  accountId!: string | null;
+
+  @ManyToOne(() => LedgerAccount, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'account_id' })
+  account!: LedgerAccount | null;
+
+  @Column({ length: 300 })
+  description!: string;
+
+  @Column({ type: 'decimal', precision: 15, scale: 3 })
+  quantity!: string;
+
+  @Column({ name: 'unit_price', type: 'decimal', precision: 15, scale: 3 })
+  unitPrice!: string;
+
+  @Column({
+    name: 'discount_rate',
+    type: 'decimal',
+    precision: 8,
+    scale: 5,
+  })
+  discountRate!: string;
+
+  @Column({ name: 'vat_code', type: 'varchar', length: 30, nullable: true })
+  vatCode!: string | null;
+
+  @Column({ name: 'vat_rate', type: 'decimal', precision: 8, scale: 5 })
+  vatRate!: string;
+
+  @Column({ name: 'net_amount', type: 'decimal', precision: 15, scale: 3 })
+  netAmount!: string;
+
+  @Column({ name: 'vat_amount', type: 'decimal', precision: 15, scale: 3 })
+  vatAmount!: string;
+
+  @Column({ name: 'gross_amount', type: 'decimal', precision: 15, scale: 3 })
+  grossAmount!: string;
+}
+
 export enum BusinessInvoiceKind {
   Invoice = 'FACTURE',
   CreditNote = 'AVOIR',
@@ -2586,6 +2966,17 @@ export class BusinessInvoice extends AuditableEntity {
 
   @Column({ name: 'source_document_id', type: 'uuid', nullable: true })
   sourceDocumentId!: string | null;
+
+  @Column({
+    name: 'source_commercial_document_id',
+    type: 'uuid',
+    nullable: true,
+  })
+  sourceCommercialDocumentId!: string | null;
+
+  @ManyToOne(() => CommercialDocument, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'source_commercial_document_id' })
+  sourceCommercialDocument!: CommercialDocument | null;
 
   @Column({ name: 'journal_entry_id', type: 'uuid', nullable: true })
   journalEntryId!: string | null;
@@ -4302,9 +4693,101 @@ export class ClientPortalMessage extends AuditableEntity {
   cabinetReadAtUtc!: Date | null;
 }
 
+export enum ClientApprovalResourceType {
+  TaxDeclaration = 'DECLARATION_FISCALE',
+  FinancialStatements = 'ETATS_FINANCIERS',
+  PayrollSummary = 'SYNTHESE_PAIE',
+  OtherDocument = 'AUTRE_DOCUMENT',
+}
+
+export enum ClientApprovalDecision {
+  Approved = 'APPROUVE',
+  Rejected = 'REJETE',
+}
+
+@Entity({ schema: 'accounting', name: 'client_portal_approvals' })
+@Unique(['dossierId', 'userId', 'resourceType', 'resourceId', 'version'])
+@Index(['organizationId', 'dossierId', 'createdAtUtc'])
+export class ClientPortalApproval extends AuditableEntity {
+  @Column({ name: 'organization_id', type: 'uuid' })
+  organizationId!: string;
+
+  @Column({ name: 'dossier_id', type: 'uuid' })
+  dossierId!: string;
+
+  @ManyToOne(() => ClientDossier, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'dossier_id' })
+  dossier!: ClientDossier;
+
+  @Column({ name: 'user_id', type: 'uuid' })
+  userId!: string;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user!: User;
+
+  @Column({ name: 'resource_type', type: 'varchar', length: 40 })
+  resourceType!: ClientApprovalResourceType;
+
+  @Column({ name: 'resource_id', type: 'varchar', length: 120 })
+  resourceId!: string;
+
+  @Column({ type: 'varchar', length: 80, default: '1' })
+  version!: string;
+
+  @Column({ length: 300 })
+  label!: string;
+
+  @Column({ type: 'varchar', length: 20 })
+  decision!: ClientApprovalDecision;
+
+  @Column({ type: 'text', nullable: true })
+  comment!: string | null;
+
+  @Column({ name: 'ip_address', type: 'varchar', length: 80, nullable: true })
+  ipAddress!: string | null;
+
+  @Column({ name: 'user_agent', type: 'varchar', length: 500, nullable: true })
+  userAgent!: string | null;
+}
+
+@Entity({ schema: 'accounting', name: 'client_notification_preferences' })
+@Unique(['userId'])
+export class ClientNotificationPreference extends AuditableEntity {
+  @Column({ name: 'user_id', type: 'uuid' })
+  userId!: string;
+
+  @OneToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user!: User;
+
+  @Column({ name: 'email_messages', default: true })
+  emailMessages!: boolean;
+
+  @Column({ name: 'email_deadlines', default: true })
+  emailDeadlines!: boolean;
+
+  @Column({ name: 'email_documents', default: true })
+  emailDocuments!: boolean;
+
+  @Column({ name: 'weekly_summary', default: true })
+  weeklySummary!: boolean;
+
+  @Column({
+    name: 'preferred_language',
+    type: 'varchar',
+    length: 5,
+    default: 'fr',
+  })
+  preferredLanguage!: string;
+}
+
 export const ENTITIES = [
   User,
   Organization,
+  SaasPlan,
+  OrganizationSubscription,
+  SaasSubscriptionInvoice,
   Role,
   Permission,
   RolePermission,
@@ -4344,6 +4827,8 @@ export const ENTITIES = [
   IncomeTaxBracket,
   RegulatoryRule,
   ThirdParty,
+  CommercialDocument,
+  CommercialDocumentLine,
   BusinessInvoice,
   BusinessInvoiceLine,
   ThirdPartyPayment,
@@ -4369,4 +4854,6 @@ export const ENTITIES = [
   TtnEInvoiceConfiguration,
   TtnEInvoiceSubmission,
   ClientPortalMessage,
+  ClientPortalApproval,
+  ClientNotificationPreference,
 ];

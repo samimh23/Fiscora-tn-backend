@@ -16,7 +16,7 @@ export class InvitationMailerService {
 
   invitationUrl(token: string) {
     const publicUrl = this.config
-      .get('APP_PUBLIC_URL', 'http://127.0.0.1:5173')
+      .get<string>('APP_PUBLIC_URL', 'http://127.0.0.1:5173')
       .replace(/\/$/, '');
     return `${publicUrl}/invitation/${encodeURIComponent(token)}`;
   }
@@ -27,7 +27,8 @@ export class InvitationMailerService {
 
   async sendInvitation(input: InvitationEmailInput) {
     const host = this.config.get<string>('SMTP_HOST');
-    if (!host) throw new Error('Le serveur SMTP n\u2019est pas configur\u00e9.');
+    if (!host)
+      throw new Error('Le serveur SMTP n\u2019est pas configur\u00e9.');
     const port = Number(this.config.get('SMTP_PORT', 587));
     const secure = this.config.get('SMTP_SECURE', 'false') === 'true';
     const user = this.config.get<string>('SMTP_USER');

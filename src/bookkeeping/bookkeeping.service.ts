@@ -857,12 +857,7 @@ export class BookkeepingService {
           { key: 'balance', label: 'Solde', width: 16 },
         ],
         load: async () =>
-          this.trialBalance(
-            organizationId,
-            dossierId,
-            userId,
-            query,
-          ) as unknown as Array<Record<string, unknown>>,
+          this.trialBalance(organizationId, dossierId, userId, query),
       },
       'general-ledger': {
         title: 'Grand livre',
@@ -878,12 +873,7 @@ export class BookkeepingService {
           { key: 'letterCode', label: 'Lettrage', width: 12 },
         ],
         load: async () =>
-          this.generalLedger(
-            organizationId,
-            dossierId,
-            userId,
-            query,
-          ) as unknown as Array<Record<string, unknown>>,
+          this.generalLedger(organizationId, dossierId, userId, query),
       },
       'aged-balance': {
         title: 'Balance auxiliaire',
@@ -894,12 +884,7 @@ export class BookkeepingService {
           { key: 'balance', label: 'Solde', width: 18 },
         ],
         load: async () =>
-          this.agedBalance(
-            organizationId,
-            dossierId,
-            userId,
-            query,
-          ) as unknown as Array<Record<string, unknown>>,
+          this.agedBalance(organizationId, dossierId, userId, query),
       },
       entries: {
         title: 'Journal des écritures',

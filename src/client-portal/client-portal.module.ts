@@ -4,12 +4,17 @@ import { AuthModule } from '../auth/auth.module';
 import { PermissionGuard } from '../common/permission.guard';
 import {
   ClientPortalMessage,
+  ClientPortalApproval,
+  ClientNotificationPreference,
   DossierAssignment,
   OrganizationMembership,
 } from '../database/entities';
 import { DossiersModule } from '../dossiers/dossiers.module';
 import { NotificationsModule } from '../notifications/notifications.module';
-import { ClientPortalController } from './client-portal.controller';
+import {
+  ClientPortalController,
+  ClientPortalPreferencesController,
+} from './client-portal.controller';
 import { ClientPortalService } from './client-portal.service';
 
 @Module({
@@ -19,11 +24,13 @@ import { ClientPortalService } from './client-portal.service';
     NotificationsModule,
     TypeOrmModule.forFeature([
       ClientPortalMessage,
+      ClientPortalApproval,
+      ClientNotificationPreference,
       DossierAssignment,
       OrganizationMembership,
     ]),
   ],
-  controllers: [ClientPortalController],
+  controllers: [ClientPortalController, ClientPortalPreferencesController],
   providers: [ClientPortalService, PermissionGuard],
 })
 export class ClientPortalModule {}

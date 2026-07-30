@@ -2,7 +2,17 @@ import { createHash } from 'node:crypto';
 import type { BusinessInvoice, ClientDossier } from '../database/entities';
 
 export function escapeXml(value: unknown) {
-  return String(value ?? '')
+  const text =
+    value === null || value === undefined
+      ? ''
+      : typeof value === 'string'
+        ? value
+        : typeof value === 'number' ||
+            typeof value === 'boolean' ||
+            typeof value === 'bigint'
+          ? value.toString()
+          : JSON.stringify(value);
+  return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

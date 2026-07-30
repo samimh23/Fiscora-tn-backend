@@ -28,10 +28,12 @@ import {
 } from '../database/permissions';
 import {
   AcceptInvitationDto,
+  ChangePasswordDto,
   LoginDto,
   RefreshDto,
   RegisterDto,
   RevokeTokenDto,
+  UpdateProfileDto,
 } from './dto';
 
 @Injectable()
@@ -238,10 +240,43 @@ export class AuthService {
       id: user.id,
       email: user.email,
       fullName: user.fullName,
+      isPlatformAdmin: user.isPlatformAdmin,
       organizations: await this.organizationSummaries(
         this.dataSource.manager,
         user.id,
       ),
+    };
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const user = await this.users.findOneByOrFail({ id: userId });
+    user.fullName = dto.fullName.trim();
+    await this.users.save(user);
+    return this.me(userId);
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.users.findOneByOrFail({ id: userId });
+    if (!(await compare(dto.currentPassword, user.passwordHash))) {
+      throw new UnauthorizedException('Le mot de passe actuel est incorrect.');
+    }
+    if (await compare(dto.newPassword, user.passwordHash)) {
+      throw new BadRequestException(
+        'Le nouveau mot de passe doit être différent du mot de passe actuel.',
+      );
+    }
+    user.passwordHash = await hash(dto.newPassword, 12);
+    await this.dataSource.transaction(async (manager) => {
+      await manager.save(user);
+      await manager.update(
+        RefreshToken,
+        { userId, revokedAtUtc: IsNull() },
+        { revokedAtUtc: new Date() },
+      );
+    });
+    return {
+      message:
+        'Mot de passe modifié. Toutes les sessions devront se reconnecter à l’expiration de leur jeton d’accès.',
     };
   }
 
@@ -302,6 +337,7 @@ export class AuthService {
         email: user.email,
         fullName: user.fullName,
         isActive: user.isActive,
+        isPlatformAdmin: user.isPlatformAdmin,
       },
       organizations: await this.organizationSummaries(manager, user.id),
     };

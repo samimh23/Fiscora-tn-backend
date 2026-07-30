@@ -37,6 +37,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException(
         'Le compte est introuvable ou désactivé.',
       );
-    return { userId: user.id, email: user.email, fullName: user.fullName };
+    return {
+      userId: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      isPlatformAdmin: user.isPlatformAdmin,
+    };
   }
 }

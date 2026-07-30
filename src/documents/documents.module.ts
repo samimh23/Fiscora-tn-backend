@@ -11,6 +11,7 @@ import {
 import { DossiersModule } from '../dossiers/dossiers.module';
 import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
+import { MalwareScannerService } from './malware-scanner.service';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { DocumentsService } from './documents.service';
     ]),
   ],
   controllers: [DocumentsController],
-  providers: [DocumentsService, PermissionGuard],
+  providers: [DocumentsService, MalwareScannerService, PermissionGuard],
   exports: [DocumentsService],
 })
 export class DocumentsModule {}

@@ -8,6 +8,19 @@ export interface ExportColumn {
   width?: number;
 }
 
+function formatExportValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+  )
+    return value.toString();
+  if (value instanceof Date) return value.toISOString();
+  return JSON.stringify(value);
+}
+
 @Injectable()
 export class BookkeepingExportService {
   async xlsx(
@@ -108,7 +121,7 @@ export class BookkeepingExportService {
           document
             .fillColor('#1c2824')
             .fontSize(7)
-            .text(String(row[column.key] ?? ''), x + 3, y + 2, {
+            .text(formatExportValue(row[column.key]), x + 3, y + 2, {
               width: widths[index] - 6,
               lineBreak: false,
             });

@@ -53,7 +53,11 @@ export class ForeignTradeController {
     @Param('dossierId', ParseUUIDPipe) dossierId: string,
     @CurrentUser() user: JwtUser,
   ) {
-    return this.service.listCertificates(organizationId, dossierId, user.userId);
+    return this.service.listCertificates(
+      organizationId,
+      dossierId,
+      user.userId,
+    );
   }
 
   @Post('dossiers/:dossierId/certificates')
@@ -64,7 +68,12 @@ export class ForeignTradeController {
     @CurrentUser() user: JwtUser,
     @Body() dto: CreateVatSuspensionCertificateDto,
   ) {
-    return this.service.createCertificate(organizationId, dossierId, user.userId, dto);
+    return this.service.createCertificate(
+      organizationId,
+      dossierId,
+      user.userId,
+      dto,
+    );
   }
 
   @Get('dossiers/:dossierId/operations')
@@ -85,7 +94,13 @@ export class ForeignTradeController {
     @CurrentUser() user: JwtUser,
     @Body() dto: SaveForeignTradeOperationDto,
   ) {
-    return this.service.saveOperation(organizationId, dossierId, null, user.userId, dto);
+    return this.service.saveOperation(
+      organizationId,
+      dossierId,
+      null,
+      user.userId,
+      dto,
+    );
   }
 
   @Put('dossiers/:dossierId/operations/:operationId')
@@ -97,7 +112,13 @@ export class ForeignTradeController {
     @CurrentUser() user: JwtUser,
     @Body() dto: SaveForeignTradeOperationDto,
   ) {
-    return this.service.saveOperation(organizationId, dossierId, operationId, user.userId, dto);
+    return this.service.saveOperation(
+      organizationId,
+      dossierId,
+      operationId,
+      user.userId,
+      dto,
+    );
   }
 
   @Post('dossiers/:dossierId/operations/:operationId/post')
@@ -108,7 +129,12 @@ export class ForeignTradeController {
     @Param('operationId', ParseUUIDPipe) operationId: string,
     @CurrentUser() user: JwtUser,
   ) {
-    return this.service.postOperation(organizationId, dossierId, operationId, user.userId);
+    return this.service.postOperation(
+      organizationId,
+      dossierId,
+      operationId,
+      user.userId,
+    );
   }
 
   @Post('dossiers/:dossierId/operations/:operationId/settle')
