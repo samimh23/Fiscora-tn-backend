@@ -269,3 +269,44 @@ Les deux backends peuvent ainsi fonctionner côte à côte.
 ## Sécurité
 
 Les secrets présents dans `.env` et `compose.yaml` sont uniquement destinés au développement. En production, utilisez des secrets longs et uniques, un gestionnaire de secrets et une connexion PostgreSQL chiffrée.
+# Cycle commercial
+
+Le dossier client dispose d'un cycle commercial relié à la comptabilité :
+
+- vente : devis → commande → bon de livraison → facture ;
+- achat : commande → bon de réception → facture ;
+- confirmation et conversion contrôlées sans ressaisie des lignes ;
+- reprise du tiers, des quantités, des prix, des remises et de la TVA ;
+- liaison unique entre la livraison/réception et la facture comptable ;
+- génération de l'écriture comptable par le workflow de facture existant.
+
+Les endpoints sont exposés sous
+`/api/organizations/:organizationId/dossiers/:dossierId/commercial-documents`.
+Ils utilisent les permissions de consultation et de gestion des factures
+commerciales.
+
+## Observabilité locale
+
+L’API expose désormais des métriques Prometheus sur `GET /metrics` :
+
+- volume, codes de réponse et durée des requêtes HTTP ;
+- nombre de requêtes actives ;
+- disponibilité et durée de contrôle PostgreSQL ;
+- CPU, mémoire, event loop et autres métriques Node.js standards.
+
+La stack Docker démarre également Prometheus et Grafana. La source de données
+et le tableau de bord **Fiscora · Vue opérationnelle** sont provisionnés depuis
+les fichiers versionnés dans `monitoring/`.
+
+```powershell
+docker compose up -d --build
+```
+
+- Prometheus : `http://localhost:9090`
+- Grafana : `http://localhost:3001`
+- compte Grafana local : `admin`
+- mot de passe local par défaut : `fiscora_dev`
+
+Définissez `GRAFANA_ADMIN_PASSWORD` dans `.env` avant tout environnement
+partagé. Consultez `monitoring/README.md` pour les règles d’alerte et les
+précautions de production.

@@ -1,0 +1,56 @@
+groups:
+  - name: fiscora-api
+    rules:
+      - alert: FiscoraApiUnavailable
+        expr: up{job="fiscora-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "L’API Fiscora est indisponible"
+          description: "Prometheus ne peut plus collecter les métriques de l’API depuis au moins une minute."
+
+      - alert: FiscoraDatabaseUnavailable
+        expr: fiscora_database_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL est indisponible pour Fiscora"
+          description: "Le contrôle PostgreSQL exécuté par l’API échoue depuis au moins une minute."
+
+      - alert: FiscoraHighHttpErrorRate
+        expr: |
+          (
+            sum(rate(fiscora_http_requests_total{status_code=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(fiscora_http_requests_total[5m])), 0.001)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Taux d’erreurs HTTP élevé"
+          description: "Plus de 5 % des requêtes Fiscora retournent une erreur 5xx depuis cinq minutes."
+
+      - alert: FiscoraHighP95Latency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(fiscora_http_request_duration_seconds_bucket[5m]))
+          ) > 1.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latence élevée de l’API"
+          description: "Le 95e percentile du temps de réponse dépasse 1,5 seconde depuis cinq minutes."
+
+      - alert: FiscoraHighResidentMemory
+        expr: fiscora_process_resident_memory_bytes > 800000000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Consommation mémoire élevée"
+          description: "Le processus NestJS utilise plus de 800 Mo de mémoire depuis dix minutes."
