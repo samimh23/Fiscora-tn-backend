@@ -310,3 +310,29 @@ docker compose up -d --build
 Définissez `GRAFANA_ADMIN_PASSWORD` dans `.env` avant tout environnement
 partagé. Consultez `monitoring/README.md` pour les règles d’alerte et les
 précautions de production.
+
+## E-mails transactionnels en production
+
+Les invitations sont envoyées au nom de **Fiscora**. Elles indiquent le nom du
+collaborateur qui invite et utilisent son adresse comme `Reply-To`, afin que le
+destinataire puisse répondre directement au cabinet.
+
+Lorsque l'application sera déployée, configurez les valeurs suivantes dans le
+gestionnaire de secrets de l'environnement, jamais dans Git :
+
+```text
+APP_PUBLIC_URL=https://app.fiscora.me
+CORS_ALLOWED_ORIGINS=https://app.fiscora.me
+INVITATION_EXPOSE_LINK=false
+SMTP_HOST=email-smtp.eu-north-1.amazonaws.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=<identifiant SMTP Amazon SES>
+SMTP_PASSWORD=<mot de passe SMTP Amazon SES>
+SMTP_FROM=Fiscora <invitations@fiscora.me>
+```
+
+Les identifiants SMTP SES sont différents des clés d'accès AWS. Ils seront
+créés après l'acceptation de la demande de sortie du bac à sable SES. Le
+sous-domaine `app.fiscora.me` sera ensuite relié à l'hébergement du frontend ;
+il ne doit pas pointer vers GitHub Pages.

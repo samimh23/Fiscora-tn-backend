@@ -29,7 +29,7 @@ export class BookkeepingExportService {
     rows: Array<Record<string, unknown>>,
   ) {
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'Compta TN';
+    workbook.creator = 'Fiscora';
     workbook.created = new Date();
     const sheet = workbook.addWorksheet(title.slice(0, 31));
     sheet.columns = columns.map((item) => ({

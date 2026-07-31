@@ -79,7 +79,7 @@ services:
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
       SMTP_SECURE: "false"
-      SMTP_FROM: Compta TN <invitations@comptatn.local>
+      SMTP_FROM: Fiscora <invitations@fiscora.local>
     ports:
       - "3000:3000"
     depends_on:

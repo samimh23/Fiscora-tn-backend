@@ -14,7 +14,7 @@ import type {
 export class FinancialStatementExportService {
   async toXlsx(report: FinancialStatementReport) {
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'Compta TN';
+    workbook.creator = 'Fiscora';
     workbook.created = new Date(report.generatedAtUtc);
     workbook.modified = new Date(report.generatedAtUtc);
     workbook.properties.date1904 = false;
@@ -113,7 +113,7 @@ export class FinancialStatementExportService {
       bufferPages: true,
       info: {
         Title: `États financiers ${report.period.year} - ${report.dossier.legalName}`,
-        Author: 'Compta TN',
+        Author: 'Fiscora',
         Subject: report.standard,
       },
     });

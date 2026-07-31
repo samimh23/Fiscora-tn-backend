@@ -9,6 +9,7 @@ import {
   OrganizationMembership,
   Permission,
   Role,
+  User,
 } from '../database/entities';
 import { OrganizationsController } from './organizations.controller';
 import { OrganizationsService } from './organizations.service';
@@ -25,6 +26,7 @@ import { EmailModule } from '../email/email.module';
       Permission,
       OrganizationInvitation,
       AuditLog,
+      User,
     ]),
   ],
   controllers: [OrganizationsController],

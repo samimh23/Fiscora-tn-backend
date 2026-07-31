@@ -15,6 +15,7 @@ import {
   Permission,
   Role,
   RolePermission,
+  User,
 } from '../database/entities';
 import { SystemRoleNames } from '../database/permissions';
 import {
@@ -40,6 +41,7 @@ export class OrganizationsService {
     private readonly invitations: Repository<OrganizationInvitation>,
     @InjectRepository(AuditLog)
     private readonly auditLogs: Repository<AuditLog>,
+    @InjectRepository(User) private readonly users: Repository<User>,
     private readonly invitationMailer: InvitationMailerService,
   ) {}
 
@@ -110,9 +112,10 @@ export class OrganizationsService {
     actorUserId: string,
     dto: InvitationDto,
   ) {
-    const [role, organization] = await Promise.all([
+    const [role, organization, inviter] = await Promise.all([
       this.roles.findOneBy({ id: dto.roleId, organizationId }),
       this.organizations.findOneBy({ id: organizationId, isActive: true }),
+      this.users.findOneBy({ id: actorUserId, isActive: true }),
     ]);
     if (!role)
       throw new NotFoundException(
@@ -120,6 +123,11 @@ export class OrganizationsService {
       );
     if (!organization)
       throw new NotFoundException('L’organisation est introuvable.');
+
+    if (!inviter)
+      throw new NotFoundException(
+        'L\u2019utilisateur invitant est introuvable.',
+      );
 
     const normalizedEmail = dto.email.trim().toUpperCase();
     const alreadyMember = await this.memberships
@@ -173,6 +181,8 @@ export class OrganizationsService {
       organization.name,
       role.name,
       rawToken,
+      inviter.fullName,
+      inviter.email,
     );
     return this.toInvitation(invitation, role.name, rawToken);
   }
@@ -415,12 +425,16 @@ export class OrganizationsService {
     organizationName: string,
     roleName: string,
     token: string,
+    inviterName: string,
+    replyTo: string,
   ) {
     invitation.deliveryAttempts += 1;
     try {
       await this.invitationMailer.sendInvitation({
         recipient: invitation.email,
         organizationName,
+        inviterName,
+        replyTo,
         roleName,
         expiresAtUtc: invitation.expiresAtUtc,
         token,
