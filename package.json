@@ -54,7 +54,7 @@
     "read-excel-file": "^9.3.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "typeorm": "^0.3.31"
+    "typeorm": "^1.1.0"
   },
   "overrides": {
     "brace-expansion": "$brace-expansion",
