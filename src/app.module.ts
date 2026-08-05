@@ -63,7 +63,16 @@ import { DocumentMalwareScanning1784359000000 } from './database/migrations/1784
 import { CommercialDocuments1784360000000 } from './database/migrations/1784360000000-commercial-documents';
 import { CommercialDocumentsModule } from './commercial-documents/commercial-documents.module';
 import { ClientPortalWorkspace1784361000000 } from './database/migrations/1784361000000-client-portal-workspace';
+import { EmailDeliveryLogs1784362000000 } from './database/migrations/1784362000000-email-delivery-logs';
 import { MetricsModule } from './metrics/metrics.module';
+import { AnnualTaxModule } from './annual-tax/annual-tax.module';
+import { InAppWorkTracking1784363000000 } from './database/migrations/1784363000000-in-app-work-tracking';
+import { PasswordResetTokens1784364000000 } from './database/migrations/1784364000000-password-reset-tokens';
+import { QualityAssurancePermission1784365000000 } from './database/migrations/1784365000000-quality-assurance-permission';
+import { QualityAssuranceModule } from './quality-assurance/quality-assurance.module';
+import { BankReconciliationRules1784366000000 } from './database/migrations/1784366000000-bank-reconciliation-rules';
+import { MigrationAssistantModule } from './migration-assistant/migration-assistant.module';
+import { DocumentRequestsWorkflow1784367000000 } from './database/migrations/1784367000000-document-requests-workflow';
 
 @Module({
   imports: [
@@ -109,6 +118,12 @@ import { MetricsModule } from './metrics/metrics.module';
           DocumentMalwareScanning1784359000000,
           CommercialDocuments1784360000000,
           ClientPortalWorkspace1784361000000,
+          EmailDeliveryLogs1784362000000,
+          InAppWorkTracking1784363000000,
+          PasswordResetTokens1784364000000,
+          QualityAssurancePermission1784365000000,
+          BankReconciliationRules1784366000000,
+          DocumentRequestsWorkflow1784367000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,
@@ -146,6 +161,9 @@ import { MetricsModule } from './metrics/metrics.module';
     PlatformAdminModule,
     SaasSubscriptionsModule,
     CommercialDocumentsModule,
+    AnnualTaxModule,
+    QualityAssuranceModule,
+    MigrationAssistantModule,
   ],
   controllers: [HealthController],
   providers: [

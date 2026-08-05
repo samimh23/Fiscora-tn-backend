@@ -65,6 +65,25 @@ export class ChangePasswordDto {
   newPassword!: string;
 }
 
+export class RequestPasswordResetDto {
+  @IsEmail()
+  @MaxLength(320)
+  email!: string;
+}
+
+export class ResetPasswordDto {
+  @IsString()
+  @IsNotEmpty()
+  token!: string;
+
+  @IsString()
+  @MinLength(10)
+  @Matches(/[A-Z]/, { message: 'Le mot de passe doit contenir une majuscule.' })
+  @Matches(/[a-z]/, { message: 'Le mot de passe doit contenir une minuscule.' })
+  @Matches(/[0-9]/, { message: 'Le mot de passe doit contenir un chiffre.' })
+  newPassword!: string;
+}
+
 export class UpdateProfileDto {
   @IsString()
   @IsNotEmpty()

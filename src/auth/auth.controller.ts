@@ -4,10 +4,13 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   Put,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/current-user.decorator';
@@ -19,7 +22,9 @@ import {
   LoginDto,
   RefreshDto,
   RegisterDto,
+  RequestPasswordResetDto,
   RevokeTokenDto,
+  ResetPasswordDto,
   UpdateProfileDto,
 } from './dto';
 
@@ -45,6 +50,21 @@ export class AuthController {
     return this.authService.refresh(dto);
   }
 
+  @Post('password-reset/request')
+  @HttpCode(HttpStatus.OK)
+  requestPasswordReset(
+    @Body() dto: RequestPasswordResetDto,
+    @Req() request: Request,
+  ) {
+    return this.authService.requestPasswordReset(dto, request.ip);
+  }
+
+  @Post('password-reset/confirm')
+  @HttpCode(HttpStatus.OK)
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
+  }
+
   @Post('revoke')
   @HttpCode(HttpStatus.NO_CONTENT)
   revoke(@Body() dto: RevokeTokenDto) {
@@ -55,6 +75,11 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   acceptInvitation(@Body() dto: AcceptInvitationDto) {
     return this.authService.acceptInvitation(dto);
+  }
+
+  @Get('invitations/:token')
+  previewInvitation(@Param('token') token: string) {
+    return this.authService.previewInvitation(token);
   }
 
   @Get('me')

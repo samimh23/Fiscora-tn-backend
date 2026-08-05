@@ -70,6 +70,7 @@ export const PermissionNames = {
   FinancialStatementsView: 'financial_statements.view',
   FinancialStatementsManage: 'financial_statements.manage',
   FinancialStatementsValidate: 'financial_statements.validate',
+  QualityAssuranceView: 'quality_assurance.view',
   ForeignTradeView: 'foreign_trade.view',
   ForeignTradeManage: 'foreign_trade.manage',
   ForeignTradePost: 'foreign_trade.post',
@@ -285,6 +286,10 @@ export const permissionSeed = [
     'Valider et figer les états financiers définitifs',
   ],
   [
+    PermissionNames.QualityAssuranceView,
+    'Consulter les contrôles qualité des dossiers clients',
+  ],
+  [
     PermissionNames.ForeignTradeView,
     'Consulter les devises et opÃ©rations de commerce extÃ©rieur',
   ],
@@ -369,6 +374,7 @@ export const collaboratorPermissions = [
   PermissionNames.PeriodClosingManage,
   PermissionNames.FinancialStatementsView,
   PermissionNames.FinancialStatementsManage,
+  PermissionNames.QualityAssuranceView,
   PermissionNames.ForeignTradeView,
   PermissionNames.ForeignTradeManage,
   PermissionNames.ElectronicInvoicesView,

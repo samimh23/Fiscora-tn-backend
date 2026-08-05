@@ -68,6 +68,31 @@ export class CreateTimeEntryDto {
 
 export class UpdateTimeEntryDto extends PartialType(CreateTimeEntryDto) {}
 
+export class CorrectTimeEntryDto extends UpdateTimeEntryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_000)
+  correctionReason?: string;
+}
+
+export class StartWorkSessionDto {
+  @IsString()
+  @MaxLength(500)
+  description!: string;
+
+  @IsBoolean()
+  billable = true;
+
+  @IsOptional()
+  @IsUUID()
+  taskId?: string | null;
+}
+
+export class WorkSessionHeartbeatDto {
+  @IsBoolean()
+  active!: boolean;
+}
+
 export enum TimeEntryReviewDecision {
   Approve = 'APPROUVER',
   Reject = 'REJETER',

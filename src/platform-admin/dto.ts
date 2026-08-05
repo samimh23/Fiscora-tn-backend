@@ -1,4 +1,4 @@
-import { IsBoolean, IsString, Length } from 'class-validator';
+import { IsBoolean, IsEmail, IsString, Length } from 'class-validator';
 
 export class UpdatePlatformStatusDto {
   @IsBoolean()
@@ -13,4 +13,9 @@ export class RevokePlatformSessionsDto {
   @IsString()
   @Length(8, 500)
   reason!: string;
+}
+
+export class SendPlatformTestEmailDto {
+  @IsEmail()
+  recipient!: string;
 }

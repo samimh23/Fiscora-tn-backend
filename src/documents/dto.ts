@@ -2,6 +2,7 @@ import { Transform } from 'class-transformer';
 import {
   IsEnum,
   IsBoolean,
+  IsDateString,
   IsInt,
   IsOptional,
   IsString,
@@ -45,6 +46,10 @@ export class UploadDocumentDto {
   @IsOptional()
   @IsUUID()
   replacesDocumentId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  expectationId?: string;
 
   @IsOptional()
   @Transform(({ value }) => value === true || value === 'true')
@@ -97,6 +102,21 @@ export class CreateExpectationDto {
 
   @IsEnum(DocumentCategory)
   category!: DocumentCategory;
+
+  @IsOptional()
+  @IsDateString()
+  dueOn?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  message?: string | null;
+}
+
+export class RejectExpectationDto {
+  @IsString()
+  @MaxLength(1000)
+  reason!: string;
 }
 
 export class DocumentQueryDto {

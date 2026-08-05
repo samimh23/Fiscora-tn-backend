@@ -5,12 +5,23 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { Between, DataSource, In, IsNull, Not, Repository } from 'typeorm';
+import {
+  Between,
+  DataSource,
+  EntityManager,
+  In,
+  IsNull,
+  Not,
+  Repository,
+} from 'typeorm';
 import { fromMillimes, toMillimes } from '../common/money';
 import {
   AccountingJournal,
   BankAccount,
   BankMatchType,
+  BankReconciliationRule,
+  BankRuleDirection,
+  BankRuleMatchType,
   BankStatement,
   BankStatementStatus,
   BankTransaction,
@@ -27,6 +38,7 @@ import {
 import { DossiersService } from '../dossiers/dossiers.service';
 import { parseBankFile } from './bank-file.parser';
 import {
+  CreateBankRuleDto,
   CreateBankAccountDto,
   GenerateBankEntryDto,
   ImportBankStatementDto,
@@ -43,6 +55,8 @@ export class BankReconciliationService {
     private readonly statements: Repository<BankStatement>,
     @InjectRepository(BankTransaction)
     private readonly transactions: Repository<BankTransaction>,
+    @InjectRepository(BankReconciliationRule)
+    private readonly rules: Repository<BankReconciliationRule>,
     @InjectRepository(AccountingJournal)
     private readonly journals: Repository<AccountingJournal>,
     @InjectRepository(LedgerAccount)
@@ -118,6 +132,59 @@ export class BankReconciliationService {
     );
   }
 
+  async listRules(organizationId: string, dossierId: string, userId: string) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    return this.rules.find({
+      where: { organizationId, dossierId, isActive: true },
+      relations: { suggestedAccount: true, suggestedThirdParty: true },
+      order: { label: 'ASC' },
+    });
+  }
+
+  async createRule(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    dto: CreateBankRuleDto,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const account = await this.accounts.findOneBy({
+      id: dto.suggestedAccountId,
+      organizationId,
+      dossierId,
+      isActive: true,
+      allowsPosting: true,
+    });
+    if (!account)
+      throw new BadRequestException('Le compte suggéré est invalide.');
+    const label = dto.label.trim();
+    const pattern = dto.pattern.trim();
+    if (!label || !pattern)
+      throw new BadRequestException('Le libellé et le motif sont requis.');
+    const duplicate = await this.rules
+      .createQueryBuilder('rule')
+      .where('rule.dossier_id = :dossierId', { dossierId })
+      .andWhere('UPPER(rule.label) = UPPER(:label)', { label })
+      .andWhere('rule.is_active = true')
+      .getExists();
+    if (duplicate)
+      throw new ConflictException('Une règle porte déjà ce nom dans ce dossier.');
+    return this.rules.save(
+      this.rules.create({
+        organizationId,
+        dossierId,
+        label,
+        pattern,
+        matchType: dto.matchType || BankRuleMatchType.Contains,
+        direction: dto.direction || BankRuleDirection.Any,
+        suggestedAccountId: account.id,
+        suggestedThirdPartyId: dto.suggestedThirdPartyId || null,
+        isActive: true,
+        lastUsedAtUtc: null,
+      }),
+    );
+  }
+
   async listStatements(
     organizationId: string,
     dossierId: string,
@@ -155,6 +222,11 @@ export class BankReconciliationService {
     ).length;
     return {
       ...statement,
+      transactions: await this.withRuleSuggestions(
+        organizationId,
+        dossierId,
+        statement.transactions,
+      ),
       matchedCount,
       unmatchedCount: statement.transactions.length - matchedCount,
       currentBookClosingBalance: fromMillimes(bookBalance),
@@ -569,6 +641,16 @@ export class BankReconciliationService {
       transaction.matchedByUserId = userId;
       transaction.matchedAtUtc = null;
       await manager.save(transaction);
+      if (dto.rememberRule) {
+        await this.createOrTouchRule(
+          manager,
+          organizationId,
+          dossierId,
+          dto,
+          transaction,
+          counterpart.id,
+        );
+      }
       return created;
     });
     await this.refreshStatementStatus(transaction.statementId);
@@ -733,6 +815,103 @@ export class BankReconciliationService {
       [organizationId, dossierId, ledgerAccountId, throughDate],
     );
     return toMillimes(rows[0]?.balance ?? '0.000');
+  }
+
+  private async withRuleSuggestions(
+    organizationId: string,
+    dossierId: string,
+    transactions: BankTransaction[],
+  ) {
+    const rules = await this.rules.find({
+      where: { organizationId, dossierId, isActive: true },
+      relations: { suggestedAccount: true, suggestedThirdParty: true },
+      order: { updatedAtUtc: 'DESC' },
+    });
+    return transactions.map((transaction) => {
+      if (transaction.status !== BankTransactionStatus.Unmatched)
+        return { ...transaction, ruleSuggestion: null };
+      const suggestion = rules
+        .map((rule) => ({
+          rule,
+          confidence: this.ruleScore(transaction, rule),
+        }))
+        .filter((candidate) => candidate.confidence > 0)
+        .sort((a, b) => b.confidence - a.confidence)[0];
+      if (!suggestion) return { ...transaction, ruleSuggestion: null };
+      return {
+        ...transaction,
+        ruleSuggestion: {
+          ruleId: suggestion.rule.id,
+          label: suggestion.rule.label,
+          confidence: suggestion.confidence,
+          accountId: suggestion.rule.suggestedAccountId,
+          accountCode: suggestion.rule.suggestedAccount.code,
+          accountName: suggestion.rule.suggestedAccount.name,
+          thirdPartyId: suggestion.rule.suggestedThirdPartyId,
+          thirdPartyName: suggestion.rule.suggestedThirdParty?.name ?? null,
+        },
+      };
+    });
+  }
+
+  private ruleScore(transaction: BankTransaction, rule: BankReconciliationRule) {
+    const amount = toMillimes(transaction.amount);
+    if (rule.direction === BankRuleDirection.Debit && amount >= 0n) return 0;
+    if (rule.direction === BankRuleDirection.Credit && amount <= 0n) return 0;
+    const text = normalizeText(`${transaction.reference || ''} ${transaction.description}`);
+    const pattern = normalizeText(rule.pattern);
+    if (!pattern) return 0;
+    if (rule.matchType === BankRuleMatchType.Exact)
+      return text === pattern ? 98 : 0;
+    if (rule.matchType === BankRuleMatchType.StartsWith)
+      return text.startsWith(pattern) ? 92 : 0;
+    return text.includes(pattern) ? Math.min(96, 70 + Math.min(pattern.length, 26)) : 0;
+  }
+
+  private async createOrTouchRule(
+    manager: EntityManager,
+    organizationId: string,
+    dossierId: string,
+    dto: GenerateBankEntryDto,
+    transaction: BankTransaction,
+    accountId: string,
+  ) {
+    const pattern = (dto.rulePattern || transaction.description)
+      .trim()
+      .slice(0, 500);
+    const label = (dto.ruleLabel || pattern).trim().slice(0, 150);
+    if (!label || !pattern) return;
+    const existing = await manager.findOne(BankReconciliationRule, {
+      where: { organizationId, dossierId, label, isActive: true },
+    });
+    if (existing) {
+      existing.pattern = pattern;
+      existing.suggestedAccountId = accountId;
+      existing.direction =
+        toMillimes(transaction.amount) < 0n
+          ? BankRuleDirection.Debit
+          : BankRuleDirection.Credit;
+      existing.lastUsedAtUtc = new Date();
+      await manager.save(existing);
+      return;
+    }
+    await manager.save(
+      manager.create(BankReconciliationRule, {
+        organizationId,
+        dossierId,
+        label,
+        pattern,
+        matchType: BankRuleMatchType.Contains,
+        direction:
+          toMillimes(transaction.amount) < 0n
+            ? BankRuleDirection.Debit
+            : BankRuleDirection.Credit,
+        suggestedAccountId: accountId,
+        suggestedThirdPartyId: null,
+        isActive: true,
+        lastUsedAtUtc: new Date(),
+      }),
+    );
   }
 }
 

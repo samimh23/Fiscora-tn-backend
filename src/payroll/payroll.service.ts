@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import PDFDocument from 'pdfkit';
 import { DataSource, LessThanOrEqual, Repository } from 'typeorm';
 import {
   Employee,
@@ -314,6 +315,141 @@ export class PayrollService {
     return { year, quarter, employees: rows };
   }
 
+  async cnssQuarterCsv(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    year: number,
+    quarter: number,
+  ) {
+    const report = await this.cnssQuarter(
+      organizationId,
+      dossierId,
+      userId,
+      year,
+      quarter,
+    );
+    const rows = [
+      ['Annee', 'Trimestre', 'Salarie', 'Numero CNSS', 'Assiette brute', 'Part salarie', 'Part employeur', 'Total'],
+      ...report.employees.map((employee) => [
+        String(year),
+        `T${quarter}`,
+        employee.fullName,
+        employee.cnssNumber ?? '',
+        employee.grossSalary,
+        employee.employeeCnss,
+        employee.employerCnss,
+        this.formatMillimes(
+          this.toMillimesLocal(employee.employeeCnss) +
+            this.toMillimesLocal(employee.employerCnss),
+        ),
+      ]),
+    ];
+    return Buffer.from(
+      rows
+        .map((row) =>
+          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';'),
+        )
+        .join('\r\n'),
+      'utf8',
+    );
+  }
+
+  async payslipPdf(
+    organizationId: string,
+    dossierId: string,
+    runId: string,
+    lineId: string,
+    userId: string,
+  ) {
+    const dossier = await this.dossiers.getAccessibleEntity(
+      organizationId,
+      dossierId,
+      userId,
+    );
+    const run = await this.runs.findOne({
+      where: { id: runId, organizationId, dossierId },
+      relations: { lines: { employee: true } },
+    });
+    if (!run) throw new NotFoundException('Le traitement est introuvable.');
+    const line = run.lines.find((item) => item.id === lineId);
+    if (!line) throw new NotFoundException('Le bulletin est introuvable.');
+
+    const document = new PDFDocument({
+      size: 'A4',
+      margins: { top: 42, right: 42, bottom: 42, left: 42 },
+      info: {
+        Title: `Bulletin de paie ${run.periodMonth}/${run.periodYear} - ${line.employee.fullName}`,
+        Author: 'Fiscora',
+      },
+    });
+    const chunks: Buffer[] = [];
+    document.on('data', (chunk: Buffer) => chunks.push(chunk));
+    const done = new Promise<Buffer>((resolve, reject) => {
+      document.on('end', () => resolve(Buffer.concat(chunks)));
+      document.on('error', reject);
+    });
+
+    document.rect(0, 0, 595, 128).fill('#14532D');
+    document
+      .fillColor('#FFFFFF')
+      .font('Helvetica-Bold')
+      .fontSize(23)
+      .text('Bulletin de paie', 42, 44)
+      .font('Helvetica')
+      .fontSize(12)
+      .text(`${String(run.periodMonth).padStart(2, '0')}/${run.periodYear}`, 42, 78);
+    document
+      .fillColor('#0F172A')
+      .font('Helvetica-Bold')
+      .fontSize(16)
+      .text(line.employee.fullName, 42, 164)
+      .font('Helvetica')
+      .fontSize(10)
+      .fillColor('#475569')
+      .text(`Dossier : ${dossier.legalName}`, 42, 190)
+      .text(`CIN : ${line.employee.cin ?? '—'}   CNSS : ${line.employee.cnssNumber ?? '—'}`, 42, 208)
+      .text(`Contrat : ${line.employee.contractType}   Embauche : ${line.employee.hireDate}`, 42, 226);
+
+    let y = 270;
+    const rows: Array<[string, string, string]> = [
+      ['Salaire brut', '+', line.grossSalary],
+      ['Cotisation CNSS salarié', '-', line.employeeCnss],
+      ['Retenue IRPP', '-', line.incomeTax],
+      ['Net à payer', '=', line.netSalary],
+      ['CNSS employeur', 'info', line.employerCnss],
+      ['Prise en charge employeur', 'info', line.employerSupportAmount],
+    ];
+    for (const [label, sign, amount] of rows) {
+      document.rect(42, y, 511, 30).fill(sign === '=' ? '#DCFCE7' : '#F8FAFC');
+      document
+        .fillColor('#0F172A')
+        .font(sign === '=' ? 'Helvetica-Bold' : 'Helvetica')
+        .fontSize(10)
+        .text(label, 56, y + 10, { width: 290 })
+        .text(sign, 360, y + 10, { width: 30, align: 'center' })
+        .text(`${this.displayMoney(amount)} TND`, 410, y + 10, {
+          width: 124,
+          align: 'right',
+        });
+      y += 34;
+    }
+    document
+      .roundedRect(42, y + 18, 511, 64, 6)
+      .fillAndStroke('#FEF3C7', '#F59E0B')
+      .fillColor('#78350F')
+      .font('Helvetica')
+      .fontSize(8.5)
+      .text(
+        'Document de travail généré par Fiscora. Les taux sociaux/fiscaux doivent être vérifiés selon les paramètres officiels applicables au dossier.',
+        56,
+        y + 38,
+        { width: 483 },
+      );
+    document.end();
+    return done;
+  }
+
   private effectiveRate(amount: bigint, base: bigint) {
     if (base <= 0n) return '0.00000';
     const scaled = (amount * 100000n + base / 2n) / base;
@@ -362,5 +498,21 @@ export class PayrollService {
       sourceLabel: item.sourceLabel,
       sourceUrl: item.sourceUrl,
     };
+  }
+
+  private toMillimesLocal(value: string) {
+    const [whole, decimals = ''] = String(value ?? '0').split('.');
+    return BigInt(whole || '0') * 1000n + BigInt(decimals.padEnd(3, '0').slice(0, 3) || '0');
+  }
+
+  private formatMillimes(value: bigint) {
+    return `${value / 1000n}.${(value % 1000n).toString().padStart(3, '0')}`;
+  }
+
+  private displayMoney(value: string) {
+    return Number(value).toLocaleString('fr-TN', {
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
+    });
   }
 }

@@ -38,6 +38,7 @@ describe('PlatformAdminService', () => {
       {
         get: jest.fn((_key: string, fallback?: string) => fallback),
       } as unknown as ConfigService,
+      { sendTestEmail: jest.fn() } as never,
     );
 
     const overview = await service.overview();
@@ -59,6 +60,7 @@ describe('PlatformAdminService', () => {
     const service = new PlatformAdminService(
       {} as DataSource,
       {} as ConfigService,
+      { sendTestEmail: jest.fn() } as never,
     );
 
     await expect(
@@ -90,7 +92,11 @@ describe('PlatformAdminService', () => {
           callback(manager),
       ),
     } as unknown as DataSource;
-    const service = new PlatformAdminService(dataSource, {} as ConfigService);
+    const service = new PlatformAdminService(
+      dataSource,
+      {} as ConfigService,
+      { sendTestEmail: jest.fn() } as never,
+    );
 
     await expect(
       service.updateUserStatus(actor, '2acbd709-8f3a-4e6e-8087-e337130773ae', {

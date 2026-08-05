@@ -8,7 +8,12 @@ import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import type { JwtUser } from '../common/auth.types';
-import type { RevokePlatformSessionsDto, UpdatePlatformStatusDto } from './dto';
+import { InvitationMailerService } from '../email/invitation-mailer.service';
+import type {
+  RevokePlatformSessionsDto,
+  SendPlatformTestEmailDto,
+  UpdatePlatformStatusDto,
+} from './dto';
 
 type CountRow = Record<string, string | Date | null>;
 
@@ -17,6 +22,7 @@ export class PlatformAdminService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly config: ConfigService,
+    private readonly invitationMailer: InvitationMailerService,
   ) {}
 
   async overview() {
@@ -145,7 +151,7 @@ export class PlatformAdminService {
         {
           code: 'EMAIL',
           label: 'Envoi des e-mails',
-          status: this.config.get('SMTP_HOST') ? 'CONFIGURE' : 'NON_CONFIGURE',
+          status: this.emailConfigured() ? 'CONFIGURE' : 'NON_CONFIGURE',
           detail: this.config.get('SMTP_HOST')
             ? 'Un serveur SMTP est configuré.'
             : 'Aucun serveur SMTP configuré.',
@@ -231,6 +237,74 @@ export class PlatformAdminService {
         this.pipeline('TTN_TRANSMISSION', 'Transmission TTN', row, 'ttn'),
       ],
     };
+  }
+
+  async emailStatus() {
+    const [row] = await this.dataSource.query<CountRow[]>(`
+      SELECT
+        (SELECT COUNT(*) FROM "accounting"."email_delivery_logs"
+          WHERE "status" = 'ENVOYE' AND "created_at_utc" >= now() - interval '24 hours') AS "sentLast24h",
+        (SELECT COUNT(*) FROM "accounting"."email_delivery_logs"
+          WHERE "status" = 'ECHEC' AND "created_at_utc" >= now() - interval '24 hours') AS "failedLast24h",
+        (SELECT MAX("created_at_utc") FROM "accounting"."email_delivery_logs"
+          WHERE "status" = 'ENVOYE') AS "lastSuccessAtUtc",
+        (SELECT MAX("created_at_utc") FROM "accounting"."email_delivery_logs"
+          WHERE "status" = 'ECHEC') AS "lastFailureAtUtc"
+    `);
+
+    return {
+      configured: this.emailConfigured(),
+      provider: this.emailProviderLabel(),
+      host: this.config.get<string>('SMTP_HOST') ?? null,
+      port: Number(this.config.get('SMTP_PORT', 587)),
+      secure: this.config.get('SMTP_SECURE', 'false') === 'true',
+      from: this.config.get<string>('SMTP_FROM') ?? null,
+      sentLast24h: Number(row.sentLast24h ?? 0),
+      failedLast24h: Number(row.failedLast24h ?? 0),
+      lastSuccessAtUtc: this.toIsoDate(row.lastSuccessAtUtc),
+      lastFailureAtUtc: this.toIsoDate(row.lastFailureAtUtc),
+    };
+  }
+
+  async emailLogs() {
+    return this.dataSource.query<Record<string, unknown>[]>(`
+      SELECT
+        l."id",
+        l."created_at_utc" AS "createdAtUtc",
+        l."category",
+        l."provider",
+        l."recipient",
+        l."sender",
+        l."subject",
+        l."status",
+        l."provider_message_id" AS "providerMessageId",
+        l."smtp_response" AS "smtpResponse",
+        l."error_message" AS "errorMessage",
+        l."organization_id" AS "organizationId",
+        o."name" AS "organizationName",
+        l."actor_user_id" AS "actorUserId",
+        u."full_name" AS "actorName"
+      FROM "accounting"."email_delivery_logs" l
+      LEFT JOIN "accounting"."organizations" o ON o."id" = l."organization_id"
+      LEFT JOIN "accounting"."users" u ON u."id" = l."actor_user_id"
+      ORDER BY l."created_at_utc" DESC
+      LIMIT 100
+    `);
+  }
+
+  async sendTestEmail(actor: JwtUser, dto: SendPlatformTestEmailDto) {
+    try {
+      return await this.invitationMailer.sendTestEmail(
+        dto.recipient,
+        actor.userId,
+      );
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error
+          ? `Test e-mail échoué : ${error.message}`
+          : 'Test e-mail échoué.',
+      );
+    }
   }
 
   async organizations() {
@@ -548,6 +622,22 @@ export class PlatformAdminService {
     return Object.fromEntries(
       Object.entries(row).map(([key, value]) => [key, Number(value ?? 0)]),
     ) as Record<string, number>;
+  }
+
+  private emailConfigured() {
+    return Boolean(this.config.get<string>('SMTP_HOST'));
+  }
+
+  private emailProviderLabel() {
+    const host = this.config.get<string>('SMTP_HOST', '');
+    if (host.toLowerCase().includes('brevo')) return 'Brevo SMTP';
+    if (host.toLowerCase().includes('amazonaws')) return 'Amazon SES SMTP';
+    return host ? 'Serveur SMTP' : 'Serveur SMTP';
+  }
+
+  private toIsoDate(value: unknown) {
+    if (value instanceof Date) return value.toISOString();
+    return typeof value === 'string' ? value : null;
   }
 
   private pipeline(

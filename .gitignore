@@ -11,6 +11,7 @@ coverage/
 output/
 outputs/
 tmp/
+*-repomix.xml
 
 # Logs and editor/OS files
 *.log

@@ -14,16 +14,20 @@ import { IsNull, Repository } from 'typeorm';
 import {
   AccountingDocument,
   AuditLog,
+  DossierAssignment,
   DocumentProcessingStatus,
+  DocumentRequestStatus,
   MalwareScanStatus,
   MissingDocumentExpectation,
   OrganizationMembership,
 } from '../database/entities';
 import { SystemRoleNames } from '../database/permissions';
 import { DossiersService } from '../dossiers/dossiers.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   CreateExpectationDto,
   DocumentQueryDto,
+  RejectExpectationDto,
   UpdateDocumentDto,
   UploadDocumentDto,
 } from './dto';
@@ -31,6 +35,7 @@ import {
   MalwareScannerService,
   MalwareScannerUnavailableError,
 } from './malware-scanner.service';
+import { InvitationMailerService } from '../email/invitation-mailer.service';
 
 @Injectable()
 export class DocumentsService implements OnModuleInit {
@@ -48,8 +53,12 @@ export class DocumentsService implements OnModuleInit {
     private readonly audits: Repository<AuditLog>,
     @InjectRepository(OrganizationMembership)
     private readonly memberships: Repository<OrganizationMembership>,
+    @InjectRepository(DossierAssignment)
+    private readonly assignments: Repository<DossierAssignment>,
     private readonly dossiers: DossiersService,
     private readonly malwareScanner: MalwareScannerService,
+    private readonly notifications: NotificationsService,
+    private readonly invitationMailer: InvitationMailerService,
   ) {
     this.bucket = config.get('MINIO_BUCKET', 'accounting-documents');
     this.client = new Client({
@@ -203,6 +212,19 @@ export class DocumentsService implements OnModuleInit {
       this.ensureClientDocumentOwnership(client, previous, userId);
       version = previous.version + 1;
     }
+    const expectation = dto.expectationId
+      ? await this.findOpenExpectation(
+          organizationId,
+          dossierId,
+          dto.expectationId,
+        )
+      : null;
+    if (expectation) {
+      dto.category = expectation.category;
+      dto.periodYear = expectation.periodYear;
+      dto.periodMonth = expectation.periodMonth;
+    }
+
     const objectKey = `${organizationId}/${dossierId}/${new Date().getUTCFullYear()}/${crypto.randomUUID()}-${this.safeName(file.originalname)}`;
     try {
       await this.client.putObject(
@@ -245,7 +267,30 @@ export class DocumentsService implements OnModuleInit {
       dossierId,
       name: file.originalname,
       version,
+      expectationId: expectation?.id ?? null,
     });
+    if (expectation) {
+      expectation.receivedDocumentId = item.id;
+      await this.expectations.save(expectation);
+      await this.audit(
+        organizationId,
+        userId,
+        'document_expectation.received',
+        expectation.id,
+        {
+          dossierId,
+          documentId: item.id,
+          label: expectation.label,
+        },
+      );
+      await this.notifyCabinetDocumentReceived(
+        organizationId,
+        dossierId,
+        expectation,
+        item,
+        userId,
+      );
+    }
     if (malwareScanStatus === MalwareScanStatus.Clean) {
       await this.audit(
         organizationId,
@@ -432,17 +477,41 @@ export class DocumentsService implements OnModuleInit {
     userId: string,
     dto: CreateExpectationDto,
   ) {
-    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const dossier = await this.dossiers.getAccessibleEntity(
+      organizationId,
+      dossierId,
+      userId,
+    );
     await this.ensureCabinetMember(organizationId, userId);
-    return this.expectations.save(
+    const item = await this.expectations.save(
       this.expectations.create({
         organizationId,
         dossierId,
-        ...dto,
+        periodYear: dto.periodYear,
+        periodMonth: dto.periodMonth,
+        category: dto.category,
         label: dto.label.trim(),
+        dueOn: dto.dueOn ?? null,
+        message: dto.message?.trim() || null,
+        status: DocumentRequestStatus.Requested,
+        requestedByUserId: userId,
+        requestedAtUtc: new Date(),
         receivedDocumentId: null,
       }),
     );
+    await this.audit(organizationId, userId, 'document_request.created', item.id, {
+      dossierId,
+      label: item.label,
+      dueOn: item.dueOn,
+    });
+    await this.notifyClientDocumentRequested(
+      organizationId,
+      dossierId,
+      dossier.legalName,
+      item,
+      userId,
+    );
+    return item;
   }
 
   async receiveExpectation(
@@ -456,14 +525,107 @@ export class DocumentsService implements OnModuleInit {
     await this.ensureCabinetMember(organizationId, userId);
     const document = await this.find(organizationId, dossierId, documentId);
     await this.ensureSafeForAccess(document, userId);
-    const expectation = await this.expectations.findOneBy({
-      id: expectationId,
+    const expectation = await this.findOpenExpectation(
       organizationId,
       dossierId,
-    });
-    if (!expectation)
-      throw new NotFoundException('Le document attendu est introuvable.');
+      expectationId,
+    );
     expectation.receivedDocumentId = documentId;
+    expectation.status = DocumentRequestStatus.Received;
+    expectation.rejectedAtUtc = null;
+    expectation.rejectedByUserId = null;
+    expectation.rejectionReason = null;
+    return this.expectations.save(expectation);
+  }
+
+  async validateExpectation(
+    organizationId: string,
+    dossierId: string,
+    expectationId: string,
+    userId: string,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    await this.ensureCabinetMember(organizationId, userId);
+    const expectation = await this.findExpectation(
+      organizationId,
+      dossierId,
+      expectationId,
+    );
+    if (!expectation.receivedDocumentId) {
+      throw new BadRequestException('Aucun document n’a encore été reçu.');
+    }
+    expectation.status = DocumentRequestStatus.Validated;
+    expectation.validatedByUserId = userId;
+    expectation.validatedAtUtc = new Date();
+    await this.audit(
+      organizationId,
+      userId,
+      'document_request.validated',
+      expectation.id,
+      { dossierId, documentId: expectation.receivedDocumentId },
+    );
+    return this.expectations.save(expectation);
+  }
+
+  async rejectExpectation(
+    organizationId: string,
+    dossierId: string,
+    expectationId: string,
+    userId: string,
+    dto: RejectExpectationDto,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    await this.ensureCabinetMember(organizationId, userId);
+    const expectation = await this.findExpectation(
+      organizationId,
+      dossierId,
+      expectationId,
+    );
+    expectation.status = DocumentRequestStatus.Rejected;
+    expectation.rejectedByUserId = userId;
+    expectation.rejectedAtUtc = new Date();
+    expectation.rejectionReason = dto.reason.trim();
+    expectation.receivedDocumentId = null;
+    await this.audit(
+      organizationId,
+      userId,
+      'document_request.rejected',
+      expectation.id,
+      { dossierId, reason: expectation.rejectionReason },
+    );
+    await this.notifyClientsForExpectationStatus(
+      organizationId,
+      dossierId,
+      expectation,
+      'Pièce à corriger',
+      `${expectation.label} doit être redéposée : ${expectation.rejectionReason}`,
+      'document-request-rejected',
+    );
+    return this.expectations.save(expectation);
+  }
+
+  async cancelExpectation(
+    organizationId: string,
+    dossierId: string,
+    expectationId: string,
+    userId: string,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    await this.ensureCabinetMember(organizationId, userId);
+    const expectation = await this.findExpectation(
+      organizationId,
+      dossierId,
+      expectationId,
+    );
+    expectation.status = DocumentRequestStatus.Cancelled;
+    expectation.cancelledAtUtc = new Date();
+    await this.audit(
+      organizationId,
+      userId,
+      'document_request.cancelled',
+      expectation.id,
+      { dossierId },
+    );
     return this.expectations.save(expectation);
   }
 
@@ -479,6 +641,48 @@ export class DocumentsService implements OnModuleInit {
         if (!item) throw new NotFoundException('Le document est introuvable.');
         return item;
       });
+  }
+
+  private async findOpenExpectation(
+    organizationId: string,
+    dossierId: string,
+    expectationId: string,
+  ) {
+    const expectation = await this.expectations.findOneBy({
+      id: expectationId,
+      organizationId,
+      dossierId,
+    });
+    if (!expectation)
+      throw new NotFoundException('La pièce demandée est introuvable.');
+    if (expectation.receivedDocumentId) {
+      throw new BadRequestException('Cette pièce demandée a déjà été reçue.');
+    }
+    if (
+      [DocumentRequestStatus.Validated, DocumentRequestStatus.Cancelled].includes(
+        expectation.status,
+      )
+    ) {
+      throw new BadRequestException(
+        'Cette demande de piÃ¨ce est dÃ©jÃ  terminÃ©e.',
+      );
+    }
+    return expectation;
+  }
+
+  private async findExpectation(
+    organizationId: string,
+    dossierId: string,
+    expectationId: string,
+  ) {
+    const expectation = await this.expectations.findOneBy({
+      id: expectationId,
+      organizationId,
+      dossierId,
+    });
+    if (!expectation)
+      throw new NotFoundException('La pièce demandée est introuvable.');
+    return expectation;
   }
 
   private toResponse(item: AccountingDocument) {
@@ -543,6 +747,140 @@ export class DocumentsService implements OnModuleInit {
     if (await this.isClient(organizationId, userId)) {
       throw new ForbiddenException('Cette action est réservée au cabinet.');
     }
+  }
+
+  private async notifyCabinetDocumentReceived(
+    organizationId: string,
+    dossierId: string,
+    expectation: MissingDocumentExpectation,
+    document: AccountingDocument,
+    uploadedByUserId: string,
+  ) {
+    const [assignments, owners] = await Promise.all([
+      this.assignments.find({
+        where: { organizationId, dossierId, isActive: true },
+        relations: { membership: { role: true } },
+      }),
+      this.memberships.find({
+        where: {
+          organizationId,
+          isActive: true,
+          role: { normalizedName: SystemRoleNames.Owner.toUpperCase() },
+        },
+        relations: { role: true },
+      }),
+    ]);
+    const recipientUserIds = new Set<string>();
+    for (const assignment of assignments) {
+      if (
+        assignment.membership?.userId &&
+        assignment.membership.userId !== uploadedByUserId &&
+        assignment.membership.role?.normalizedName !==
+          SystemRoleNames.ClientPortal.toUpperCase()
+      ) {
+        recipientUserIds.add(assignment.membership.userId);
+      }
+    }
+    for (const owner of owners) {
+      if (owner.userId !== uploadedByUserId) recipientUserIds.add(owner.userId);
+    }
+    for (const recipientUserId of recipientUserIds) {
+      await this.notifications.createForUser({
+        organizationId,
+        recipientUserId,
+        type: 'PIECE_CLIENT_RECUE',
+        title: 'Pièce client reçue',
+        body: `${expectation.label} a été déposée par le client (${document.originalName}).`,
+        entityType: 'AccountingDocument',
+        entityId: document.id,
+        deduplicationKey: `document-request-received:${expectation.id}:${document.id}:${recipientUserId}`,
+      });
+    }
+  }
+
+  private async notifyClientDocumentRequested(
+    organizationId: string,
+    dossierId: string,
+    dossierName: string,
+    expectation: MissingDocumentExpectation,
+    requestedByUserId: string,
+  ) {
+    const clients = await this.clientRecipients(organizationId, dossierId);
+    const requester = await this.memberships.findOne({
+      where: { organizationId, userId: requestedByUserId, isActive: true },
+      relations: { user: true, organization: true },
+    });
+    for (const client of clients) {
+      await this.notifications.createForUser({
+        organizationId,
+        recipientUserId: client.userId,
+        type: 'PIECE_CLIENT_DEMANDEE',
+        title: 'Nouvelle pièce demandée',
+        body: `${expectation.label} est demandée pour ${String(expectation.periodMonth).padStart(2, '0')}/${expectation.periodYear}.`,
+        entityType: 'MissingDocumentExpectation',
+        entityId: expectation.id,
+        deduplicationKey: `document-request-created:${expectation.id}:${client.userId}`,
+      });
+      try {
+        await this.invitationMailer.sendDocumentRequest({
+          organizationId,
+          actorUserId: requestedByUserId,
+          recipient: client.email,
+          clientName: client.fullName,
+          organizationName: requester?.organization?.name ?? 'Votre cabinet',
+          dossierId,
+          dossierName,
+          requestLabel: expectation.label,
+          periodLabel: `${String(expectation.periodMonth).padStart(2, '0')}/${expectation.periodYear}`,
+          dueOn: expectation.dueOn,
+          message: expectation.message,
+          replyTo: requester?.user.email ?? null,
+        });
+      } catch {
+        // The portal notification remains the source of truth if SMTP is unavailable.
+      }
+    }
+  }
+
+  private async notifyClientsForExpectationStatus(
+    organizationId: string,
+    dossierId: string,
+    expectation: MissingDocumentExpectation,
+    title: string,
+    body: string,
+    keyPrefix: string,
+  ) {
+    const clients = await this.clientRecipients(organizationId, dossierId);
+    for (const client of clients) {
+      await this.notifications.createForUser({
+        organizationId,
+        recipientUserId: client.userId,
+        type: 'PIECE_CLIENT_STATUT',
+        title,
+        body,
+        entityType: 'MissingDocumentExpectation',
+        entityId: expectation.id,
+        deduplicationKey: `${keyPrefix}:${expectation.id}:${client.userId}:${Date.now()}`,
+      });
+    }
+  }
+
+  private async clientRecipients(organizationId: string, dossierId: string) {
+    const assignments = await this.assignments.find({
+      where: { organizationId, dossierId, isActive: true },
+      relations: { membership: { role: true, user: true } },
+    });
+    return assignments
+      .filter(
+        (assignment) =>
+          assignment.membership?.role?.normalizedName ===
+          SystemRoleNames.ClientPortal.toUpperCase(),
+      )
+      .map((assignment) => ({
+        userId: assignment.membership.userId,
+        fullName: assignment.membership.user.fullName,
+        email: assignment.membership.user.email,
+      }));
   }
 
   private safeName(value: string) {

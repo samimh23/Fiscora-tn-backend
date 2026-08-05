@@ -76,10 +76,12 @@ services:
       CLAMAV_TIMEOUT_MS: 30000
       APP_PUBLIC_URL: http://127.0.0.1:5173
       INVITATION_EXPOSE_LINK: "true"
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      SMTP_SECURE: "false"
-      SMTP_FROM: Fiscora <invitations@fiscora.local>
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-Fiscora <invitations@fiscora.local>}
     ports:
       - "3000:3000"
     depends_on:

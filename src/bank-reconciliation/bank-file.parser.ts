@@ -33,8 +33,10 @@ export async function parseBankFile(
     rows = await readSheet(file.buffer);
   } else if (extension === 'csv') {
     rows = parseCsv(file.buffer.toString('utf8'));
+  } else if (extension === 'ofx' || extension === 'qfx') {
+    return parseOfx(file.buffer.toString('utf8'));
   } else {
-    throw new BadRequestException('Utilisez un fichier CSV ou XLSX.');
+    throw new BadRequestException('Utilisez un fichier CSV, XLSX ou OFX.');
   }
   return parseRows(rows);
 }
@@ -245,4 +247,78 @@ function parseCsv(text: string): string[][] {
 
 function countSeparator(line: string, separator: string) {
   return line.split(separator).length - 1;
+}
+
+function parseOfx(text: string): ParsedBankTransaction[] {
+  const clean = text.replace(/^\uFEFF/, '');
+  const blocks = clean.match(/<STMTTRN>[\s\S]*?(?=<\/STMTTRN>|<STMTTRN>|<\/BANKTRANLIST>)/gi);
+  if (!blocks?.length)
+    throw new BadRequestException('Le fichier OFX ne contient aucune opération bancaire.');
+
+  const parsed: ParsedBankTransaction[] = [];
+  const errors: string[] = [];
+  blocks.forEach((block, index) => {
+    try {
+      const transactionDate = parseOfxDate(readOfxTag(block, 'DTPOSTED'));
+      const valueDate = readOfxTag(block, 'DTUSER') || readOfxTag(block, 'DTAVAIL');
+      const amount = normalizeMoney(readOfxTag(block, 'TRNAMT'));
+      if (toMillimes(amount) === 0n) throw new Error('montant nul');
+      const fitId = readOfxTag(block, 'FITID') || readOfxTag(block, 'SRVRTID');
+      const checkNumber = readOfxTag(block, 'CHECKNUM') || readOfxTag(block, 'REFNUM');
+      const name = readOfxTag(block, 'NAME') || readOfxTag(block, 'PAYEE');
+      const memo = readOfxTag(block, 'MEMO');
+      const description = decodeOfxText([name, memo].filter(Boolean).join(' — ')).slice(0, 500);
+      if (!description) throw new Error('libellé vide');
+      const reference = decodeOfxText(fitId || checkNumber || '').slice(0, 150) || null;
+      const balance = readOfxTag(block, 'BALAMT');
+      const base = [
+        fitId || '',
+        transactionDate,
+        amount,
+        normalizeHeader(description),
+      ].join('|');
+      parsed.push({
+        transactionDate,
+        valueDate: valueDate ? parseOfxDate(valueDate) : null,
+        description,
+        reference,
+        amount,
+        balance: balance ? normalizeMoney(balance) : null,
+        fingerprint: createHash('sha256').update(base).digest('hex'),
+      });
+    } catch (error) {
+      errors.push(
+        `opération ${index + 1}: ${error instanceof Error ? error.message : 'valeur invalide'}`,
+      );
+    }
+  });
+  if (errors.length)
+    throw new BadRequestException(
+      `Le fichier OFX contient des erreurs (${errors.slice(0, 10).join('; ')}).`,
+    );
+  return parsed;
+}
+
+function readOfxTag(block: string, tag: string) {
+  const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const closed = new RegExp(`<${escaped}>([\\s\\S]*?)<\\/${escaped}>`, 'i').exec(block);
+  if (closed) return closed[1].trim();
+  const sgml = new RegExp(`<${escaped}>([^\\r\\n<]*)`, 'i').exec(block);
+  return sgml?.[1]?.trim() ?? '';
+}
+
+function parseOfxDate(value: string) {
+  const match = /^(\d{4})(\d{2})(\d{2})/.exec(value.trim());
+  if (!match) throw new Error('date OFX invalide');
+  return formatDate(Number(match[1]), Number(match[2]), Number(match[3]));
+}
+
+function decodeOfxText(value: string) {
+  return value
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .trim();
 }

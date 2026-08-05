@@ -390,6 +390,30 @@ export class RefreshToken extends AuditableEntity {
   replacedByTokenId!: string | null;
 }
 
+@Entity({ schema: 'accounting', name: 'password_reset_tokens' })
+@Index(['userId', 'usedAtUtc'])
+export class PasswordResetToken extends AuditableEntity {
+  @Column({ name: 'user_id', type: 'uuid' })
+  userId!: string;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user!: User;
+
+  @Index({ unique: true })
+  @Column({ name: 'token_hash', length: 64 })
+  tokenHash!: string;
+
+  @Column({ name: 'expires_at_utc', type: 'timestamptz' })
+  expiresAtUtc!: Date;
+
+  @Column({ name: 'used_at_utc', type: 'timestamptz', nullable: true })
+  usedAtUtc!: Date | null;
+
+  @Column({ name: 'requested_ip', type: 'varchar', length: 80, nullable: true })
+  requestedIp!: string | null;
+}
+
 @Entity({ schema: 'accounting', name: 'organization_invitations' })
 @Index(['organizationId', 'normalizedEmail'])
 export class OrganizationInvitation extends AuditableEntity {
@@ -445,6 +469,51 @@ export class OrganizationInvitation extends AuditableEntity {
 
   @Column({ name: 'delivery_error', type: 'text', nullable: true })
   deliveryError!: string | null;
+}
+
+@Entity({ schema: 'accounting', name: 'email_delivery_logs' })
+@Index(['status', 'createdAtUtc'])
+@Index(['recipient'])
+export class EmailDeliveryLog extends AuditableEntity {
+  @Column({ name: 'organization_id', type: 'uuid', nullable: true })
+  organizationId!: string | null;
+
+  @Column({ name: 'actor_user_id', type: 'uuid', nullable: true })
+  actorUserId!: string | null;
+
+  @Column({ type: 'varchar', length: 40 })
+  category!: 'INVITATION' | 'ADMIN_TEST' | 'SYSTEM';
+
+  @Column({ type: 'varchar', length: 80, default: 'smtp' })
+  provider!: string;
+
+  @Column({ length: 320 })
+  recipient!: string;
+
+  @Column({ type: 'varchar', length: 320, nullable: true })
+  sender!: string | null;
+
+  @Column({ type: 'varchar', length: 500 })
+  subject!: string;
+
+  @Column({ type: 'varchar', length: 20 })
+  status!: 'ENVOYE' | 'ECHEC';
+
+  @Column({ name: 'provider_message_id', type: 'varchar', length: 500, nullable: true })
+  providerMessageId!: string | null;
+
+  @Column({ name: 'smtp_response', type: 'text', nullable: true })
+  smtpResponse!: string | null;
+
+  @Column({ name: 'error_message', type: 'text', nullable: true })
+  errorMessage!: string | null;
+
+  @Column({
+    name: 'metadata_json',
+    type: 'jsonb',
+    nullable: true,
+  })
+  metadataJson!: Record<string, unknown> | null;
 }
 
 @Entity({ schema: 'accounting', name: 'audit_logs' })
@@ -1237,6 +1306,79 @@ export enum TimeEntryStatus {
   Rejected = 'REJETE',
 }
 
+export enum TimeEntrySource {
+  Manual = 'MANUEL',
+  Automatic = 'AUTOMATIQUE',
+}
+
+export enum WorkSessionStatus {
+  Active = 'ACTIVE',
+  Paused = 'EN_PAUSE',
+  Completed = 'TERMINEE',
+}
+
+@Entity({ schema: 'accounting', name: 'work_sessions' })
+@Index(['organizationId', 'membershipId', 'status'])
+@Index(['organizationId', 'dossierId', 'startedAtUtc'])
+export class WorkSession extends AuditableEntity {
+  @Column({ name: 'organization_id', type: 'uuid' })
+  organizationId!: string;
+
+  @Column({ name: 'dossier_id', type: 'uuid' })
+  dossierId!: string;
+
+  @ManyToOne(() => ClientDossier, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'dossier_id' })
+  dossier!: ClientDossier;
+
+  @Column({ name: 'membership_id', type: 'uuid' })
+  membershipId!: string;
+
+  @ManyToOne(() => OrganizationMembership, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'membership_id' })
+  membership!: OrganizationMembership;
+
+  @Column({ name: 'task_id', type: 'uuid', nullable: true })
+  taskId!: string | null;
+
+  @ManyToOne(() => WorkTask, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'task_id' })
+  task!: WorkTask | null;
+
+  @Column({ type: 'varchar', length: 500 })
+  description!: string;
+
+  @Column({ default: true })
+  billable!: boolean;
+
+  @Column({ type: 'varchar', length: 20, default: WorkSessionStatus.Active })
+  status!: WorkSessionStatus;
+
+  @Column({ name: 'started_at_utc', type: 'timestamptz' })
+  startedAtUtc!: Date;
+
+  @Column({ name: 'last_heartbeat_at_utc', type: 'timestamptz' })
+  lastHeartbeatAtUtc!: Date;
+
+  @Column({ name: 'stopped_at_utc', type: 'timestamptz', nullable: true })
+  stoppedAtUtc!: Date | null;
+
+  @Column({ name: 'active_seconds', type: 'integer', default: 0 })
+  activeSeconds!: number;
+
+  @Column({ name: 'inactive_seconds', type: 'integer', default: 0 })
+  inactiveSeconds!: number;
+
+  @Column({ name: 'heartbeat_count', type: 'integer', default: 0 })
+  heartbeatCount!: number;
+
+  @Column({ name: 'idle_timeout_seconds', type: 'integer', default: 120 })
+  idleTimeoutSeconds!: number;
+
+  @Column({ name: 'created_by_user_id', type: 'uuid' })
+  createdByUserId!: string;
+}
+
 @Entity({ schema: 'accounting', name: 'time_entries' })
 @Index(['organizationId', 'dossierId', 'workDate', 'status'])
 @Index(['organizationId', 'membershipId', 'workDate', 'status'])
@@ -1270,6 +1412,38 @@ export class TimeEntry extends AuditableEntity {
 
   @Column({ name: 'duration_minutes', type: 'integer' })
   durationMinutes!: number;
+
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: TimeEntrySource.Manual,
+  })
+  source!: TimeEntrySource;
+
+  @Column({ name: 'source_session_id', type: 'uuid', nullable: true })
+  sourceSessionId!: string | null;
+
+  @OneToOne(() => WorkSession, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'source_session_id' })
+  sourceSession!: WorkSession | null;
+
+  @Column({ name: 'started_at_utc', type: 'timestamptz', nullable: true })
+  startedAtUtc!: Date | null;
+
+  @Column({ name: 'stopped_at_utc', type: 'timestamptz', nullable: true })
+  stoppedAtUtc!: Date | null;
+
+  @Column({ name: 'original_duration_minutes', type: 'integer', nullable: true })
+  originalDurationMinutes!: number | null;
+
+  @Column({ name: 'correction_reason', type: 'text', nullable: true })
+  correctionReason!: string | null;
+
+  @Column({ name: 'requires_review', default: false })
+  requiresReview!: boolean;
+
+  @Column({ name: 'anomaly_code', type: 'varchar', length: 50, nullable: true })
+  anomalyCode!: string | null;
 
   @Column({ default: true })
   billable!: boolean;
@@ -1440,6 +1614,14 @@ export enum MalwareScanStatus {
   Failed = 'ERREUR',
 }
 
+export enum DocumentRequestStatus {
+  Requested = 'DEMANDEE',
+  Received = 'RECUE',
+  Validated = 'VALIDEE',
+  Rejected = 'REJETEE',
+  Cancelled = 'ANNULEE',
+}
+
 @Entity({ schema: 'accounting', name: 'accounting_documents' })
 @Index(['organizationId', 'dossierId', 'periodYear', 'periodMonth'])
 @Index(['organizationId', 'category', 'processingStatus'])
@@ -1577,12 +1759,61 @@ export class MissingDocumentExpectation extends AuditableEntity {
   @Column({ type: 'varchar', length: 40 })
   category!: DocumentCategory;
 
+  @Column({ name: 'due_on', type: 'date', nullable: true })
+  dueOn!: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  message!: string | null;
+
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: DocumentRequestStatus.Requested,
+  })
+  status!: DocumentRequestStatus;
+
+  @Column({ name: 'requested_by_user_id', type: 'uuid', nullable: true })
+  requestedByUserId!: string | null;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'requested_by_user_id' })
+  requestedByUser!: User | null;
+
+  @Column({ name: 'requested_at_utc', type: 'timestamptz', nullable: true })
+  requestedAtUtc!: Date | null;
+
   @Column({ name: 'received_document_id', type: 'uuid', nullable: true })
   receivedDocumentId!: string | null;
 
   @ManyToOne(() => AccountingDocument, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'received_document_id' })
   receivedDocument!: AccountingDocument | null;
+
+  @Column({ name: 'validated_by_user_id', type: 'uuid', nullable: true })
+  validatedByUserId!: string | null;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'validated_by_user_id' })
+  validatedByUser!: User | null;
+
+  @Column({ name: 'validated_at_utc', type: 'timestamptz', nullable: true })
+  validatedAtUtc!: Date | null;
+
+  @Column({ name: 'rejected_by_user_id', type: 'uuid', nullable: true })
+  rejectedByUserId!: string | null;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'rejected_by_user_id' })
+  rejectedByUser!: User | null;
+
+  @Column({ name: 'rejected_at_utc', type: 'timestamptz', nullable: true })
+  rejectedAtUtc!: Date | null;
+
+  @Column({ name: 'rejection_reason', type: 'text', nullable: true })
+  rejectionReason!: string | null;
+
+  @Column({ name: 'cancelled_at_utc', type: 'timestamptz', nullable: true })
+  cancelledAtUtc!: Date | null;
 }
 
 export enum NotificationChannel {
@@ -3175,6 +3406,18 @@ export enum BankMatchType {
   GeneratedEntry = 'ECRITURE_GENEREE',
 }
 
+export enum BankRuleMatchType {
+  Contains = 'CONTIENT',
+  StartsWith = 'COMMENCE_PAR',
+  Exact = 'EXACT',
+}
+
+export enum BankRuleDirection {
+  Any = 'TOUS',
+  Debit = 'DEBIT',
+  Credit = 'CREDIT',
+}
+
 @Entity({ schema: 'accounting', name: 'bank_accounts' })
 @Unique(['dossierId', 'name'])
 @Index(['organizationId', 'dossierId', 'isActive'])
@@ -3369,6 +3612,62 @@ export class BankTransaction extends AuditableEntity {
 
   @Column({ name: 'matched_at_utc', type: 'timestamptz', nullable: true })
   matchedAtUtc!: Date | null;
+}
+
+@Entity({ schema: 'accounting', name: 'bank_reconciliation_rules' })
+@Unique(['dossierId', 'label'])
+@Index(['organizationId', 'dossierId', 'isActive'])
+export class BankReconciliationRule extends AuditableEntity {
+  @Column({ name: 'organization_id', type: 'uuid' })
+  organizationId!: string;
+
+  @Column({ name: 'dossier_id', type: 'uuid' })
+  dossierId!: string;
+
+  @ManyToOne(() => ClientDossier, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'dossier_id' })
+  dossier!: ClientDossier;
+
+  @Column({ length: 150 })
+  label!: string;
+
+  @Column({ type: 'varchar', length: 500 })
+  pattern!: string;
+
+  @Column({
+    name: 'match_type',
+    type: 'varchar',
+    length: 30,
+    default: BankRuleMatchType.Contains,
+  })
+  matchType!: BankRuleMatchType;
+
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: BankRuleDirection.Any,
+  })
+  direction!: BankRuleDirection;
+
+  @Column({ name: 'suggested_account_id', type: 'uuid' })
+  suggestedAccountId!: string;
+
+  @ManyToOne(() => LedgerAccount, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'suggested_account_id' })
+  suggestedAccount!: LedgerAccount;
+
+  @Column({ name: 'suggested_third_party_id', type: 'uuid', nullable: true })
+  suggestedThirdPartyId!: string | null;
+
+  @ManyToOne(() => ThirdParty, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'suggested_third_party_id' })
+  suggestedThirdParty!: ThirdParty | null;
+
+  @Column({ name: 'is_active', default: true })
+  isActive!: boolean;
+
+  @Column({ name: 'last_used_at_utc', type: 'timestamptz', nullable: true })
+  lastUsedAtUtc!: Date | null;
 }
 
 export enum DepreciationMethod {
@@ -4793,7 +5092,9 @@ export const ENTITIES = [
   RolePermission,
   OrganizationMembership,
   RefreshToken,
+  PasswordResetToken,
   OrganizationInvitation,
+  EmailDeliveryLog,
   AuditLog,
   CompanyProfile,
   ClientDossier,
@@ -4805,6 +5106,7 @@ export const ENTITIES = [
   WorkTask,
   TaskChecklistItem,
   TaskComment,
+  WorkSession,
   TimeEntry,
   FiscalYear,
   LedgerAccount,
@@ -4836,6 +5138,7 @@ export const ENTITIES = [
   BankAccount,
   BankStatement,
   BankTransaction,
+  BankReconciliationRule,
   FixedAssetCategory,
   FixedAsset,
   AssetDepreciationPeriod,

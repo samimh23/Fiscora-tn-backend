@@ -6,6 +6,7 @@ import {
   ParseIntPipe,
   ParseUUIDPipe,
   Post,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -99,5 +100,51 @@ export class PayrollController {
       year,
       quarter,
     );
+  }
+
+  @Get('payroll/cnss/:year/:quarter/export')
+  @RequirePermission(PermissionNames.PayrollView)
+  async cnssExport(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('year', ParseIntPipe) year: number,
+    @Param('quarter', ParseIntPipe) quarter: number,
+    @CurrentUser() user: JwtUser,
+  ) {
+    const buffer = await this.service.cnssQuarterCsv(
+      organizationId,
+      dossierId,
+      user.userId,
+      year,
+      quarter,
+    );
+    return new StreamableFile(buffer, {
+      type: 'text/csv; charset=utf-8',
+      disposition: `attachment; filename="cnss-${year}-T${quarter}.csv"`,
+      length: buffer.length,
+    });
+  }
+
+  @Get('payroll-runs/:runId/payslips/:lineId.pdf')
+  @RequirePermission(PermissionNames.PayrollView)
+  async payslipPdf(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('runId', ParseUUIDPipe) runId: string,
+    @Param('lineId', ParseUUIDPipe) lineId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    const buffer = await this.service.payslipPdf(
+      organizationId,
+      dossierId,
+      runId,
+      lineId,
+      user.userId,
+    );
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="bulletin-paie-${lineId}.pdf"`,
+      length: buffer.length,
+    });
   }
 }

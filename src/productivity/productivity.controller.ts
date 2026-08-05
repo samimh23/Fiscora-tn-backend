@@ -19,10 +19,12 @@ import { PermissionNames } from '../database/permissions';
 import {
   CreateMemberCostRateDto,
   CreateTimeEntryDto,
+  CorrectTimeEntryDto,
   ProfitabilityQueryDto,
   ReviewTimeEntryDto,
+  StartWorkSessionDto,
   TimeEntryQueryDto,
-  UpdateTimeEntryDto,
+  WorkSessionHeartbeatDto,
 } from './dto';
 import { ProductivityService } from './productivity.service';
 
@@ -90,7 +92,7 @@ export class ProductivityController {
     @Param('dossierId', ParseUUIDPipe) dossierId: string,
     @Param('entryId', ParseUUIDPipe) entryId: string,
     @CurrentUser() user: JwtUser,
-    @Body() dto: UpdateTimeEntryDto,
+    @Body() dto: CorrectTimeEntryDto,
   ) {
     return this.service.updateTimeEntry(
       organizationId,
@@ -98,6 +100,61 @@ export class ProductivityController {
       entryId,
       user.userId,
       dto,
+    );
+  }
+
+  @Get('work-sessions/active')
+  @RequirePermission(PermissionNames.TimeTrackingView)
+  activeWorkSession(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.activeWorkSession(organizationId, user.userId);
+  }
+
+  @Post('dossiers/:dossierId/work-sessions/start')
+  @RequirePermission(PermissionNames.TimeTrackingManage)
+  startWorkSession(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: StartWorkSessionDto,
+  ) {
+    return this.service.startWorkSession(
+      organizationId,
+      dossierId,
+      user.userId,
+      dto,
+    );
+  }
+
+  @Post('work-sessions/:sessionId/heartbeat')
+  @RequirePermission(PermissionNames.TimeTrackingManage)
+  heartbeatWorkSession(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: WorkSessionHeartbeatDto,
+  ) {
+    return this.service.heartbeatWorkSession(
+      organizationId,
+      sessionId,
+      user.userId,
+      dto.active,
+    );
+  }
+
+  @Post('work-sessions/:sessionId/stop')
+  @RequirePermission(PermissionNames.TimeTrackingManage)
+  stopWorkSession(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.stopWorkSession(
+      organizationId,
+      sessionId,
+      user.userId,
     );
   }
 
@@ -133,6 +190,15 @@ export class ProductivityController {
       user.userId,
       dto,
     );
+  }
+
+  @Get('cockpit')
+  @RequirePermission(PermissionNames.TasksView)
+  cockpit(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @CurrentUser() user: JwtUser,
+  ): Promise<unknown> {
+    return this.service.cockpit(organizationId, user.userId);
   }
 
   @Get('profitability')

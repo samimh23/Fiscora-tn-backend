@@ -19,6 +19,7 @@ import { PermissionGuard } from '../common/permission.guard';
 import { PermissionNames } from '../database/permissions';
 import { BankReconciliationService } from './bank-reconciliation.service';
 import {
+  CreateBankRuleDto,
   CreateBankAccountDto,
   GenerateBankEntryDto,
   ImportBankStatementDto,
@@ -63,6 +64,27 @@ export class BankReconciliationController {
       user.userId,
       dto,
     );
+  }
+
+  @Get('rules')
+  @RequirePermission(PermissionNames.BankReconciliationView)
+  listRules(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.listRules(organizationId, dossierId, user.userId);
+  }
+
+  @Post('rules')
+  @RequirePermission(PermissionNames.BankReconciliationManage)
+  createRule(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: CreateBankRuleDto,
+  ) {
+    return this.service.createRule(organizationId, dossierId, user.userId, dto);
   }
 
   @Get('statements')

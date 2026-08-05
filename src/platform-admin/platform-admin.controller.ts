@@ -13,7 +13,11 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { JwtUser } from '../common/auth.types';
 import { CurrentUser } from '../common/current-user.decorator';
 import { PlatformAdminGuard } from '../common/platform-admin.guard';
-import { RevokePlatformSessionsDto, UpdatePlatformStatusDto } from './dto';
+import {
+  RevokePlatformSessionsDto,
+  SendPlatformTestEmailDto,
+  UpdatePlatformStatusDto,
+} from './dto';
 import { PlatformAdminService } from './platform-admin.service';
 
 @ApiTags('Administration de la plateforme')
@@ -68,6 +72,21 @@ export class PlatformAdminController {
   @Get('jobs')
   jobs() {
     return this.service.jobs();
+  }
+
+  @Get('email/status')
+  emailStatus() {
+    return this.service.emailStatus();
+  }
+
+  @Get('email/logs')
+  emailLogs() {
+    return this.service.emailLogs();
+  }
+
+  @Post('email/test')
+  sendTestEmail(@CurrentUser() user: JwtUser, @Body() dto: SendPlatformTestEmailDto) {
+    return this.service.sendTestEmail(user, dto);
   }
 
   @Get('audit-logs')

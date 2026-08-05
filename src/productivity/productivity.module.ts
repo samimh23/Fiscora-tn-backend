@@ -8,6 +8,7 @@ import {
   DossierAssignment,
   OrganizationMembership,
   TimeEntry,
+  WorkSession,
   WorkTask,
 } from '../database/entities';
 import { DossiersModule } from '../dossiers/dossiers.module';
@@ -21,6 +22,7 @@ import { ProductivityService } from './productivity.service';
     TypeOrmModule.forFeature([
       CabinetMemberCostRate,
       TimeEntry,
+      WorkSession,
       OrganizationMembership,
       WorkTask,
       ClientDossier,

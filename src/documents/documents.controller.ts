@@ -25,6 +25,7 @@ import { PermissionNames } from '../database/permissions';
 import {
   CreateExpectationDto,
   DocumentQueryDto,
+  RejectExpectationDto,
   UpdateDocumentDto,
   UploadDocumentDto,
 } from './dto';
@@ -187,6 +188,56 @@ export class DocumentsController {
       dossierId,
       expectationId,
       documentId,
+      user.userId,
+    );
+  }
+
+  @Patch('missing/:expectationId/validate')
+  @RequirePermission(PermissionNames.DocumentsUpload)
+  validateExpectation(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('expectationId', ParseUUIDPipe) expectationId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.validateExpectation(
+      organizationId,
+      dossierId,
+      expectationId,
+      user.userId,
+    );
+  }
+
+  @Patch('missing/:expectationId/reject')
+  @RequirePermission(PermissionNames.DocumentsUpload)
+  rejectExpectation(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('expectationId', ParseUUIDPipe) expectationId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: RejectExpectationDto,
+  ) {
+    return this.service.rejectExpectation(
+      organizationId,
+      dossierId,
+      expectationId,
+      user.userId,
+      dto,
+    );
+  }
+
+  @Patch('missing/:expectationId/cancel')
+  @RequirePermission(PermissionNames.DocumentsUpload)
+  cancelExpectation(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('expectationId', ParseUUIDPipe) expectationId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.cancelExpectation(
+      organizationId,
+      dossierId,
+      expectationId,
       user.userId,
     );
   }

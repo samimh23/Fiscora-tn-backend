@@ -15,11 +15,13 @@ import {
   Organization,
   OrganizationInvitation,
   OrganizationMembership,
+  PasswordResetToken,
   RefreshToken,
   Role,
   RolePermission,
   User,
 } from '../database/entities';
+import { InvitationMailerService } from '../email/invitation-mailer.service';
 import {
   collaboratorPermissions,
   clientPortalPermissions,
@@ -32,7 +34,9 @@ import {
   LoginDto,
   RefreshDto,
   RegisterDto,
+  RequestPasswordResetDto,
   RevokeTokenDto,
+  ResetPasswordDto,
   UpdateProfileDto,
 } from './dto';
 
@@ -47,6 +51,9 @@ export class AuthService {
     private readonly refreshTokens: Repository<RefreshToken>,
     @InjectRepository(OrganizationInvitation)
     private readonly invitations: Repository<OrganizationInvitation>,
+    @InjectRepository(PasswordResetToken)
+    private readonly passwordResetTokens: Repository<PasswordResetToken>,
+    private readonly mailer: InvitationMailerService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -163,6 +170,113 @@ export class AuthService {
     });
   }
 
+  async requestPasswordReset(dto: RequestPasswordResetDto, requestedIp?: string) {
+    const user = await this.users.findOneBy({
+      normalizedEmail: this.normalizeEmail(dto.email),
+    });
+    const message =
+      'Si un compte existe avec cette adresse, un e-mail de réinitialisation vient d’être envoyé.';
+
+    if (!user?.isActive) return { message };
+
+    const rawToken = randomBytes(48).toString('base64url');
+    const expiresAtUtc = new Date(
+      Date.now() +
+        Number(this.config.get('PASSWORD_RESET_MINUTES', 30)) * 60_000,
+    );
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.update(
+        PasswordResetToken,
+        { userId: user.id, usedAtUtc: IsNull() },
+        { usedAtUtc: new Date() },
+      );
+      await manager.save(
+        manager.create(PasswordResetToken, {
+          userId: user.id,
+          tokenHash: this.hashToken(rawToken),
+          expiresAtUtc,
+          usedAtUtc: null,
+          requestedIp: requestedIp?.slice(0, 80) ?? null,
+        }),
+      );
+      await manager.save(
+        manager.create(AuditLog, {
+          organizationId: null,
+          actorUserId: user.id,
+          action: 'auth.password_reset_requested',
+          entityType: 'User',
+          entityId: user.id,
+          detailsJson: { requestedIp: requestedIp ?? null },
+        }),
+      );
+    });
+
+    try {
+      await this.mailer.sendPasswordReset({
+        recipient: user.email,
+        fullName: user.fullName,
+        token: rawToken,
+        expiresAtUtc,
+      });
+    } catch {
+      // Keep the public response generic; delivery failures are visible in email logs.
+    }
+
+    return { message };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const resetToken = await this.passwordResetTokens.findOne({
+      where: { tokenHash: this.hashToken(dto.token) },
+      relations: { user: true },
+    });
+    if (
+      !resetToken ||
+      resetToken.usedAtUtc ||
+      resetToken.expiresAtUtc <= new Date() ||
+      !resetToken.user.isActive
+    ) {
+      throw new BadRequestException(
+        'Le lien de réinitialisation est invalide ou expiré.',
+      );
+    }
+    if (await compare(dto.newPassword, resetToken.user.passwordHash)) {
+      throw new BadRequestException(
+        'Le nouveau mot de passe doit être différent du mot de passe actuel.',
+      );
+    }
+
+    resetToken.user.passwordHash = await hash(dto.newPassword, 12);
+    resetToken.user.emailVerified = true;
+    resetToken.usedAtUtc = new Date();
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.save(resetToken.user);
+      await manager.save(resetToken);
+      await manager.update(
+        RefreshToken,
+        { userId: resetToken.userId, revokedAtUtc: IsNull() },
+        { revokedAtUtc: new Date() },
+      );
+      await manager.save(
+        manager.create(AuditLog, {
+          organizationId: null,
+          actorUserId: resetToken.userId,
+          action: 'auth.password_reset_completed',
+          entityType: 'User',
+          entityId: resetToken.userId,
+          detailsJson: null,
+        }),
+      );
+    });
+
+    return {
+      message:
+        'Mot de passe réinitialisé. Vous pouvez maintenant vous connecter.',
+    };
+  }
+
   async revoke(dto: RevokeTokenDto): Promise<void> {
     await this.refreshTokens.update(
       { tokenHash: this.hashToken(dto.refreshToken), revokedAtUtc: IsNull() },
@@ -232,6 +346,40 @@ export class AuthService {
       );
       return this.issueTokens(manager, user);
     });
+  }
+
+  async previewInvitation(token: string) {
+    const invitation = await this.invitations.findOne({
+      where: { tokenHash: this.hashToken(token) },
+      relations: { role: true, organization: true },
+    });
+    const now = new Date();
+    const isInvalid =
+      !invitation ||
+      Boolean(invitation.revokedAtUtc) ||
+      Boolean(invitation.acceptedAtUtc) ||
+      invitation.expiresAtUtc <= now;
+    if (isInvalid) {
+      throw new BadRequestException('L’invitation est invalide ou expirée.');
+    }
+
+    const existingUser = await this.users.findOne({
+      where: { normalizedEmail: invitation.normalizedEmail },
+      select: {
+        id: true,
+        fullName: true,
+        normalizedEmail: true,
+      },
+    });
+
+    return {
+      email: invitation.email,
+      organizationName: invitation.organization.name,
+      roleName: invitation.role.name,
+      expiresAtUtc: invitation.expiresAtUtc,
+      accountExists: Boolean(existingUser),
+      existingFullName: existingUser?.fullName ?? null,
+    };
   }
 
   async me(userId: string) {

@@ -431,6 +431,8 @@ export class OrganizationsService {
     invitation.deliveryAttempts += 1;
     try {
       await this.invitationMailer.sendInvitation({
+        organizationId: invitation.organizationId,
+        actorUserId: invitation.invitedByUserId,
         recipient: invitation.email,
         organizationName,
         inviterName,
