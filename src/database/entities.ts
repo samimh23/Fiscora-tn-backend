@@ -3168,6 +3168,13 @@ export class BusinessInvoice extends AuditableEntity {
   @Column({ name: 'withholding_account_id', type: 'uuid', nullable: true })
   withholdingAccountId!: string | null;
 
+  @Column({
+    name: 'vat_suspension_certificate_id',
+    type: 'uuid',
+    nullable: true,
+  })
+  vatSuspensionCertificateId!: string | null;
+
   @Column({ name: 'net_amount', type: 'decimal', precision: 15, scale: 3 })
   netAmount!: string;
 

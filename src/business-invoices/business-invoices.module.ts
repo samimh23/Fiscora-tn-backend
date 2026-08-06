@@ -13,6 +13,7 @@ import {
   LedgerAccount,
   OrganizationMembership,
   ThirdParty,
+  VatSuspensionCertificate,
 } from '../database/entities';
 import { DossiersModule } from '../dossiers/dossiers.module';
 import { FiscalSettingsModule } from '../fiscal-settings/fiscal-settings.module';
@@ -37,6 +38,7 @@ import { PeriodClosingModule } from '../period-closing/period-closing.module';
       AccountingDocument,
       ThirdParty,
       OrganizationMembership,
+      VatSuspensionCertificate,
     ]),
   ],
   controllers: [BusinessInvoicesController],

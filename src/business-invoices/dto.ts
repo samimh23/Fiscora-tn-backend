@@ -115,6 +115,10 @@ export class SaveBusinessInvoiceDto {
   withholdingAccountId?: string;
 
   @IsOptional()
+  @IsUUID()
+  vatSuspensionCertificateId?: string;
+
+  @IsOptional()
   @Matches(money)
   stampDuty?: string;
 

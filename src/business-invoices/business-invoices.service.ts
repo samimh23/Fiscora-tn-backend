@@ -30,6 +30,8 @@ import {
   OrganizationMembership,
   ThirdParty,
   ThirdPartyType,
+  VatSuspensionCertificate,
+  VatSuspensionStatus,
 } from '../database/entities';
 import { DossiersService } from '../dossiers/dossiers.service';
 import { FiscalSettingsService } from '../fiscal-settings/fiscal-settings.service';
@@ -55,6 +57,8 @@ export class BusinessInvoicesService {
     private readonly commercialDocuments: Repository<CommercialDocument>,
     @InjectRepository(OrganizationMembership)
     private readonly memberships: Repository<OrganizationMembership>,
+    @InjectRepository(VatSuspensionCertificate)
+    private readonly vatSuspensionCertificates: Repository<VatSuspensionCertificate>,
     private readonly dossiers: DossiersService,
     private readonly fiscalSettings: FiscalSettingsService,
     private readonly periodLocks: PeriodLockService,
@@ -214,7 +218,47 @@ export class BusinessInvoicesService {
         );
     }
 
+    let vatSuspensionCertificate: VatSuspensionCertificate | null = null;
+    if (dto.vatSuspensionCertificateId) {
+      if (dto.type !== BusinessInvoiceType.Purchase)
+        throw new BadRequestException(
+          'L’attestation de suspension de TVA ne s’applique qu’aux factures d’achat.',
+        );
+      vatSuspensionCertificate = await this.vatSuspensionCertificates.findOneBy(
+        {
+          id: dto.vatSuspensionCertificateId,
+          organizationId,
+          dossierId,
+        },
+      );
+      if (!vatSuspensionCertificate)
+        throw new NotFoundException(
+          'L’attestation de suspension de TVA est introuvable.',
+        );
+    }
+
     const calculation = await this.calculate(organizationId, dto);
+    if (vatSuspensionCertificate) {
+      if (
+        vatSuspensionCertificate.status !== VatSuspensionStatus.Active ||
+        dto.invoiceDate < vatSuspensionCertificate.validFrom ||
+        dto.invoiceDate > vatSuspensionCertificate.validTo
+      )
+        throw new ConflictException(
+          'L’attestation de suspension n’est pas valide à cette date.',
+        );
+      if (toMillimes(calculation.header.vatAmount) > 0n)
+        throw new BadRequestException(
+          'La TVA doit être nulle sur une facture couverte par une attestation de suspension.',
+        );
+      const remaining =
+        toMillimes(vatSuspensionCertificate.authorizedBase) -
+        toMillimes(vatSuspensionCertificate.usedBase);
+      if (toMillimes(calculation.header.netAmount) > remaining)
+        throw new ConflictException(
+          'Le plafond restant de l’attestation est insuffisant.',
+        );
+    }
     const original =
       dto.kind === BusinessInvoiceKind.CreditNote
         ? await this.validateOriginalInvoice(
@@ -260,6 +304,7 @@ export class BusinessInvoicesService {
         stampAccountId: dto.stampAccountId ?? null,
         exciseAccountId: dto.exciseAccountId ?? null,
         withholdingAccountId: dto.withholdingAccountId ?? null,
+        vatSuspensionCertificateId: vatSuspensionCertificate?.id ?? null,
         sourceDocumentId: dto.sourceDocumentId ?? null,
         sourceCommercialDocumentId: dto.sourceCommercialDocumentId ?? null,
         notes: dto.notes?.trim() || null,
@@ -340,6 +385,40 @@ export class BusinessInvoicesService {
         }),
       );
       await manager.save(lines);
+      if (invoice.vatSuspensionCertificateId) {
+        const certificate = await manager.findOneOrFail(
+          VatSuspensionCertificate,
+          {
+            where: {
+              id: invoice.vatSuspensionCertificateId,
+              organizationId,
+              dossierId,
+            },
+            lock: { mode: 'pessimistic_write' },
+          },
+        );
+        if (
+          certificate.status !== VatSuspensionStatus.Active ||
+          invoice.invoiceDate < certificate.validFrom ||
+          invoice.invoiceDate > certificate.validTo
+        )
+          throw new ConflictException(
+            'L’attestation de suspension n’est plus valide à la date de la facture.',
+          );
+        const remaining =
+          toMillimes(certificate.authorizedBase) -
+          toMillimes(certificate.usedBase);
+        if (toMillimes(invoice.netAmount) > remaining)
+          throw new ConflictException(
+            'Le plafond restant de l’attestation est insuffisant.',
+          );
+        const used =
+          toMillimes(certificate.usedBase) + toMillimes(invoice.netAmount);
+        certificate.usedBase = fromMillimes(used);
+        if (used === toMillimes(certificate.authorizedBase))
+          certificate.status = VatSuspensionStatus.Exhausted;
+        await manager.save(certificate);
+      }
       invoice.status = BusinessInvoiceStatus.Validated;
       invoice.journalEntryId = entry.id;
       invoice.validatedByUserId = userId;

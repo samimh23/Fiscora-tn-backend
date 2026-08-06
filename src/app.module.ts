@@ -80,6 +80,7 @@ import { FixMojibakePermissionDescriptions1784371000000 } from './database/migra
 import { ExciseTax1784372000000 } from './database/migrations/1784372000000-excise-tax';
 import { CostCenters1784373000000 } from './database/migrations/1784373000000-cost-centers';
 import { PaymentInstruments1784374000000 } from './database/migrations/1784374000000-payment-instruments';
+import { InvoiceVatSuspension1784375000000 } from './database/migrations/1784375000000-invoice-vat-suspension';
 
 @Module({
   imports: [
@@ -138,6 +139,7 @@ import { PaymentInstruments1784374000000 } from './database/migrations/178437400
           ExciseTax1784372000000,
           CostCenters1784373000000,
           PaymentInstruments1784374000000,
+          InvoiceVatSuspension1784375000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,

@@ -98,16 +98,28 @@ export class ForeignTradeService {
       order: { validTo: 'DESC' },
     });
     const today = new Date().toISOString().slice(0, 10);
-    return items.map((item) => ({
-      ...item,
-      currentStatus:
+    const todayMs = new Date(today).getTime();
+    return items.map((item) => {
+      const currentStatus =
         item.status === VatSuspensionStatus.Active && item.validTo < today
           ? VatSuspensionStatus.Expired
-          : item.status,
-      remainingBase: fromMillimes(
-        toMillimes(item.authorizedBase) - toMillimes(item.usedBase),
-      ),
-    }));
+          : item.status;
+      const daysUntilExpiry = Math.round(
+        (new Date(item.validTo).getTime() - todayMs) / 86400000,
+      );
+      return {
+        ...item,
+        currentStatus,
+        remainingBase: fromMillimes(
+          toMillimes(item.authorizedBase) - toMillimes(item.usedBase),
+        ),
+        daysUntilExpiry,
+        expiringSoon:
+          currentStatus === VatSuspensionStatus.Active &&
+          daysUntilExpiry >= 0 &&
+          daysUntilExpiry <= 30,
+      };
+    });
   }
 
   async createCertificate(
