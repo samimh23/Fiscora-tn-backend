@@ -3175,6 +3175,32 @@ export class BusinessInvoice extends AuditableEntity {
   })
   vatSuspensionCertificateId!: string | null;
 
+  @Column({
+    name: 'currency_code',
+    type: 'varchar',
+    length: 3,
+    default: 'TND',
+  })
+  currencyCode!: string;
+
+  @Column({
+    name: 'exchange_rate',
+    type: 'decimal',
+    precision: 18,
+    scale: 8,
+    default: 1,
+  })
+  exchangeRate!: string;
+
+  @Column({
+    name: 'foreign_gross_amount',
+    type: 'decimal',
+    precision: 18,
+    scale: 3,
+    nullable: true,
+  })
+  foreignGrossAmount!: string | null;
+
   @Column({ name: 'net_amount', type: 'decimal', precision: 15, scale: 3 })
   netAmount!: string;
 

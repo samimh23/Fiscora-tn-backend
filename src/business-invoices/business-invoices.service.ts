@@ -510,9 +510,16 @@ export class BusinessInvoicesService {
   }
 
   private async calculate(organizationId: string, dto: SaveBusinessInvoiceDto) {
+    const currencyCode = dto.currencyCode?.trim().toUpperCase() || 'TND';
+    if (currencyCode !== 'TND' && !dto.exchangeRate)
+      throw new BadRequestException(
+        'Le taux de change est obligatoire pour une facture en devise étrangère.',
+      );
+    const exchangeRate = currencyCode === 'TND' ? '1.00000' : dto.exchangeRate!;
     let totalNet = 0n;
     let totalVat = 0n;
     let totalExcise = 0n;
+    let foreignGross = 0n;
     const taxLines: Record<string, unknown>[] = [];
     const lines = await Promise.all(
       dto.lines.map(async (line) => {
@@ -548,9 +555,15 @@ export class BusinessInvoicesService {
         }
         // Le droit de consommation est inclus dans la base de la TVA.
         const vat = multiplyRate(net + excise, vatRate);
-        totalNet += net;
-        totalVat += vat;
-        totalExcise += excise;
+        foreignGross += net + excise + vat;
+        // Les montants sont convertis en TND ; la devise et le taux
+        // saisis restent la référence pour retrouver le montant d’origine.
+        const netTnd = multiplyRate(net, exchangeRate);
+        const exciseTnd = multiplyRate(excise, exchangeRate);
+        const vatTnd = multiplyRate(vat, exchangeRate);
+        totalNet += netTnd;
+        totalVat += vatTnd;
+        totalExcise += exciseTnd;
         taxLines.push({
           description: line.description,
           vatCode: line.vatCode ?? null,
@@ -567,10 +580,10 @@ export class BusinessInvoicesService {
           vatCode: line.vatCode?.trim().toUpperCase() || null,
           vatRate,
           exciseRate,
-          exciseAmount: fromMillimes(excise),
-          netAmount: fromMillimes(net),
-          vatAmount: fromMillimes(vat),
-          grossAmount: fromMillimes(net + excise + vat),
+          exciseAmount: fromMillimes(exciseTnd),
+          netAmount: fromMillimes(netTnd),
+          vatAmount: fromMillimes(vatTnd),
+          grossAmount: fromMillimes(netTnd + exciseTnd + vatTnd),
         };
       }),
     );
@@ -619,6 +632,10 @@ export class BusinessInvoicesService {
     return {
       lines,
       header: {
+        currencyCode,
+        exchangeRate,
+        foreignGrossAmount:
+          currencyCode === 'TND' ? null : fromMillimes(foreignGross),
         netAmount: fromMillimes(totalNet),
         exciseAmount: fromMillimes(totalExcise),
         vatAmount: fromMillimes(totalVat),

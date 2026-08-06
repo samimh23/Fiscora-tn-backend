@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Length,
   Matches,
   MaxLength,
   ValidateNested,
@@ -117,6 +118,15 @@ export class SaveBusinessInvoiceDto {
   @IsOptional()
   @IsUUID()
   vatSuspensionCertificateId?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(3, 3)
+  currencyCode?: string;
+
+  @IsOptional()
+  @Matches(rate)
+  exchangeRate?: string;
 
   @IsOptional()
   @Matches(money)
