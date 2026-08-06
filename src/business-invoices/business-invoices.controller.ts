@@ -6,8 +6,10 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { JwtUser } from '../common/auth.types';
@@ -62,6 +64,29 @@ export class BusinessInvoicesController {
       invoiceId,
       user.userId,
     );
+  }
+
+  @Get(':invoiceId/withholding-certificate')
+  @RequirePermission(PermissionNames.BusinessInvoicesView)
+  async withholdingCertificate(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
+    @CurrentUser() user: JwtUser,
+    @Res() response: Response,
+  ) {
+    const buffer = await this.service.withholdingCertificatePdf(
+      organizationId,
+      dossierId,
+      invoiceId,
+      user.userId,
+    );
+    response.setHeader('Content-Type', 'application/pdf');
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="certificat-retenue-${invoiceId}.pdf"`,
+    );
+    response.send(buffer);
   }
 
   @Post()

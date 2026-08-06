@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, IsNull, Repository } from 'typeorm';
+import PDFDocument from 'pdfkit';
 import { fromMillimes, multiplyRate, toMillimes } from '../common/money';
 import {
   AccountingDocument,
@@ -855,6 +856,150 @@ export class BusinessInvoicesService {
       hasDiscrepancies: rows.some((row) => row.status !== 'OK'),
       lines: rows.sort((a, b) => a.description.localeCompare(b.description)),
     };
+  }
+
+  async withholdingCertificatePdf(
+    organizationId: string,
+    dossierId: string,
+    invoiceId: string,
+    userId: string,
+  ) {
+    const dossier = await this.dossiers.getAccessibleEntity(
+      organizationId,
+      dossierId,
+      userId,
+    );
+    const invoice = await this.find(organizationId, dossierId, invoiceId);
+    if (invoice.type !== BusinessInvoiceType.Purchase)
+      throw new BadRequestException(
+        'Le certificat de retenue à la source ne s’applique qu’aux factures d’achat.',
+      );
+    if (toMillimes(invoice.withholdingAmount) <= 0n)
+      throw new BadRequestException(
+        'Cette facture ne comporte pas de retenue à la source.',
+      );
+    const snapshot =
+      (invoice.taxSnapshot?.withholding as
+        | {
+            natureCode?: string;
+            rate?: string;
+            sourceLabel?: string;
+          }
+        | null) ?? null;
+
+    const document = new PDFDocument({
+      size: 'A4',
+      margins: { top: 48, right: 48, bottom: 48, left: 48 },
+      info: {
+        Title: `Certificat de retenue à la source - ${invoice.number}`,
+        Author: 'Fiscora',
+      },
+    });
+    const chunks: Buffer[] = [];
+    document.on('data', (chunk: Buffer) => chunks.push(chunk));
+    const done = new Promise<Buffer>((resolve, reject) => {
+      document.on('end', () => resolve(Buffer.concat(chunks)));
+      document.on('error', reject);
+    });
+
+    document.rect(0, 0, 595, 100).fill('#14532D');
+    document
+      .fillColor('#FFFFFF')
+      .font('Helvetica-Bold')
+      .fontSize(19)
+      .text('Certificat de retenue à la source', 48, 32)
+      .font('Helvetica')
+      .fontSize(10)
+      .text(
+        `Émis conformément à l’article 19 du code de l’IRPP et de l’IS`,
+        48,
+        64,
+      );
+
+    let y = 130;
+    const field = (label: string, value: string) => {
+      document
+        .fillColor('#64748B')
+        .font('Helvetica')
+        .fontSize(9)
+        .text(label, 48, y);
+      document
+        .fillColor('#0F172A')
+        .font('Helvetica-Bold')
+        .fontSize(11)
+        .text(value, 48, y + 13);
+      y += 40;
+    };
+
+    document
+      .fillColor('#14532D')
+      .font('Helvetica-Bold')
+      .fontSize(12)
+      .text('Débiteur (émetteur de la retenue)', 48, y);
+    y += 20;
+    field('Raison sociale', dossier.legalName);
+    field('Matricule fiscal', dossier.taxIdentifier ?? 'Non renseigné');
+
+    document
+      .fillColor('#14532D')
+      .font('Helvetica-Bold')
+      .fontSize(12)
+      .text('Bénéficiaire (partie retenue)', 48, y);
+    y += 20;
+    field('Raison sociale', invoice.thirdPartyName);
+    field(
+      'Matricule fiscal',
+      invoice.thirdPartyTaxIdentifier ?? 'Non renseigné',
+    );
+
+    document
+      .fillColor('#14532D')
+      .font('Helvetica-Bold')
+      .fontSize(12)
+      .text('Détail de la retenue', 48, y);
+    y += 20;
+    field('Facture de référence', invoice.number);
+    field('Date de la facture', invoice.invoiceDate);
+    field(
+      'Nature de la retenue',
+      snapshot?.sourceLabel ?? snapshot?.natureCode ?? 'Non précisée',
+    );
+    field('Base de la retenue', `${invoice.withholdingBase} TND`);
+    field(
+      'Taux appliqué',
+      invoice.withholdingRate
+        ? `${(Number(invoice.withholdingRate) * 100).toFixed(2)} %`
+        : 'Non précisé',
+    );
+
+    y += 6;
+    document
+      .roundedRect(48, y, 499, 50, 6)
+      .fillAndStroke('#DCFCE7', '#16A34A');
+    document
+      .fillColor('#14532D')
+      .font('Helvetica-Bold')
+      .fontSize(14)
+      .text(
+        `Montant retenu : ${invoice.withholdingAmount} TND`,
+        64,
+        y + 17,
+      );
+    y += 80;
+
+    document
+      .fillColor('#64748B')
+      .font('Helvetica')
+      .fontSize(8)
+      .text(
+        `Ce certificat est délivré au bénéficiaire pour lui permettre d’imputer la retenue à la source sur son impôt dû, conformément à la législation fiscale tunisienne en vigueur. Généré le ${new Date().toLocaleDateString('fr-TN')}.`,
+        48,
+        y,
+        { width: 499 },
+      );
+
+    document.end();
+    return done;
   }
 
   private settlementStatus(outstanding: bigint) {
