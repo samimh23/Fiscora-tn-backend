@@ -35,8 +35,12 @@ export async function parseBankFile(
     rows = parseCsv(file.buffer.toString('utf8'));
   } else if (extension === 'ofx' || extension === 'qfx') {
     return parseOfx(file.buffer.toString('utf8'));
+  } else if (extension === 'sta' || extension === '940' || extension === 'mt940') {
+    return parseMt940(file.buffer.toString('utf8'));
   } else {
-    throw new BadRequestException('Utilisez un fichier CSV, XLSX ou OFX.');
+    throw new BadRequestException(
+      'Utilisez un fichier CSV, XLSX, OFX ou MT940 (.sta).',
+    );
   }
   return parseRows(rows);
 }
@@ -321,4 +325,90 @@ function decodeOfxText(value: string) {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
     .trim();
+}
+
+// SWIFT MT940 (.sta): each statement line starts with ":61:" and is
+// optionally followed by one or more ":86:" lines with free-text details.
+// Field 61 layout: YYMMDD[MMDD]D|C|RD|RC amount(comma decimal) type ref
+export function parseMt940(text: string): ParsedBankTransaction[] {
+  const clean = text.replace(/^﻿/, '').replace(/\r\n/g, '\n');
+  // Unwrap SWIFT's hard line-continuation so a tag's value isn't split
+  // across lines: any line not starting with ':' or '-' continues the
+  // previous tag.
+  const rawLines = clean.split('\n');
+  const lines: string[] = [];
+  for (const line of rawLines) {
+    if (/^:[0-9A-Z]{2,4}:/.test(line)) {
+      lines.push(line);
+    } else if (lines.length && line.trim() && line.trim() !== '-') {
+      lines[lines.length - 1] += ` ${line.trim()}`;
+    }
+  }
+
+  const field61 =
+    /^:61:(\d{6})(\d{4})?(R?[DC])(\d+(?:,\d*)?)([A-Z]{1}[A-Z0-9]{3})?(?:\/\/(\S*))?(.*)$/;
+  const parsed: ParsedBankTransaction[] = [];
+  const errors: string[] = [];
+  let index = 0;
+  let entryNumber = 0;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (!line.startsWith(':61:')) continue;
+    entryNumber += 1;
+    try {
+      const match = field61.exec(line);
+      if (!match) throw new Error('format de ligne :61: invalide');
+      const [, valueDateRaw, , mark, amountRaw, , , reference] = match;
+      const valueDate = parseMt940Date(valueDateRaw);
+      const millimes = toMillimes(amountRaw.replace(',', '.'));
+      const amount = fromMillimes(
+        mark.endsWith('D') ? -millimes : millimes,
+      );
+      if (millimes === 0n) throw new Error('montant nul');
+      let description = '';
+      let j = i + 1;
+      while (j < lines.length && lines[j].startsWith(':86:')) {
+        description += `${description ? ' ' : ''}${lines[j].slice(4).trim()}`;
+        j += 1;
+      }
+      if (!description) description = `Opération ${entryNumber}`;
+      const base = [
+        valueDate,
+        amount,
+        reference?.trim() ?? '',
+        normalizeHeader(description),
+        entryNumber,
+      ].join('|');
+      parsed.push({
+        transactionDate: valueDate,
+        valueDate,
+        description: description.slice(0, 500),
+        reference: reference?.trim().slice(0, 150) || null,
+        amount,
+        balance: null,
+        fingerprint: createHash('sha256').update(base).digest('hex'),
+      });
+      index += 1;
+    } catch (error) {
+      errors.push(
+        `opération ${index + 1}: ${error instanceof Error ? error.message : 'valeur invalide'}`,
+      );
+    }
+  }
+  if (errors.length)
+    throw new BadRequestException(
+      `Le fichier MT940 contient des erreurs (${errors.slice(0, 10).join('; ')}).`,
+    );
+  if (!parsed.length)
+    throw new BadRequestException(
+      'Le fichier MT940 ne contient aucune opération (balise :61: absente).',
+    );
+  return parsed;
+}
+
+function parseMt940Date(value: string) {
+  const year = 2000 + Number(value.slice(0, 2));
+  const month = Number(value.slice(2, 4));
+  const day = Number(value.slice(4, 6));
+  return formatDate(year, month, day);
 }
