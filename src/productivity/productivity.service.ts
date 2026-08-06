@@ -148,7 +148,6 @@ export class ProductivityService {
     `;
     const activeDossierFilter = `
       d.organization_id = $1
-      AND d.deleted_at_utc IS NULL
       AND d.status <> 'ARCHIVE'
       ${accessFilter}
     `;
@@ -276,7 +275,7 @@ export class ProductivityService {
       this.dataSource.query(
         `
         SELECT obl.id, obl.dossier_id AS "dossierId", d.legal_name AS "dossierName",
-               tpl.title, obl.due_on AS "dueOn", obl.status,
+               tpl.name AS title, obl.due_on AS "dueOn", obl.status,
                obl.amount_due AS amount, COUNT(*) OVER() AS total
         FROM accounting.obligation_instances obl
         JOIN accounting.client_dossiers d ON d.id = obl.dossier_id
