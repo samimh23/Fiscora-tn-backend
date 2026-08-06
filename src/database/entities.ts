@@ -840,6 +840,7 @@ export class DossierContact extends AuditableEntity {
 export enum DossierAssignmentRole {
   Responsible = 'RESPONSABLE',
   Support = 'SUPPORT',
+  Client = 'CLIENT',
 }
 
 @Entity({ schema: 'accounting', name: 'dossier_assignments' })

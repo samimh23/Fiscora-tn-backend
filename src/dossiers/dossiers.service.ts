@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -11,11 +12,12 @@ import {
   BillingFrequency,
   ClientDossier,
   DossierAssignment,
+  DossierAssignmentRole,
   DossierContact,
   DossierStatus,
   OrganizationMembership,
 } from '../database/entities';
-import { PermissionNames } from '../database/permissions';
+import { PermissionNames, SystemRoleNames } from '../database/permissions';
 import {
   CreateDossierContactDto,
   CreateDossierDto,
@@ -316,6 +318,17 @@ export class DossiersService {
     if (!membership) {
       throw new NotFoundException(
         'Le collaborateur actif est introuvable dans ce cabinet.',
+      );
+    }
+    const isClientRole = membership.role.name === SystemRoleNames.ClientPortal;
+    if (dto.assignmentRole === DossierAssignmentRole.Client && !isClientRole) {
+      throw new BadRequestException(
+        'Seul un utilisateur avec le rôle "Portail client" peut recevoir un accès client sur ce dossier.',
+      );
+    }
+    if (dto.assignmentRole !== DossierAssignmentRole.Client && isClientRole) {
+      throw new BadRequestException(
+        'Un utilisateur "Portail client" ne peut être affecté qu’avec un accès client, pas comme responsable ou support.',
       );
     }
     let assignment = await this.assignments.findOneBy({
