@@ -81,6 +81,7 @@ import { ExciseTax1784372000000 } from './database/migrations/1784372000000-exci
 import { CostCenters1784373000000 } from './database/migrations/1784373000000-cost-centers';
 import { PaymentInstruments1784374000000 } from './database/migrations/1784374000000-payment-instruments';
 import { InvoiceVatSuspension1784375000000 } from './database/migrations/1784375000000-invoice-vat-suspension';
+import { AuditLogImmutability1784376000000 } from './database/migrations/1784376000000-audit-log-immutability';
 
 @Module({
   imports: [
@@ -140,6 +141,7 @@ import { InvoiceVatSuspension1784375000000 } from './database/migrations/1784375
           CostCenters1784373000000,
           PaymentInstruments1784374000000,
           InvoiceVatSuspension1784375000000,
+          AuditLogImmutability1784376000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,
