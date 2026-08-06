@@ -147,11 +147,11 @@ export class ForeignTradeAndTtn1784350000000 implements MigrationInterface {
         ON "accounting"."ttn_einvoice_submissions" ("organization_id","dossier_id","status");
 
       INSERT INTO "accounting"."permissions" ("name","description") VALUES
-        ('foreign_trade.view','Consulter les devises et opÃ©rations de commerce extÃ©rieur'),
-        ('foreign_trade.manage','GÃ©rer les taux, certificats et opÃ©rations de commerce extÃ©rieur'),
-        ('foreign_trade.post','Comptabiliser les opÃ©rations et Ã©carts de change'),
-        ('electronic_invoices.view','Consulter les factures Ã©lectroniques TTN'),
-        ('electronic_invoices.manage','PrÃ©parer les factures Ã©lectroniques TTN'),
+        ('foreign_trade.view','Consulter les devises et opérations de commerce extérieur'),
+        ('foreign_trade.manage','Gérer les taux, certificats et opérations de commerce extérieur'),
+        ('foreign_trade.post','Comptabiliser les opérations et écarts de change'),
+        ('electronic_invoices.view','Consulter les factures électroniques TTN'),
+        ('electronic_invoices.manage','Préparer les factures électroniques TTN'),
         ('electronic_invoices.submit','Transmettre ou simuler la transmission TTN'),
         ('electronic_invoices.configure','Configurer le raccordement TTN du dossier')
       ON CONFLICT ("name") DO UPDATE SET "description" = EXCLUDED."description";
@@ -164,7 +164,7 @@ export class ForeignTradeAndTtn1784350000000 implements MigrationInterface {
         ('electronic_invoices.view'),('electronic_invoices.manage'),
         ('electronic_invoices.submit'),('electronic_invoices.configure')
       ) AS p("name")
-      WHERE r."is_system" = true AND r."normalized_name" IN ('PROPRIÃ‰TAIRE','ADMINISTRATEUR')
+      WHERE r."is_system" = true AND r."normalized_name" IN ('PROPRIÉTAIRE','ADMINISTRATEUR')
       ON CONFLICT DO NOTHING;
 
       INSERT INTO "accounting"."role_permissions" ("role_id","permission_name")

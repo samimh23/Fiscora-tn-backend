@@ -76,6 +76,7 @@ import { DocumentRequestsWorkflow1784367000000 } from './database/migrations/178
 import { WithholdingRateCatalog1784368000000 } from './database/migrations/1784368000000-withholding-rate-catalog';
 import { IsAndForfaitaireParameters1784369000000 } from './database/migrations/1784369000000-is-and-forfaitaire-parameters';
 import { AnnualTaxCarryforward1784370000000 } from './database/migrations/1784370000000-annual-tax-carryforward';
+import { FixMojibakePermissionDescriptions1784371000000 } from './database/migrations/1784371000000-fix-mojibake-permission-descriptions';
 
 @Module({
   imports: [
@@ -130,6 +131,7 @@ import { AnnualTaxCarryforward1784370000000 } from './database/migrations/178437
           WithholdingRateCatalog1784368000000,
           IsAndForfaitaireParameters1784369000000,
           AnnualTaxCarryforward1784370000000,
+          FixMojibakePermissionDescriptions1784371000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,

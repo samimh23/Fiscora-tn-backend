@@ -209,9 +209,9 @@ export class OrganizationsService {
     if (!invitation)
       throw new NotFoundException('L’invitation est introuvable.');
     if (invitation.acceptedAtUtc)
-      throw new ConflictException('Cette invitation a dÃ©jÃ  Ã©tÃ© acceptÃ©e.');
+      throw new ConflictException('Cette invitation a déjà été acceptée.');
     if (invitation.revokedAtUtc)
-      throw new ConflictException('Cette invitation a Ã©tÃ© rÃ©voquÃ©e.');
+      throw new ConflictException('Cette invitation a été révoquée.');
     invitation.revokedAtUtc = new Date();
     await this.invitations.save(invitation);
     return this.invite(organizationId, actorUserId, {
@@ -233,7 +233,7 @@ export class OrganizationsService {
       throw new NotFoundException('L’invitation est introuvable.');
     if (invitation.acceptedAtUtc)
       throw new ConflictException(
-        'Une invitation acceptÃ©e ne peut pas Ãªtre rÃ©voquÃ©e.',
+        'Une invitation acceptée ne peut pas être révoquée.',
       );
     if (!invitation.revokedAtUtc) {
       invitation.revokedAtUtc = new Date();

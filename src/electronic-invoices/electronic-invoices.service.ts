@@ -70,7 +70,7 @@ export class ElectronicInvoicesService {
       );
     if (dto.environment !== TtnEnvironment.Simulation && !dto.schemaVersion)
       throw new BadRequestException(
-        'La version du schÃ©ma officiel fournie par TTN est obligatoire hors simulation.',
+        'La version du schéma officiel fournie par TTN est obligatoire hors simulation.',
       );
     const existing = await this.configurations.findOneBy({
       organizationId,
@@ -155,7 +155,7 @@ export class ElectronicInvoicesService {
       invoice.status !== BusinessInvoiceStatus.Posted
     )
       throw new ConflictException(
-        'Seule une facture de vente comptabilisÃ©e peut Ãªtre prÃ©parÃ©e.',
+        'Seule une facture de vente comptabilisée peut être préparée.',
       );
     const errors = this.invoiceChecks(dossier, invoice, configuration);
     if (errors.length) throw new BadRequestException(errors);
@@ -208,7 +208,7 @@ export class ElectronicInvoicesService {
     if (submission.status === TtnSubmissionStatus.Accepted) return submission;
     if (submission.environment !== TtnEnvironment.Simulation)
       throw new ConflictException(
-        'Le connecteur TTN rÃ©el n’est pas activÃ©. Installez le certificat, les accÃ¨s de test et le schÃ©ma officiel TTN avant toute transmission hors simulation.',
+        'Le connecteur TTN réel n’est pas activé. Installez le certificat, les accès de test et le schéma officiel TTN avant toute transmission hors simulation.',
       );
 
     submission.status = TtnSubmissionStatus.Submitted;
@@ -225,8 +225,8 @@ export class ElectronicInvoicesService {
       : `TTN-SIM-${submission.payloadHash.slice(0, 16).toUpperCase()}`;
     submission.responseCode = rejected ? 'SIM-REJECTED' : 'SIM-ACCEPTED';
     submission.responseMessage = rejected
-      ? 'Rejet simulÃ© demandÃ© par le numÃ©ro de facture.'
-      : 'Transmission simulÃ©e avec succÃ¨s. Aucune facture n’a Ã©tÃ© envoyÃ©e Ã  TTN.';
+      ? 'Rejet simulé demandé par le numéro de facture.'
+      : 'Transmission simulée avec succès. Aucune facture n’a été envoyée à TTN.';
     submission.acceptedAtUtc = rejected ? null : new Date();
     return this.submissions.save(submission);
   }
@@ -259,22 +259,22 @@ export class ElectronicInvoicesService {
       },
       {
         code: 'OFFICIAL_SCHEMA',
-        label: 'Version du schÃ©ma officiel communiquÃ©e par TTN',
+        label: 'Version du schéma officiel communiquée par TTN',
         ok: Boolean(configuration?.schemaVersion),
       },
       {
         code: 'CERTIFICATE',
-        label: 'RÃ©fÃ©rence du cachet Ã©lectronique de l’entreprise',
+        label: 'Référence du cachet électronique de l’entreprise',
         ok: Boolean(configuration?.certificateReference),
       },
       {
         code: 'TTN_ACCESS',
-        label: 'RÃ©fÃ©rence du compte ou raccordement TTN',
+        label: 'Référence du compte ou raccordement TTN',
         ok: Boolean(configuration?.connectionReference),
       },
       {
         code: 'LIVE_CONNECTOR',
-        label: 'Connecteur TTN officiel homologuÃ© activÃ©',
+        label: 'Connecteur TTN officiel homologué activé',
         ok: false,
       },
     ];
@@ -284,8 +284,8 @@ export class ElectronicInvoicesService {
       liveReady: false,
       checks,
       warning: simulation
-        ? 'Mode simulation : aucune valeur juridique et aucune transmission Ã  TTN.'
-        : 'Mode rÃ©el bloquÃ© tant que le connecteur officiel, le certificat et les accÃ¨s TTN ne sont pas installÃ©s.',
+        ? 'Mode simulation : aucune valeur juridique et aucune transmission à TTN.'
+        : 'Mode réel bloqué tant que le connecteur officiel, le certificat et les accès TTN ne sont pas installés.',
     };
   }
 
@@ -296,10 +296,10 @@ export class ElectronicInvoicesService {
   ) {
     const errors: string[] = [];
     if (!dossier.taxIdentifier)
-      errors.push('Matricule fiscale de l’Ã©metteur manquante.');
+      errors.push('Matricule fiscale de l’émetteur manquante.');
     if (configuration.issuerTaxIdentifier !== dossier.taxIdentifier)
       errors.push(
-        'La matricule fiscale configurÃ©e ne correspond pas au dossier.',
+        'La matricule fiscale configurée ne correspond pas au dossier.',
       );
     if (!invoice.thirdPartyTaxIdentifier)
       errors.push('Matricule fiscale du destinataire manquante.');

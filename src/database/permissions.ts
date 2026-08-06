@@ -291,23 +291,23 @@ export const permissionSeed = [
   ],
   [
     PermissionNames.ForeignTradeView,
-    'Consulter les devises et opÃ©rations de commerce extÃ©rieur',
+    'Consulter les devises et opérations de commerce extérieur',
   ],
   [
     PermissionNames.ForeignTradeManage,
-    'GÃ©rer les taux, attestations et opÃ©rations de commerce extÃ©rieur',
+    'Gérer les taux, attestations et opérations de commerce extérieur',
   ],
   [
     PermissionNames.ForeignTradePost,
-    'Comptabiliser les opÃ©rations et Ã©carts de change',
+    'Comptabiliser les opérations et écarts de change',
   ],
   [
     PermissionNames.ElectronicInvoicesView,
-    'Consulter les factures Ã©lectroniques TTN',
+    'Consulter les factures électroniques TTN',
   ],
   [
     PermissionNames.ElectronicInvoicesManage,
-    'PrÃ©parer les factures Ã©lectroniques TTN',
+    'Préparer les factures électroniques TTN',
   ],
   [
     PermissionNames.ElectronicInvoicesSubmit,

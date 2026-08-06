@@ -664,7 +664,7 @@ export class DocumentsService implements OnModuleInit {
       )
     ) {
       throw new BadRequestException(
-        'Cette demande de piÃ¨ce est dÃ©jÃ  terminÃ©e.',
+        'Cette demande de pièce est déjà terminée.',
       );
     }
     return expectation;

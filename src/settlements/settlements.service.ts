@@ -144,7 +144,7 @@ export class SettlementsService {
       .andWhere('candidate.id != :thirdPartyId', { thirdPartyId })
       .getExists();
     if (duplicate)
-      throw new ConflictException('Ce client ou fournisseur existe dÃ©jÃ .');
+      throw new ConflictException('Ce client ou fournisseur existe déjà.');
     await this.validateAccountIds(organizationId, dossierId, [
       dto.receivableAccountId,
       dto.payableAccountId,

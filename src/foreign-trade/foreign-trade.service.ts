@@ -65,7 +65,7 @@ export class ForeignTradeService {
     const currencyCode = normalizeCurrency(dto.currencyCode);
     if (currencyCode === 'TND')
       throw new BadRequestException(
-        'Le taux du TND est toujours 1 et ne doit pas Ãªtre saisi.',
+        'Le taux du TND est toujours 1 et ne doit pas être saisi.',
       );
     const existing = await this.rates.findOneBy({
       organizationId,
@@ -119,7 +119,7 @@ export class ForeignTradeService {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     if (dto.validTo < dto.validFrom)
       throw new BadRequestException(
-        'La date de fin doit suivre la date de dÃ©but.',
+        'La date de fin doit suivre la date de début.',
       );
     return this.certificates.save(
       this.certificates.create({
@@ -164,7 +164,7 @@ export class ForeignTradeService {
       : null;
     if (existing && existing.status !== ForeignTradeStatus.Draft)
       throw new ConflictException(
-        'Seule une opÃ©ration en brouillon peut Ãªtre modifiÃ©e.',
+        'Seule une opération en brouillon peut être modifiée.',
       );
 
     const duplicate = await this.operations
@@ -178,7 +178,7 @@ export class ForeignTradeService {
       })
       .getExists();
     if (duplicate)
-      throw new ConflictException('Cette rÃ©fÃ©rence existe dÃ©jÃ .');
+      throw new ConflictException('Cette référence existe déjà.');
 
     const currencyCode = normalizeCurrency(dto.currencyCode);
     const exchangeRate = await this.resolveRate(
@@ -200,18 +200,18 @@ export class ForeignTradeService {
       (costs > 0n || importVat > 0n)
     )
       throw new BadRequestException(
-        'Les frais de débarquement, droits et TVA Ã  l’import ne concernent qu’une importation.',
+        'Les frais de débarquement, droits et TVA à l’import ne concernent qu’une importation.',
       );
     if (importVat > 0n && !dto.vatAccountId)
       throw new BadRequestException(
-        'Le compte de TVA Ã  l’import est obligatoire.',
+        'Le compte de TVA à l’import est obligatoire.',
       );
     if (
       dto.direction === TradeDirection.Export &&
       dto.vatSuspensionCertificateId
     )
       throw new BadRequestException(
-        'L’attestation de suspension doit Ãªtre liÃ©e Ã  une importation.',
+        'L’attestation de suspension doit être liée à une importation.',
       );
 
     const expectedJournal =
@@ -227,7 +227,7 @@ export class ForeignTradeService {
     });
     if (!journal)
       throw new BadRequestException(
-        `SÃ©lectionnez un journal de ${dto.direction === TradeDirection.Import ? 'achats' : 'ventes'}.`,
+        `Sélectionnez un journal de ${dto.direction === TradeDirection.Import ? 'achats' : 'ventes'}.`,
       );
     await this.validateAccounts(organizationId, dossierId, [
       dto.tradeAccountId,
@@ -310,7 +310,7 @@ export class ForeignTradeService {
       operationId,
     );
     if (operation.status !== ForeignTradeStatus.Draft)
-      throw new ConflictException('L’opÃ©ration n’est plus en brouillon.');
+      throw new ConflictException('L’opération n’est plus en brouillon.');
     await this.periodLocks.assertDateOpen(
       organizationId,
       dossierId,
@@ -345,7 +345,7 @@ export class ForeignTradeService {
           ? [
               {
                 accountId: operation.tradeAccountId,
-                label: `CoÃ»t rendu import ${operation.reference}`,
+                label: `Coût rendu import ${operation.reference}`,
                 debit: operation.landedCost,
                 credit: '0.000',
                 thirdPartyName: null,
@@ -354,7 +354,7 @@ export class ForeignTradeService {
                 ? [
                     {
                       accountId: operation.vatAccountId!,
-                      label: 'TVA Ã  l’import',
+                      label: 'TVA à l’import',
                       debit: operation.importVat,
                       credit: '0.000',
                       thirdPartyName: null,
@@ -439,7 +439,7 @@ export class ForeignTradeService {
     );
     if (operation.status !== ForeignTradeStatus.Posted)
       throw new ConflictException(
-        'Comptabilisez l’opÃ©ration avant de constater l’Ã©cart de change.',
+        'Comptabilisez l’opération avant de constater l’écart de change.',
       );
     if (
       operation.direction === TradeDirection.Export &&
@@ -463,7 +463,7 @@ export class ForeignTradeService {
     });
     if (!journal)
       throw new BadRequestException(
-        'SÃ©lectionnez un journal d’opÃ©rations diverses.',
+        'Sélectionnez un journal d’opérations diverses.',
       );
     await this.validateAccounts(organizationId, dossierId, [
       operation.thirdPartyAccountId,
@@ -491,7 +491,7 @@ export class ForeignTradeService {
             journalId: dto.journalId,
             entryDate: dto.settlementDate,
             pieceReference: `EC-${operation.reference}`.slice(0, 100),
-            description: `Ã‰cart de change ${operation.reference}`,
+            description: `Écart de change ${operation.reference}`,
             status: JournalEntryStatus.Posted,
             totalDebit: fromMillimes(amount),
             totalCredit: fromMillimes(amount),
@@ -510,7 +510,7 @@ export class ForeignTradeService {
             organizationId,
             entryId: entry.id,
             accountId: operation.thirdPartyAccountId,
-            label: `RÃ©Ã©valuation ${operation.thirdPartyName}`,
+            label: `Réévaluation ${operation.thirdPartyName}`,
             debit: thirdPartyDebit ? fromMillimes(amount) : '0.000',
             credit: thirdPartyDebit ? '0.000' : fromMillimes(amount),
             thirdPartyName: operation.thirdPartyName,
@@ -520,8 +520,8 @@ export class ForeignTradeService {
             entryId: entry.id,
             accountId: gain ? dto.fxGainAccountId : dto.fxLossAccountId,
             label: gain
-              ? 'Gain de change rÃ©alisÃ©'
-              : 'Perte de change rÃ©alisÃ©e',
+              ? 'Gain de change réalisé'
+              : 'Perte de change réalisée',
             debit: gain ? '0.000' : fromMillimes(amount),
             credit: gain ? fromMillimes(amount) : '0.000',
             thirdPartyName: null,
@@ -604,11 +604,11 @@ export class ForeignTradeService {
       operationDate > certificate.validTo
     )
       throw new ConflictException(
-        'L’attestation de suspension n’est pas valide Ã  cette date.',
+        'L’attestation de suspension n’est pas valide à cette date.',
       );
     if (importVat > 0n)
       throw new BadRequestException(
-        'La TVA Ã  l’import doit Ãªtre nulle avec une attestation de suspension.',
+        'La TVA à l’import doit être nulle avec une attestation de suspension.',
       );
     const remaining =
       toMillimes(certificate.authorizedBase) - toMillimes(certificate.usedBase);
@@ -628,7 +628,7 @@ export class ForeignTradeService {
       relations: { journal: true, vatSuspensionCertificate: true },
     });
     if (!operation)
-      throw new NotFoundException('L’opÃ©ration est introuvable.');
+      throw new NotFoundException('L’opération est introuvable.');
     return operation;
   }
 }

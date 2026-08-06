@@ -20,7 +20,7 @@ import { PermissionNames } from '../database/permissions';
 import { PrepareTtnInvoiceDto, SaveTtnConfigurationDto } from './dto';
 import { ElectronicInvoicesService } from './electronic-invoices.service';
 
-@ApiTags('Facturation Ã©lectronique TTN')
+@ApiTags('Facturation électronique TTN')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), PermissionGuard)
 @Controller(

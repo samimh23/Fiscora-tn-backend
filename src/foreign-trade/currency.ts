@@ -7,7 +7,7 @@ export function normalizeCurrency(value: string) {
   const currency = value.trim().toUpperCase();
   if (!/^[A-Z]{3}$/.test(currency))
     throw new BadRequestException(
-      'La devise doit Ãªtre un code ISO de 3 lettres.',
+      'La devise doit être un code ISO de 3 lettres.',
     );
   return currency;
 }
@@ -15,12 +15,12 @@ export function normalizeCurrency(value: string) {
 export function parseExchangeRate(value: string): bigint {
   if (!/^\d+(\.\d{1,8})?$/.test(value))
     throw new BadRequestException(
-      'Le taux de change doit Ãªtre positif avec au maximum huit dÃ©cimales.',
+      'Le taux de change doit être positif avec au maximum huit décimales.',
     );
   const [whole, fraction = ''] = value.split('.');
   const rate = BigInt(whole) * RATE_SCALE + BigInt(fraction.padEnd(8, '0'));
   if (rate <= 0n)
-    throw new BadRequestException('Le taux de change doit Ãªtre positif.');
+    throw new BadRequestException('Le taux de change doit être positif.');
   return rate;
 }
 

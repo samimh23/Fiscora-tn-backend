@@ -1,7 +1,7 @@
 import { buildNeutralTtnPayload, escapeXml, sha256 } from './ttn-xml';
 
 describe('TTN neutral payload', () => {
-  it('Ã©chappe les valeurs XML', () => {
+  it('échappe les valeurs XML', () => {
     expect(escapeXml('A & B <C>')).toBe('A &amp; B &lt;C&gt;');
   });
 
@@ -10,9 +10,9 @@ describe('TTN neutral payload', () => {
     expect(sha256('facture')).toBe(sha256('facture'));
   });
 
-  it('gÃ©nÃ¨re une enveloppe neutre clairement non officielle', () => {
+  it('génère une enveloppe neutre clairement non officielle', () => {
     const xml = buildNeutralTtnPayload(
-      { legalName: 'SociÃ©tÃ© & Co', taxIdentifier: '123' } as never,
+      { legalName: 'Société & Co', taxIdentifier: '123' } as never,
       {
         number: 'FV-1',
         invoiceDate: '2026-07-20',
@@ -40,7 +40,7 @@ describe('TTN neutral payload', () => {
       'COMPTA-TN-ADAPTER-1.0',
     );
     expect(xml).toContain('ADAPTATEUR_INTERNE_NON_OFFICIEL');
-    expect(xml).toContain('SociÃ©tÃ© &amp; Co');
+    expect(xml).toContain('Société &amp; Co');
     expect(xml).toContain('Service &amp; support');
   });
 });

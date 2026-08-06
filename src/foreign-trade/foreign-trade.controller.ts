@@ -23,7 +23,7 @@ import {
 } from './dto';
 import { ForeignTradeService } from './foreign-trade.service';
 
-@ApiTags('Multi-devise et commerce extÃ©rieur')
+@ApiTags('Multi-devise et commerce extérieur')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), PermissionGuard)
 @Controller('api/organizations/:organizationId/foreign-trade')
