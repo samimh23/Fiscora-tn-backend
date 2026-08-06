@@ -5090,6 +5090,95 @@ export class ClientNotificationPreference extends AuditableEntity {
   preferredLanguage!: string;
 }
 
+@Entity({ schema: 'accounting', name: 'tax_loss_carryforwards' })
+@Index(['organizationId', 'dossierId', 'originYear'])
+export class TaxLossCarryforward extends AuditableEntity {
+  @Column({ name: 'organization_id', type: 'uuid' })
+  organizationId!: string;
+
+  @Column({ name: 'dossier_id', type: 'uuid' })
+  dossierId!: string;
+
+  @ManyToOne(() => ClientDossier, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'dossier_id' })
+  dossier!: ClientDossier;
+
+  @Column({ name: 'origin_year', type: 'integer' })
+  originYear!: number;
+
+  @Column({
+    name: 'original_amount',
+    type: 'decimal',
+    precision: 15,
+    scale: 3,
+  })
+  originalAmount!: string;
+
+  @Column({
+    name: 'remaining_amount',
+    type: 'decimal',
+    precision: 15,
+    scale: 3,
+  })
+  remainingAmount!: string;
+
+  @Column({ name: 'expires_after_year', type: 'integer' })
+  expiresAfterYear!: number;
+
+  @Column({ name: 'source_filing_id', type: 'uuid', nullable: true })
+  sourceFilingId!: string | null;
+}
+
+@Entity({ schema: 'accounting', name: 'annual_tax_filings' })
+@Unique(['organizationId', 'dossierId', 'periodYear'])
+export class AnnualTaxFiling extends AuditableEntity {
+  @Column({ name: 'organization_id', type: 'uuid' })
+  organizationId!: string;
+
+  @Column({ name: 'dossier_id', type: 'uuid' })
+  dossierId!: string;
+
+  @ManyToOne(() => ClientDossier, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'dossier_id' })
+  dossier!: ClientDossier;
+
+  @Column({ name: 'period_year', type: 'integer' })
+  periodYear!: number;
+
+  @Column({
+    name: 'fiscal_result_before_carryforward',
+    type: 'decimal',
+    precision: 15,
+    scale: 3,
+  })
+  fiscalResultBeforeCarryforward!: string;
+
+  @Column({
+    name: 'carryforward_applied',
+    type: 'decimal',
+    precision: 15,
+    scale: 3,
+  })
+  carryforwardApplied!: string;
+
+  @Column({
+    name: 'fiscal_result_after_carryforward',
+    type: 'decimal',
+    precision: 15,
+    scale: 3,
+  })
+  fiscalResultAfterCarryforward!: string;
+
+  @Column({ name: 'net_tax_due', type: 'decimal', precision: 15, scale: 3 })
+  netTaxDue!: string;
+
+  @Column({ name: 'finalized_by_user_id', type: 'uuid' })
+  finalizedByUserId!: string;
+
+  @Column({ name: 'finalized_at_utc', type: 'timestamptz' })
+  finalizedAtUtc!: Date;
+}
+
 export const ENTITIES = [
   User,
   Organization,
@@ -5168,4 +5257,6 @@ export const ENTITIES = [
   ClientPortalMessage,
   ClientPortalApproval,
   ClientNotificationPreference,
+  TaxLossCarryforward,
+  AnnualTaxFiling,
 ];

@@ -75,6 +75,7 @@ import { MigrationAssistantModule } from './migration-assistant/migration-assist
 import { DocumentRequestsWorkflow1784367000000 } from './database/migrations/1784367000000-document-requests-workflow';
 import { WithholdingRateCatalog1784368000000 } from './database/migrations/1784368000000-withholding-rate-catalog';
 import { IsAndForfaitaireParameters1784369000000 } from './database/migrations/1784369000000-is-and-forfaitaire-parameters';
+import { AnnualTaxCarryforward1784370000000 } from './database/migrations/1784370000000-annual-tax-carryforward';
 
 @Module({
   imports: [
@@ -128,6 +129,7 @@ import { IsAndForfaitaireParameters1784369000000 } from './database/migrations/1
           DocumentRequestsWorkflow1784367000000,
           WithholdingRateCatalog1784368000000,
           IsAndForfaitaireParameters1784369000000,
+          AnnualTaxCarryforward1784370000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,

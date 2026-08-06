@@ -52,6 +52,14 @@ export class AnnualTaxCalculationDto {
   forfaitaireTax?: string;
 
   @IsOptional()
+  @Matches(positiveMoney)
+  acomptesVerses?: string;
+
+  @IsOptional()
+  @Matches(positiveMoney)
+  excedentsAnterieurs?: string;
+
+  @IsOptional()
   @IsArray()
   @ArrayMaxSize(100)
   @ValidateNested({ each: true })
@@ -96,9 +104,23 @@ export class AnnualTaxExportQueryDto {
   forfaitaireTax?: string;
 
   @IsOptional()
+  @Matches(positiveMoney)
+  acomptesVerses?: string;
+
+  @IsOptional()
+  @Matches(positiveMoney)
+  excedentsAnterieurs?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(1_000_000)
   _?: number;
+}
+
+export class AnnualTaxAnnexExportQueryDto {
+  @IsOptional()
+  @IsIn(['pdf', 'csv'])
+  format: 'pdf' | 'csv' = 'pdf';
 }
