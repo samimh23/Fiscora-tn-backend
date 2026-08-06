@@ -6,6 +6,7 @@ import {
   ParseIntPipe,
   ParseUUIDPipe,
   Post,
+  Query,
   StreamableFile,
   UseGuards,
 } from '@nestjs/common';
@@ -121,6 +122,52 @@ export class PayrollController {
     return new StreamableFile(buffer, {
       type: 'text/csv; charset=utf-8',
       disposition: `attachment; filename="cnss-${year}-T${quarter}.csv"`,
+      length: buffer.length,
+    });
+  }
+
+  @Get('payroll/due/:year')
+  @RequirePermission(PermissionNames.PayrollView)
+  annualEmployerDeclaration(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('year', ParseIntPipe) year: number,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.annualEmployerDeclaration(
+      organizationId,
+      dossierId,
+      user.userId,
+      year,
+    );
+  }
+
+  @Get('payroll/due/:year/export')
+  @RequirePermission(PermissionNames.PayrollView)
+  async annualEmployerDeclarationExport(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('year', ParseIntPipe) year: number,
+    @Query('format') format: 'pdf' | 'csv' = 'pdf',
+    @CurrentUser() user: JwtUser,
+  ) {
+    const isPdf = format !== 'csv';
+    const buffer = isPdf
+      ? await this.service.annualEmployerDeclarationPdf(
+          organizationId,
+          dossierId,
+          user.userId,
+          year,
+        )
+      : await this.service.annualEmployerDeclarationCsv(
+          organizationId,
+          dossierId,
+          user.userId,
+          year,
+        );
+    return new StreamableFile(buffer, {
+      type: isPdf ? 'application/pdf' : 'text/csv; charset=utf-8',
+      disposition: `attachment; filename="due-${year}.${isPdf ? 'pdf' : 'csv'}"`,
       length: buffer.length,
     });
   }

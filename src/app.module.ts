@@ -73,6 +73,8 @@ import { QualityAssuranceModule } from './quality-assurance/quality-assurance.mo
 import { BankReconciliationRules1784366000000 } from './database/migrations/1784366000000-bank-reconciliation-rules';
 import { MigrationAssistantModule } from './migration-assistant/migration-assistant.module';
 import { DocumentRequestsWorkflow1784367000000 } from './database/migrations/1784367000000-document-requests-workflow';
+import { WithholdingRateCatalog1784368000000 } from './database/migrations/1784368000000-withholding-rate-catalog';
+import { IsAndForfaitaireParameters1784369000000 } from './database/migrations/1784369000000-is-and-forfaitaire-parameters';
 
 @Module({
   imports: [
@@ -124,6 +126,8 @@ import { DocumentRequestsWorkflow1784367000000 } from './database/migrations/178
           QualityAssurancePermission1784365000000,
           BankReconciliationRules1784366000000,
           DocumentRequestsWorkflow1784367000000,
+          WithholdingRateCatalog1784368000000,
+          IsAndForfaitaireParameters1784369000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,

@@ -355,6 +355,262 @@ export class PayrollService {
     );
   }
 
+  async annualEmployerDeclaration(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    year: number,
+  ) {
+    const dossier = await this.dossiers.getAccessibleEntity(
+      organizationId,
+      dossierId,
+      userId,
+    );
+    const rows = await this.dataSource.query<
+      Array<{
+        employeeId: string;
+        fullName: string;
+        cin: string | null;
+        cnssNumber: string | null;
+        hireDate: string;
+        grossAnnual: string;
+        employeeCnssAnnual: string;
+        incomeTaxAnnual: string;
+        netAnnual: string;
+      }>
+    >(
+      `SELECT e.id AS "employeeId", e.full_name AS "fullName", e.cin AS "cin",
+        e.cnss_number AS "cnssNumber", e.hire_date::text AS "hireDate",
+        COALESCE(SUM(l.gross_salary),0)::numeric(15,3) AS "grossAnnual",
+        COALESCE(SUM(l.employee_cnss),0)::numeric(15,3) AS "employeeCnssAnnual",
+        COALESCE(SUM(l.income_tax),0)::numeric(15,3) AS "incomeTaxAnnual",
+        COALESCE(SUM(l.net_salary),0)::numeric(15,3) AS "netAnnual"
+       FROM accounting.payroll_lines l
+       JOIN accounting.payroll_runs r ON r.id = l.run_id AND r.status = 'VALIDEE'
+       JOIN accounting.employees e ON e.id = l.employee_id
+       WHERE r.organization_id = $1 AND r.dossier_id = $2 AND r.period_year = $3
+       GROUP BY e.id, e.full_name, e.cin, e.cnss_number, e.hire_date
+       ORDER BY e.full_name`,
+      [organizationId, dossierId, year],
+    );
+    const employees = rows.map((row) => ({
+      ...row,
+      taxableAnnual: this.formatMillimes(
+        this.toMillimesLocal(row.grossAnnual) -
+          this.toMillimesLocal(row.employeeCnssAnnual),
+      ),
+    }));
+    const totals = employees.reduce(
+      (acc, row) => ({
+        grossAnnual: acc.grossAnnual + this.toMillimesLocal(row.grossAnnual),
+        employeeCnssAnnual:
+          acc.employeeCnssAnnual + this.toMillimesLocal(row.employeeCnssAnnual),
+        taxableAnnual: acc.taxableAnnual + this.toMillimesLocal(row.taxableAnnual),
+        incomeTaxAnnual:
+          acc.incomeTaxAnnual + this.toMillimesLocal(row.incomeTaxAnnual),
+        netAnnual: acc.netAnnual + this.toMillimesLocal(row.netAnnual),
+      }),
+      {
+        grossAnnual: 0n,
+        employeeCnssAnnual: 0n,
+        taxableAnnual: 0n,
+        incomeTaxAnnual: 0n,
+        netAnnual: 0n,
+      },
+    );
+    return {
+      year,
+      generatedAtUtc: new Date().toISOString(),
+      warning:
+        "Document de travail : la déclaration annuelle de l'employeur (état des salaires et retenues) doit être vérifiée et déposée selon le format et l'échéance officiels applicables au dossier.",
+      employer: {
+        legalName: dossier.legalName,
+        taxIdentifier: dossier.taxIdentifier,
+        cnssEmployerNumber: dossier.cnssEmployerNumber,
+      },
+      employees,
+      totals: {
+        grossAnnual: this.formatMillimes(totals.grossAnnual),
+        employeeCnssAnnual: this.formatMillimes(totals.employeeCnssAnnual),
+        taxableAnnual: this.formatMillimes(totals.taxableAnnual),
+        incomeTaxAnnual: this.formatMillimes(totals.incomeTaxAnnual),
+        netAnnual: this.formatMillimes(totals.netAnnual),
+      },
+    };
+  }
+
+  async annualEmployerDeclarationCsv(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    year: number,
+  ) {
+    const report = await this.annualEmployerDeclaration(
+      organizationId,
+      dossierId,
+      userId,
+      year,
+    );
+    const rows = [
+      [
+        'Salarié',
+        'CIN',
+        'Numéro CNSS',
+        'Date embauche',
+        'Salaire brut annuel',
+        'CNSS salarié annuel',
+        'Base imposable annuelle',
+        'IRPP retenu annuel',
+        'Net annuel',
+      ],
+      ...report.employees.map((employee) => [
+        employee.fullName,
+        employee.cin ?? '',
+        employee.cnssNumber ?? '',
+        employee.hireDate,
+        employee.grossAnnual,
+        employee.employeeCnssAnnual,
+        employee.taxableAnnual,
+        employee.incomeTaxAnnual,
+        employee.netAnnual,
+      ]),
+      [
+        'TOTAL',
+        '',
+        '',
+        '',
+        report.totals.grossAnnual,
+        report.totals.employeeCnssAnnual,
+        report.totals.taxableAnnual,
+        report.totals.incomeTaxAnnual,
+        report.totals.netAnnual,
+      ],
+    ];
+    return Buffer.from(
+      rows
+        .map((row) =>
+          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';'),
+        )
+        .join('\r\n'),
+      'utf8',
+    );
+  }
+
+  async annualEmployerDeclarationPdf(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    year: number,
+  ) {
+    const report = await this.annualEmployerDeclaration(
+      organizationId,
+      dossierId,
+      userId,
+      year,
+    );
+    const document = new PDFDocument({
+      size: 'A4',
+      layout: 'landscape',
+      margins: { top: 36, right: 36, bottom: 36, left: 36 },
+      info: {
+        Title: `Déclaration annuelle employeur ${year} - ${report.employer.legalName}`,
+        Author: 'Fiscora',
+      },
+    });
+    const chunks: Buffer[] = [];
+    document.on('data', (chunk: Buffer) => chunks.push(chunk));
+    const done = new Promise<Buffer>((resolve, reject) => {
+      document.on('end', () => resolve(Buffer.concat(chunks)));
+      document.on('error', reject);
+    });
+
+    document.rect(0, 0, 842, 110).fill('#14532D');
+    document
+      .fillColor('#FFFFFF')
+      .font('Helvetica-Bold')
+      .fontSize(21)
+      .text("Déclaration annuelle de l'employeur — état des salaires et retenues", 36, 34)
+      .font('Helvetica')
+      .fontSize(11)
+      .text(`Exercice ${year} — ${report.employer.legalName}`, 36, 66)
+      .text(
+        `MF : ${report.employer.taxIdentifier ?? 'Non renseigné'}   CNSS employeur : ${report.employer.cnssEmployerNumber ?? 'Non renseigné'}`,
+        36,
+        84,
+      );
+
+    let y = 132;
+    const columns: Array<{ label: string; width: number; align?: 'left' | 'right' }> = [
+      { label: 'Salarié', width: 190 },
+      { label: 'CIN', width: 80 },
+      { label: 'CNSS', width: 90 },
+      { label: 'Brut annuel', width: 110, align: 'right' },
+      { label: 'CNSS salarié', width: 110, align: 'right' },
+      { label: 'Base imposable', width: 110, align: 'right' },
+      { label: 'IRPP retenu', width: 110, align: 'right' },
+      { label: 'Net annuel', width: 70, align: 'right' },
+    ];
+    document.fillColor('#14532D').font('Helvetica-Bold').fontSize(9);
+    let x = 36;
+    for (const column of columns) {
+      document.text(column.label, x, y, { width: column.width, align: column.align ?? 'left' });
+      x += column.width;
+    }
+    y += 18;
+    document.font('Helvetica').fontSize(8.5).fillColor('#0F172A');
+    for (const employee of report.employees) {
+      if (y > 520) {
+        document.addPage({ size: 'A4', layout: 'landscape', margins: { top: 36, right: 36, bottom: 36, left: 36 } });
+        y = 36;
+      }
+      document.rect(36, y - 4, 770, 20).fill('#F8FAFC');
+      document.fillColor('#0F172A');
+      x = 36;
+      const values = [
+        employee.fullName,
+        employee.cin ?? '—',
+        employee.cnssNumber ?? '—',
+        `${employee.grossAnnual} TND`,
+        `${employee.employeeCnssAnnual} TND`,
+        `${employee.taxableAnnual} TND`,
+        `${employee.incomeTaxAnnual} TND`,
+        `${employee.netAnnual} TND`,
+      ];
+      for (let index = 0; index < columns.length; index++) {
+        document.text(values[index], x, y, { width: columns[index].width, align: columns[index].align ?? 'left' });
+        x += columns[index].width;
+      }
+      y += 20;
+    }
+    y += 6;
+    document.rect(36, y - 4, 770, 22).fillAndStroke('#DCFCE7', '#16A34A');
+    document.fillColor('#14532D').font('Helvetica-Bold').fontSize(9);
+    x = 36;
+    const totalValues = [
+      'TOTAL',
+      '',
+      '',
+      `${report.totals.grossAnnual} TND`,
+      `${report.totals.employeeCnssAnnual} TND`,
+      `${report.totals.taxableAnnual} TND`,
+      `${report.totals.incomeTaxAnnual} TND`,
+      `${report.totals.netAnnual} TND`,
+    ];
+    for (let index = 0; index < columns.length; index++) {
+      document.text(totalValues[index], x, y, { width: columns[index].width, align: columns[index].align ?? 'left' });
+      x += columns[index].width;
+    }
+    document
+      .roundedRect(36, y + 34, 770, 40, 6)
+      .fillAndStroke('#FEF3C7', '#F59E0B')
+      .fillColor('#78350F')
+      .font('Helvetica')
+      .fontSize(8)
+      .text(report.warning, 46, y + 46, { width: 750 });
+    document.end();
+    return done;
+  }
+
   async payslipPdf(
     organizationId: string,
     dossierId: string,

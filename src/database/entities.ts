@@ -2550,6 +2550,15 @@ export enum FiscalParameterCode {
   StampDuty = 'TIMBRE_MONTANT',
   CnssEmployeeRsna = 'CNSS_RSNA_SALARIE',
   CnssEmployerRsna = 'CNSS_RSNA_EMPLOYEUR',
+  IsTauxStandard = 'IS_TAUX_STANDARD',
+  IsTauxMajore = 'IS_TAUX_MAJORE',
+  IsTauxExportateur = 'IS_TAUX_EXPORTATEUR',
+  IsMinimumTaux = 'IS_MINIMUM_TAUX',
+  IsMinimumPlancher = 'IS_MINIMUM_PLANCHER',
+  ForfaitaireSeuilBas = 'FORFAITAIRE_SEUIL_BAS',
+  ForfaitaireMontantBas = 'FORFAITAIRE_MONTANT_BAS',
+  ForfaitaireSeuilHaut = 'FORFAITAIRE_SEUIL_HAUT',
+  ForfaitaireMontantHaut = 'FORFAITAIRE_MONTANT_HAUT',
 }
 
 @Entity({ schema: 'accounting', name: 'fiscal_parameters' })

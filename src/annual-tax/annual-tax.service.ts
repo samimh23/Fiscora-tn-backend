@@ -2,7 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import PDFDocument from 'pdfkit';
 import { DataSource } from 'typeorm';
+import { FiscalParameterCode } from '../database/entities';
 import { DossiersService } from '../dossiers/dossiers.service';
+import { FiscalSettingsService } from '../fiscal-settings/fiscal-settings.service';
 import { AnnualTaxCalculationDto } from './dto';
 
 type MoneySource = string | number | bigint;
@@ -53,6 +55,7 @@ export class AnnualTaxService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly dossiers: DossiersService,
+    private readonly fiscalSettings: FiscalSettingsService,
   ) {}
 
   async calculate(
@@ -76,13 +79,69 @@ export class AnnualTaxService {
     const deductionsTotal = this.adjustmentTotal(input.deductions);
     const fiscalResult = accountingResult + reintegrationsTotal - deductionsTotal;
     const regime = input.regime ?? (dossier.taxRegime === 'FORFAITAIRE' ? 'FORFAITAIRE' : 'IS');
-    const corporateTaxRate = input.corporateTaxRate ?? '0.15000';
+
+    const corporateTaxRate =
+      input.corporateTaxRate ??
+      (regime === 'FORFAITAIRE'
+        ? '0.00000'
+        : (
+            await this.fiscalSettings.resolveParameter(
+              organizationId,
+              this.resolveIsRateCode(dossier),
+              period.endsOn,
+              false,
+            )
+          )?.value ?? '0.15000');
     const grossCorporateTax =
       regime === 'FORFAITAIRE'
         ? 0n
         : this.multiplyRate(fiscalResult > 0n ? fiscalResult : 0n, corporateTaxRate);
-    const minimumTax = this.toMillimes(input.minimumTax ?? '0');
-    const forfaitaireTax = this.toMillimes(input.forfaitaireTax ?? '0');
+
+    let minimumTax: bigint;
+    if (input.minimumTax !== undefined) {
+      minimumTax = this.toMillimes(input.minimumTax);
+    } else if (regime === 'FORFAITAIRE') {
+      minimumTax = 0n;
+    } else {
+      const [minRate, minFloor] = await Promise.all([
+        this.fiscalSettings.resolveParameter(organizationId, FiscalParameterCode.IsMinimumTaux, period.endsOn, false),
+        this.fiscalSettings.resolveParameter(organizationId, FiscalParameterCode.IsMinimumPlancher, period.endsOn, false),
+      ]);
+      const computed = minRate ? this.multiplyRate(revenue, minRate.value) : 0n;
+      const floor = minFloor ? this.toMillimes(minFloor.value) : 0n;
+      minimumTax = computed > floor ? computed : floor;
+    }
+
+    let forfaitaireTax: bigint;
+    let forfaitaireWarning: string | null = null;
+    if (input.forfaitaireTax !== undefined) {
+      forfaitaireTax = this.toMillimes(input.forfaitaireTax);
+    } else if (regime === 'FORFAITAIRE') {
+      const [seuilBas, montantBas, seuilHaut, montantHaut] = await Promise.all([
+        this.fiscalSettings.resolveParameter(organizationId, FiscalParameterCode.ForfaitaireSeuilBas, period.endsOn, false),
+        this.fiscalSettings.resolveParameter(organizationId, FiscalParameterCode.ForfaitaireMontantBas, period.endsOn, false),
+        this.fiscalSettings.resolveParameter(organizationId, FiscalParameterCode.ForfaitaireSeuilHaut, period.endsOn, false),
+        this.fiscalSettings.resolveParameter(organizationId, FiscalParameterCode.ForfaitaireMontantHaut, period.endsOn, false),
+      ]);
+      if (seuilBas && montantBas && seuilHaut && montantHaut) {
+        const seuilBasM = this.toMillimes(seuilBas.value);
+        const seuilHautM = this.toMillimes(seuilHaut.value);
+        if (revenue <= seuilBasM) {
+          forfaitaireTax = this.toMillimes(montantBas.value);
+        } else if (revenue <= seuilHautM) {
+          forfaitaireTax = this.toMillimes(montantHaut.value);
+        } else {
+          forfaitaireTax = 0n;
+          forfaitaireWarning =
+            "Le chiffre d'affaires comptabilisé dépasse le plafond du régime forfaitaire (100 000 TND) — vérifier l'éligibilité du client à ce régime avant de retenir ce montant.";
+        }
+      } else {
+        forfaitaireTax = 0n;
+      }
+    } else {
+      forfaitaireTax = 0n;
+    }
+
     const taxCredits = this.toMillimes(input.taxCredits ?? '0');
     const baseTax =
       regime === 'FORFAITAIRE'
@@ -93,8 +152,12 @@ export class AnnualTaxService {
     const netTaxDue = baseTax > taxCredits ? baseTax - taxCredits : 0n;
     return {
       generatedAtUtc: new Date().toISOString(),
-      warning:
+      warning: [
         'Préparation fiscale non certifiée : les taux, minimums, crédits et corrections doivent être validés selon le texte officiel applicable au client.',
+        forfaitaireWarning,
+      ]
+        .filter(Boolean)
+        .join(' '),
       dossier: {
         id: dossier.id,
         legalName: dossier.legalName,
@@ -285,6 +348,25 @@ export class AnnualTaxService {
       y += 26;
     }
     return y;
+  }
+
+  private resolveIsRateCode(dossier: {
+    activitySector: string | null;
+    isTotallyExporting: boolean;
+  }) {
+    const sector = (dossier.activitySector ?? '').toLowerCase();
+    const majoreKeywords = [
+      'banque',
+      'assurance',
+      'réassurance',
+      'télécom',
+      'telecom',
+      'hydrocarbure',
+    ];
+    if (majoreKeywords.some((keyword) => sector.includes(keyword)))
+      return FiscalParameterCode.IsTauxMajore;
+    if (dossier.isTotallyExporting) return FiscalParameterCode.IsTauxExportateur;
+    return FiscalParameterCode.IsTauxStandard;
   }
 
   private adjustmentTotal(items: AnnualTaxCalculationDto['reintegrations']) {
