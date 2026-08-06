@@ -19,9 +19,12 @@ import { PermissionNames } from '../database/permissions';
 import { AccountingService } from './accounting.service';
 import {
   CompanyProfileDto,
+  CostCenterReportQueryDto,
+  CreateCostCenterDto,
   CreateFiscalYearDto,
   CreateLedgerAccountDto,
   LedgerAccountsQueryDto,
+  UpdateCostCenterDto,
   UpdateLedgerAccountDto,
 } from './dto';
 
@@ -153,6 +156,72 @@ export class AccountingController {
       accountId,
       user.userId,
       dto,
+    );
+  }
+
+  @Get('dossiers/:dossierId/cost-centers')
+  @RequirePermission(PermissionNames.ChartOfAccountsView)
+  getCostCenters(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+    @Query() query: LedgerAccountsQueryDto,
+  ) {
+    return this.service.getCostCenters(
+      organizationId,
+      dossierId,
+      user.userId,
+      query.includeInactive,
+    );
+  }
+
+  @Post('dossiers/:dossierId/cost-centers')
+  @RequirePermission(PermissionNames.ChartOfAccountsManage)
+  createCostCenter(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: CreateCostCenterDto,
+  ) {
+    return this.service.createCostCenter(
+      organizationId,
+      dossierId,
+      user.userId,
+      dto,
+    );
+  }
+
+  @Put('dossiers/:dossierId/cost-centers/:costCenterId')
+  @RequirePermission(PermissionNames.ChartOfAccountsManage)
+  updateCostCenter(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('costCenterId', ParseUUIDPipe) costCenterId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: UpdateCostCenterDto,
+  ) {
+    return this.service.updateCostCenter(
+      organizationId,
+      dossierId,
+      costCenterId,
+      user.userId,
+      dto,
+    );
+  }
+
+  @Get('dossiers/:dossierId/cost-centers/report')
+  @RequirePermission(PermissionNames.AccountingView)
+  costCenterReport(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+    @Query() query: CostCenterReportQueryDto,
+  ) {
+    return this.service.costCenterReport(
+      organizationId,
+      dossierId,
+      user.userId,
+      query,
     );
   }
 }

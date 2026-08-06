@@ -257,6 +257,7 @@ export class BusinessInvoicesService {
         thirdPartyAccountId: dto.thirdPartyAccountId,
         vatAccountId: dto.vatAccountId ?? null,
         stampAccountId: dto.stampAccountId ?? null,
+        exciseAccountId: dto.exciseAccountId ?? null,
         withholdingAccountId: dto.withholdingAccountId ?? null,
         sourceDocumentId: dto.sourceDocumentId ?? null,
         sourceCommercialDocumentId: dto.sourceCommercialDocumentId ?? null,
@@ -431,6 +432,7 @@ export class BusinessInvoicesService {
   private async calculate(organizationId: string, dto: SaveBusinessInvoiceDto) {
     let totalNet = 0n;
     let totalVat = 0n;
+    let totalExcise = 0n;
     const taxLines: Record<string, unknown>[] = [];
     const lines = await Promise.all(
       dto.lines.map(async (line) => {
@@ -442,6 +444,8 @@ export class BusinessInvoicesService {
           line.discountRate ?? '0.00000',
         );
         const net = beforeDiscount - discount;
+        const exciseRate = line.exciseRate ?? null;
+        const excise = exciseRate ? multiplyRate(net, exciseRate) : 0n;
         let vatRate = line.vatRate ?? '0.00000';
         let vatSource: Record<string, unknown> = {
           source: line.vatRate ? 'SAISIE_MANUELLE' : 'EXONEREE_OU_HORS_CHAMP',
@@ -462,13 +466,16 @@ export class BusinessInvoicesService {
             sourceUrl: setting.sourceUrl,
           };
         }
-        const vat = multiplyRate(net, vatRate);
+        // Le droit de consommation est inclus dans la base de la TVA.
+        const vat = multiplyRate(net + excise, vatRate);
         totalNet += net;
         totalVat += vat;
+        totalExcise += excise;
         taxLines.push({
           description: line.description,
           vatCode: line.vatCode ?? null,
           vatRate,
+          exciseRate,
           ...vatSource,
         });
         return {
@@ -479,9 +486,11 @@ export class BusinessInvoicesService {
           discountRate: line.discountRate ?? '0.00000',
           vatCode: line.vatCode?.trim().toUpperCase() || null,
           vatRate,
+          exciseRate,
+          exciseAmount: fromMillimes(excise),
           netAmount: fromMillimes(net),
           vatAmount: fromMillimes(vat),
-          grossAmount: fromMillimes(net + vat),
+          grossAmount: fromMillimes(net + excise + vat),
         };
       }),
     );
@@ -497,7 +506,7 @@ export class BusinessInvoicesService {
       this.moneyValue(dto.stampDuty ?? stampSetting!.value),
       'Droit de timbre',
     );
-    const gross = totalNet + totalVat + stampDuty;
+    const gross = totalNet + totalExcise + totalVat + stampDuty;
     let withholdingRate: string | null = null;
     let withholdingAmount = 0n;
     let withholdingSnapshot: Record<string, unknown> | null = null;
@@ -531,6 +540,7 @@ export class BusinessInvoicesService {
       lines,
       header: {
         netAmount: fromMillimes(totalNet),
+        exciseAmount: fromMillimes(totalExcise),
         vatAmount: fromMillimes(totalVat),
         stampDuty: fromMillimes(stampDuty),
         withholdingBase: fromMillimes(withholdingBase),
@@ -564,6 +574,7 @@ export class BusinessInvoicesService {
     calculation: {
       header: {
         vatAmount: string;
+        exciseAmount: string;
         stampDuty: string;
         withholdingAmount: string;
       };
@@ -574,6 +585,7 @@ export class BusinessInvoicesService {
       ...dto.lines.map((line) => line.accountId),
       ...(dto.vatAccountId ? [dto.vatAccountId] : []),
       ...(dto.stampAccountId ? [dto.stampAccountId] : []),
+      ...(dto.exciseAccountId ? [dto.exciseAccountId] : []),
       ...(dto.withholdingAccountId ? [dto.withholdingAccountId] : []),
     ];
     const unique = [...new Set(ids)];
@@ -595,6 +607,13 @@ export class BusinessInvoicesService {
     if (toMillimes(calculation.header.stampDuty) > 0n && !dto.stampAccountId)
       throw new BadRequestException(
         'Le compte de timbre est obligatoire lorsque le timbre est appliqué.',
+      );
+    if (
+      toMillimes(calculation.header.exciseAmount) > 0n &&
+      !dto.exciseAccountId
+    )
+      throw new BadRequestException(
+        'Le compte de droit de consommation est obligatoire lorsqu’il est appliqué.',
       );
     if (
       toMillimes(calculation.header.withholdingAmount) > 0n &&
@@ -634,6 +653,14 @@ export class BusinessInvoicesService {
         label: 'Droit de timbre',
         debit: purchase ? invoice.stampDuty : '0.000',
         credit: purchase ? '0.000' : invoice.stampDuty,
+        thirdPartyName: null,
+      });
+    if (toMillimes(invoice.exciseAmount) > 0n)
+      lines.push({
+        accountId: invoice.exciseAccountId!,
+        label: 'Droit de consommation',
+        debit: purchase ? invoice.exciseAmount : '0.000',
+        credit: purchase ? '0.000' : invoice.exciseAmount,
         thirdPartyName: null,
       });
     if (toMillimes(invoice.withholdingAmount) > 0n)

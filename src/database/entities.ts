@@ -1582,6 +1582,40 @@ export class LedgerAccount extends AuditableEntity {
   isActive!: boolean;
 }
 
+@Entity({ schema: 'accounting', name: 'cost_centers' })
+@Unique(['dossierId', 'normalizedCode'])
+@Index(['organizationId', 'dossierId', 'isActive'])
+export class CostCenter extends AuditableEntity {
+  @Column({ name: 'organization_id', type: 'uuid' })
+  organizationId!: string;
+
+  @ManyToOne(() => Organization, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'organization_id' })
+  organization!: Organization;
+
+  @Column({ name: 'dossier_id', type: 'uuid' })
+  dossierId!: string;
+
+  @ManyToOne(() => ClientDossier, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'dossier_id' })
+  dossier!: ClientDossier;
+
+  @Column({ length: 30 })
+  code!: string;
+
+  @Column({ name: 'normalized_code', length: 30 })
+  normalizedCode!: string;
+
+  @Column({ length: 200 })
+  name!: string;
+
+  @Column({ type: 'varchar', length: 1000, nullable: true })
+  description!: string | null;
+
+  @Column({ name: 'is_active', default: true })
+  isActive!: boolean;
+}
+
 export enum DocumentCategory {
   Inbox = 'BOITE_RECEPTION',
   Purchases = 'FACTURES_ACHATS',
@@ -2214,6 +2248,13 @@ export class JournalEntryLine extends AuditableEntity {
     nullable: true,
   })
   thirdPartyName!: string | null;
+
+  @Column({ name: 'cost_center_id', type: 'uuid', nullable: true })
+  costCenterId!: string | null;
+
+  @ManyToOne(() => CostCenter, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'cost_center_id' })
+  costCenter!: CostCenter | null;
 
   @Column({ name: 'reconciliation_id', type: 'uuid', nullable: true })
   reconciliationId!: string | null;
@@ -3121,11 +3162,23 @@ export class BusinessInvoice extends AuditableEntity {
   @Column({ name: 'stamp_account_id', type: 'uuid', nullable: true })
   stampAccountId!: string | null;
 
+  @Column({ name: 'excise_account_id', type: 'uuid', nullable: true })
+  exciseAccountId!: string | null;
+
   @Column({ name: 'withholding_account_id', type: 'uuid', nullable: true })
   withholdingAccountId!: string | null;
 
   @Column({ name: 'net_amount', type: 'decimal', precision: 15, scale: 3 })
   netAmount!: string;
+
+  @Column({
+    name: 'excise_amount',
+    type: 'decimal',
+    precision: 15,
+    scale: 3,
+    default: 0,
+  })
+  exciseAmount!: string;
 
   @Column({ name: 'vat_amount', type: 'decimal', precision: 15, scale: 3 })
   vatAmount!: string;
@@ -3285,6 +3338,24 @@ export class BusinessInvoiceLine extends AuditableEntity {
 
   @Column({ name: 'vat_rate', type: 'decimal', precision: 8, scale: 5 })
   vatRate!: string;
+
+  @Column({
+    name: 'excise_rate',
+    type: 'decimal',
+    precision: 8,
+    scale: 5,
+    nullable: true,
+  })
+  exciseRate!: string | null;
+
+  @Column({
+    name: 'excise_amount',
+    type: 'decimal',
+    precision: 15,
+    scale: 3,
+    default: 0,
+  })
+  exciseAmount!: string;
 
   @Column({ name: 'net_amount', type: 'decimal', precision: 15, scale: 3 })
   netAmount!: string;
@@ -5209,6 +5280,7 @@ export const ENTITIES = [
   TimeEntry,
   FiscalYear,
   LedgerAccount,
+  CostCenter,
   AccountingDocument,
   MissingDocumentExpectation,
   Notification,

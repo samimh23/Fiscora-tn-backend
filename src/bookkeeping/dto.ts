@@ -48,6 +48,10 @@ export class EntryLineDto {
   @IsString()
   @MaxLength(200)
   thirdPartyName?: string;
+
+  @IsOptional()
+  @IsUUID()
+  costCenterId?: string;
 }
 
 export class CreateEntryDto {

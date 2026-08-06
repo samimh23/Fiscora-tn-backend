@@ -142,3 +142,33 @@ export class LedgerAccountsQueryDto {
   @IsBoolean()
   includeInactive = false;
 }
+
+export class CreateCostCenterDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(30)
+  code!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  description?: string | null;
+}
+
+export class UpdateCostCenterDto extends CreateCostCenterDto {
+  @IsBoolean()
+  isActive!: boolean;
+}
+
+export class CostCenterReportQueryDto {
+  @IsDateString()
+  from!: string;
+
+  @IsDateString()
+  to!: string;
+}

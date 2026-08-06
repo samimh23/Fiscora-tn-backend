@@ -187,6 +187,7 @@ export class BookkeepingService {
           debit: fromMillimes(toMillimes(line.debit)),
           credit: fromMillimes(toMillimes(line.credit)),
           thirdPartyName: line.thirdPartyName?.trim() || null,
+          costCenterId: line.costCenterId ?? null,
         }),
       );
       await manager.save(lines);
@@ -298,6 +299,7 @@ export class BookkeepingService {
             debit: fromMillimes(toMillimes(line.debit)),
             credit: fromMillimes(toMillimes(line.credit)),
             thirdPartyName: line.thirdPartyName?.trim() || null,
+            costCenterId: line.costCenterId ?? null,
           }),
         ),
       );
@@ -503,6 +505,7 @@ export class BookkeepingService {
             debit: line.credit,
             credit: line.debit,
             thirdPartyName: line.thirdPartyName,
+            costCenterId: line.costCenterId,
           }),
         ),
       );

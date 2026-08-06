@@ -4,11 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import {
   AuditLog,
   CompanyProfile,
+  CostCenter,
   FiscalYear,
   FiscalYearStatus,
   LedgerAccount,
@@ -19,8 +20,11 @@ import {
 import { DossiersService } from '../dossiers/dossiers.service';
 import {
   CompanyProfileDto,
+  CostCenterReportQueryDto,
+  CreateCostCenterDto,
   CreateFiscalYearDto,
   CreateLedgerAccountDto,
+  UpdateCostCenterDto,
   UpdateLedgerAccountDto,
 } from './dto';
 import { TUNISIAN_NC01_CHART } from './tunisian-chart';
@@ -38,6 +42,9 @@ export class AccountingService {
     private readonly ledgerAccounts: Repository<LedgerAccount>,
     @InjectRepository(AuditLog)
     private readonly auditLogs: Repository<AuditLog>,
+    @InjectRepository(CostCenter)
+    private readonly costCenters: Repository<CostCenter>,
+    @InjectDataSource() private readonly dataSource: DataSource,
     private readonly dossiers: DossiersService,
   ) {}
 
@@ -566,6 +573,142 @@ export class AccountingService {
       allowsPosting: item.allowsPosting,
       isActive: item.isActive,
     };
+  }
+
+  async getCostCenters(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    includeInactive: boolean,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    return this.costCenters.find({
+      where: includeInactive
+        ? { organizationId, dossierId }
+        : { organizationId, dossierId, isActive: true },
+      order: { code: 'ASC' },
+    });
+  }
+
+  async createCostCenter(
+    organizationId: string,
+    dossierId: string,
+    actorUserId: string,
+    dto: CreateCostCenterDto,
+  ) {
+    await this.dossiers.getAccessibleEntity(
+      organizationId,
+      dossierId,
+      actorUserId,
+    );
+    const normalizedCode = this.normalizeCode(dto.code);
+    if (
+      await this.costCenters.existsBy({ dossierId, normalizedCode })
+    )
+      throw new ConflictException(
+        'Un centre de coût porte déjà ce code dans ce dossier.',
+      );
+    const costCenter = await this.costCenters.save(
+      this.costCenters.create({
+        organizationId,
+        dossierId,
+        code: dto.code.trim(),
+        normalizedCode,
+        name: dto.name.trim(),
+        description: this.clean(dto.description),
+        isActive: true,
+      }),
+    );
+    await this.addAudit(
+      organizationId,
+      actorUserId,
+      'cost_center.created',
+      'CostCenter',
+      costCenter.id,
+      { dossierId, code: costCenter.code, name: costCenter.name },
+    );
+    return costCenter;
+  }
+
+  async updateCostCenter(
+    organizationId: string,
+    dossierId: string,
+    costCenterId: string,
+    actorUserId: string,
+    dto: UpdateCostCenterDto,
+  ) {
+    await this.dossiers.getAccessibleEntity(
+      organizationId,
+      dossierId,
+      actorUserId,
+    );
+    const costCenter = await this.costCenters.findOneBy({
+      id: costCenterId,
+      organizationId,
+      dossierId,
+    });
+    if (!costCenter)
+      throw new NotFoundException('Le centre de coût est introuvable.');
+    const normalizedCode = this.normalizeCode(dto.code);
+    if (
+      normalizedCode !== costCenter.normalizedCode &&
+      (await this.costCenters.existsBy({ dossierId, normalizedCode }))
+    )
+      throw new ConflictException(
+        'Un centre de coût porte déjà ce code dans ce dossier.',
+      );
+    Object.assign(costCenter, {
+      code: dto.code.trim(),
+      normalizedCode,
+      name: dto.name.trim(),
+      description: this.clean(dto.description),
+      isActive: dto.isActive,
+    });
+    await this.costCenters.save(costCenter);
+    await this.addAudit(
+      organizationId,
+      actorUserId,
+      'cost_center.updated',
+      'CostCenter',
+      costCenter.id,
+      { dossierId, code: costCenter.code, isActive: costCenter.isActive },
+    );
+    return costCenter;
+  }
+
+  async costCenterReport(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    query: CostCenterReportQueryDto,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    return this.dataSource.query<
+      Array<{
+        costCenterId: string | null;
+        code: string | null;
+        name: string | null;
+        accountType: LedgerAccountType;
+        totalDebit: string;
+        totalCredit: string;
+        netAmount: string;
+      }>
+    >(
+      `SELECT cc.id AS "costCenterId", cc.code, cc.name, a.type AS "accountType",
+        COALESCE(SUM(l.debit),0)::numeric(15,3) AS "totalDebit",
+        COALESCE(SUM(l.credit),0)::numeric(15,3) AS "totalCredit",
+        (COALESCE(SUM(l.credit),0)-COALESCE(SUM(l.debit),0))::numeric(15,3) AS "netAmount"
+       FROM accounting.journal_entry_lines l
+       JOIN accounting.journal_entries e ON e.id=l.entry_id
+       JOIN accounting.ledger_accounts a ON a.id=l.account_id
+       LEFT JOIN accounting.cost_centers cc ON cc.id=l.cost_center_id
+       WHERE a.organization_id=$1 AND e.dossier_id=$2
+         AND e.entry_date BETWEEN $3 AND $4 AND e.status IN ('COMPTABILISEE','EXTOURNEE')
+         AND a.type IN ('Revenue','Expense')
+       GROUP BY cc.id, cc.code, cc.name, a.type
+       ORDER BY cc.code NULLS LAST, a.type`,
+      [organizationId, dossierId, query.from, query.to],
+    );
   }
 
   private async addAudit(

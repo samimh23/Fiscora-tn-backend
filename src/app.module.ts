@@ -77,6 +77,8 @@ import { WithholdingRateCatalog1784368000000 } from './database/migrations/17843
 import { IsAndForfaitaireParameters1784369000000 } from './database/migrations/1784369000000-is-and-forfaitaire-parameters';
 import { AnnualTaxCarryforward1784370000000 } from './database/migrations/1784370000000-annual-tax-carryforward';
 import { FixMojibakePermissionDescriptions1784371000000 } from './database/migrations/1784371000000-fix-mojibake-permission-descriptions';
+import { ExciseTax1784372000000 } from './database/migrations/1784372000000-excise-tax';
+import { CostCenters1784373000000 } from './database/migrations/1784373000000-cost-centers';
 
 @Module({
   imports: [
@@ -132,6 +134,8 @@ import { FixMojibakePermissionDescriptions1784371000000 } from './database/migra
           IsAndForfaitaireParameters1784369000000,
           AnnualTaxCarryforward1784370000000,
           FixMojibakePermissionDescriptions1784371000000,
+          ExciseTax1784372000000,
+          CostCenters1784373000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,

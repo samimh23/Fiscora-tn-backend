@@ -5,6 +5,7 @@ import { PermissionGuard } from '../common/permission.guard';
 import {
   AuditLog,
   CompanyProfile,
+  CostCenter,
   FiscalYear,
   LedgerAccount,
   Organization,
@@ -24,6 +25,7 @@ import { DossiersModule } from '../dossiers/dossiers.module';
       CompanyProfile,
       FiscalYear,
       LedgerAccount,
+      CostCenter,
       AuditLog,
     ]),
   ],

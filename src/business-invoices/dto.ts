@@ -47,6 +47,10 @@ export class BusinessInvoiceLineDto {
   @IsOptional()
   @Matches(rate)
   vatRate?: string;
+
+  @IsOptional()
+  @Matches(rate)
+  exciseRate?: string;
 }
 
 export class SaveBusinessInvoiceDto {
@@ -101,6 +105,10 @@ export class SaveBusinessInvoiceDto {
   @IsOptional()
   @IsUUID()
   stampAccountId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  exciseAccountId?: string;
 
   @IsOptional()
   @IsUUID()
