@@ -603,14 +603,14 @@ export class BookkeepingService {
     );
   }
 
-  async exportFec(
+  private async exportRows(
     organizationId: string,
     dossierId: string,
     userId: string,
     query: ReportQueryDto,
   ) {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
-    const rows = await this.dataSource.query<
+    return this.dataSource.query<
       Array<{
         journalCode: string;
         journalLib: string;
@@ -646,6 +646,20 @@ export class BookkeepingService {
        ORDER BY e.entry_date, e.created_at_utc, l.created_at_utc`,
       [organizationId, dossierId, query.from, query.to],
     );
+  }
+
+  async exportFec(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    query: ReportQueryDto,
+  ) {
+    const rows = await this.exportRows(
+      organizationId,
+      dossierId,
+      userId,
+      query,
+    );
     const header = [
       'JournalCode', 'JournalLib', 'EcritureNum', 'EcritureDate', 'CompteNum',
       'CompteLib', 'CompAuxNum', 'CompAuxLib', 'PieceRef', 'PieceDate',
@@ -659,6 +673,74 @@ export class BookkeepingService {
         row.pieceDate, row.ecritureLib, row.debit, row.credit,
         row.ecritureLet ?? '', row.dateLet ?? '', row.validDate ?? '', '', '',
       ].join('|'),
+    );
+    return Buffer.from([header, ...lines].join('\r\n'), 'utf8');
+  }
+
+  // Sage 100/Coala's native .mae is a proprietary binary layout we don't
+  // have the spec for. This produces the widely-supported semicolon CSV
+  // import format accepted by Sage 100cloud Compta, Ciel and EBP instead -
+  // the pragmatic interchange format actually used for cross-tool imports.
+  async exportSageCsv(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    query: ReportQueryDto,
+  ) {
+    const rows = await this.exportRows(
+      organizationId,
+      dossierId,
+      userId,
+      query,
+    );
+    const header = [
+      'JournalCode', 'JournalLib', 'Date', 'NumCompte', 'LibCompte',
+      'NumCompteAux', 'LibCompteAux', 'NumPiece', 'Libelle', 'Debit', 'Credit',
+    ].join(';');
+    const escape = (value: string) =>
+      value.includes(';') || value.includes('"')
+        ? `"${value.replace(/"/g, '""')}"`
+        : value;
+    const lines = rows.map((row) =>
+      [
+        row.journalCode, row.journalLib,
+        `${row.ecritureDate.slice(6, 8)}/${row.ecritureDate.slice(4, 6)}/${row.ecritureDate.slice(0, 4)}`,
+        row.compteNum, escape(row.compteLib), '', escape(row.compAuxLib ?? ''),
+        row.pieceRef, escape(row.ecritureLib), row.debit.replace('.', ','),
+        row.credit.replace('.', ','),
+      ].join(';'),
+    );
+    return Buffer.from([header, ...lines].join('\r\n'), 'utf8');
+  }
+
+  // Matches the columns expected by Odoo's standard "Journal Items"
+  // (account.move.line) CSV import: date, journal, account code, partner,
+  // reference, label, debit, credit.
+  async exportOdooCsv(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    query: ReportQueryDto,
+  ) {
+    const rows = await this.exportRows(
+      organizationId,
+      dossierId,
+      userId,
+      query,
+    );
+    const header = [
+      'date', 'journal_code', 'account_code', 'account_name', 'partner_name',
+      'ref', 'name', 'debit', 'credit', 'matching_number',
+    ].join(',');
+    const escape = (value: string) =>
+      `"${value.replace(/"/g, '""')}"`;
+    const lines = rows.map((row) =>
+      [
+        `${row.ecritureDate.slice(0, 4)}-${row.ecritureDate.slice(4, 6)}-${row.ecritureDate.slice(6, 8)}`,
+        row.journalCode, row.compteNum, escape(row.compteLib),
+        escape(row.compAuxLib ?? ''), row.pieceRef, escape(row.ecritureLib),
+        row.debit, row.credit, row.ecritureLet ?? '',
+      ].join(','),
     );
     return Buffer.from([header, ...lines].join('\r\n'), 'utf8');
   }

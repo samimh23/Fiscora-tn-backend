@@ -320,6 +320,52 @@ export class BookkeepingController {
     response.send(buffer);
   }
 
+  @Get('reports/sage/export')
+  @RequirePermission(PermissionNames.ReportsView)
+  async exportSageCsv(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+    @Query() query: ReportQueryDto,
+    @Res() response: Response,
+  ) {
+    const buffer = await this.service.exportSageCsv(
+      organizationId,
+      dossierId,
+      user.userId,
+      query,
+    );
+    response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="Sage-${query.from}-${query.to}.csv"`,
+    );
+    response.send(buffer);
+  }
+
+  @Get('reports/odoo/export')
+  @RequirePermission(PermissionNames.ReportsView)
+  async exportOdooCsv(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+    @Query() query: ReportQueryDto,
+    @Res() response: Response,
+  ) {
+    const buffer = await this.service.exportOdooCsv(
+      organizationId,
+      dossierId,
+      user.userId,
+      query,
+    );
+    response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="Odoo-${query.from}-${query.to}.csv"`,
+    );
+    response.send(buffer);
+  }
+
   @Get('reports/:report/export')
   @RequirePermission(PermissionNames.ReportsView)
   async exportReport(
