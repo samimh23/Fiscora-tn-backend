@@ -1,4 +1,21 @@
-import dataSource from '../database/data-source';
+import 'dotenv/config';
+import { DataSource } from 'typeorm';
+
+// Deliberately not reusing ../database/data-source: that config's
+// migrations glob targets the .ts sources for the typeorm-ts-node-commonjs
+// CLI wrapper. DataSource.initialize() tries to load whatever migrations
+// are configured even though this script never touches them, which breaks
+// under plain `node dist/...` execution. This script only runs raw SQL, so
+// it gets its own minimal connection with no entities/migrations at all.
+const dataSource = new DataSource({
+  type: 'postgres',
+  host: process.env.DB_HOST ?? 'localhost',
+  port: Number(process.env.DB_PORT ?? 5435),
+  username: process.env.DB_USER ?? 'accounting',
+  password: process.env.DB_PASSWORD ?? 'accounting_dev',
+  database: process.env.DB_NAME ?? 'accounting_nest',
+  schema: 'public',
+});
 
 async function main() {
   const email = process.argv[2]?.trim();
