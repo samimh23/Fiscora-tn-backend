@@ -100,4 +100,18 @@ export class CreateThirdPartyPaymentDto {
   @ValidateNested({ each: true })
   @Type(() => PaymentAllocationDto)
   allocations!: PaymentAllocationDto[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  instrumentNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  instrumentBank?: string;
+
+  @IsOptional()
+  @IsDateString()
+  instrumentDueDate?: string;
 }

@@ -3378,6 +3378,13 @@ export enum ThirdPartyPaymentStatus {
   Cancelled = 'ANNULE',
 }
 
+export enum PaymentInstrumentStatus {
+  Received = 'RECU',
+  Deposited = 'DEPOSE',
+  Cleared = 'ENCAISSE',
+  Rejected = 'IMPAYE',
+}
+
 @Entity({ schema: 'accounting', name: 'third_party_payments' })
 @Index(['organizationId', 'dossierId', 'paymentDate', 'status'])
 export class ThirdPartyPayment extends AuditableEntity {
@@ -3436,6 +3443,47 @@ export class ThirdPartyPayment extends AuditableEntity {
 
   @Column({ name: 'posted_at_utc', type: 'timestamptz', nullable: true })
   postedAtUtc!: Date | null;
+
+  @Column({
+    name: 'instrument_number',
+    type: 'varchar',
+    length: 60,
+    nullable: true,
+  })
+  instrumentNumber!: string | null;
+
+  @Column({
+    name: 'instrument_bank',
+    type: 'varchar',
+    length: 150,
+    nullable: true,
+  })
+  instrumentBank!: string | null;
+
+  @Column({ name: 'instrument_due_date', type: 'date', nullable: true })
+  instrumentDueDate!: string | null;
+
+  @Column({
+    name: 'instrument_status',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+  })
+  instrumentStatus!: PaymentInstrumentStatus | null;
+
+  @Column({
+    name: 'instrument_deposited_at_utc',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  instrumentDepositedAtUtc!: Date | null;
+
+  @Column({
+    name: 'instrument_cleared_at_utc',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  instrumentClearedAtUtc!: Date | null;
 
   @OneToMany(() => PaymentAllocation, (allocation) => allocation.payment)
   allocations!: PaymentAllocation[];

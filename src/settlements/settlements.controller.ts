@@ -114,4 +114,52 @@ export class SettlementsController {
       user.userId,
     );
   }
+
+  @Post('payments/:paymentId/instrument/deposit')
+  @RequirePermission(PermissionNames.PaymentsManage)
+  depositInstrument(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('paymentId', ParseUUIDPipe) paymentId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.depositInstrument(
+      organizationId,
+      dossierId,
+      paymentId,
+      user.userId,
+    );
+  }
+
+  @Post('payments/:paymentId/instrument/clear')
+  @RequirePermission(PermissionNames.PaymentsManage)
+  clearInstrument(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('paymentId', ParseUUIDPipe) paymentId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.clearInstrument(
+      organizationId,
+      dossierId,
+      paymentId,
+      user.userId,
+    );
+  }
+
+  @Post('payments/:paymentId/instrument/reject')
+  @RequirePermission(PermissionNames.AccountingPost)
+  rejectInstrument(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('paymentId', ParseUUIDPipe) paymentId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.rejectInstrument(
+      organizationId,
+      dossierId,
+      paymentId,
+      user.userId,
+    );
+  }
 }
