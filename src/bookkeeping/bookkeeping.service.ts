@@ -603,6 +603,66 @@ export class BookkeepingService {
     );
   }
 
+  async exportFec(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    query: ReportQueryDto,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const rows = await this.dataSource.query<
+      Array<{
+        journalCode: string;
+        journalLib: string;
+        ecritureNum: string;
+        ecritureDate: string;
+        compteNum: string;
+        compteLib: string;
+        compAuxLib: string | null;
+        pieceRef: string;
+        pieceDate: string;
+        ecritureLib: string;
+        debit: string;
+        credit: string;
+        ecritureLet: string | null;
+        dateLet: string | null;
+        validDate: string | null;
+      }>
+    >(
+      `SELECT j.code AS "journalCode", j.name AS "journalLib",
+        LPAD(ROW_NUMBER() OVER (ORDER BY e.entry_date, e.created_at_utc, l.created_at_utc)::text, 8, '0') AS "ecritureNum",
+        TO_CHAR(e.entry_date, 'YYYYMMDD') AS "ecritureDate",
+        a.code AS "compteNum", a.name AS "compteLib", l.third_party_name AS "compAuxLib",
+        e.piece_reference AS "pieceRef", TO_CHAR(e.entry_date, 'YYYYMMDD') AS "pieceDate",
+        l.label AS "ecritureLib", l.debit, l.credit, l.letter_code AS "ecritureLet",
+        TO_CHAR(l.reconciled_at_utc, 'YYYYMMDD') AS "dateLet",
+        TO_CHAR(e.posted_at_utc, 'YYYYMMDD') AS "validDate"
+       FROM accounting.journal_entry_lines l
+       JOIN accounting.journal_entries e ON e.id=l.entry_id
+       JOIN accounting.accounting_journals j ON j.id=e.journal_id
+       JOIN accounting.ledger_accounts a ON a.id=l.account_id
+       WHERE e.organization_id=$1 AND e.dossier_id=$2
+         AND e.entry_date BETWEEN $3 AND $4 AND e.status IN ('COMPTABILISEE','EXTOURNEE')
+       ORDER BY e.entry_date, e.created_at_utc, l.created_at_utc`,
+      [organizationId, dossierId, query.from, query.to],
+    );
+    const header = [
+      'JournalCode', 'JournalLib', 'EcritureNum', 'EcritureDate', 'CompteNum',
+      'CompteLib', 'CompAuxNum', 'CompAuxLib', 'PieceRef', 'PieceDate',
+      'EcritureLib', 'Debit', 'Credit', 'EcritureLet', 'DateLet', 'ValidDate',
+      'Montantdevise', 'Idevise',
+    ].join('|');
+    const lines = rows.map((row) =>
+      [
+        row.journalCode, row.journalLib, row.ecritureNum, row.ecritureDate,
+        row.compteNum, row.compteLib, '', row.compAuxLib ?? '', row.pieceRef,
+        row.pieceDate, row.ecritureLib, row.debit, row.credit,
+        row.ecritureLet ?? '', row.dateLet ?? '', row.validDate ?? '', '', '',
+      ].join('|'),
+    );
+    return Buffer.from([header, ...lines].join('\r\n'), 'utf8');
+  }
+
   async financialSummary(
     organizationId: string,
     dossierId: string,

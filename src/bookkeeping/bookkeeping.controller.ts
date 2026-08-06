@@ -297,6 +297,29 @@ export class BookkeepingController {
     );
   }
 
+  @Get('reports/fec/export')
+  @RequirePermission(PermissionNames.ReportsView)
+  async exportFec(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+    @Query() query: ReportQueryDto,
+    @Res() response: Response,
+  ) {
+    const buffer = await this.service.exportFec(
+      organizationId,
+      dossierId,
+      user.userId,
+      query,
+    );
+    response.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="FEC-${query.from}-${query.to}.txt"`,
+    );
+    response.send(buffer);
+  }
+
   @Get('reports/:report/export')
   @RequirePermission(PermissionNames.ReportsView)
   async exportReport(
