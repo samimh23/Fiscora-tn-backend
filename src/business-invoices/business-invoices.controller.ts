@@ -48,6 +48,22 @@ export class BusinessInvoicesController {
     return this.service.get(organizationId, dossierId, invoiceId, user.userId);
   }
 
+  @Get(':invoiceId/match')
+  @RequirePermission(PermissionNames.BusinessInvoicesView)
+  matchReceipt(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.matchReceipt(
+      organizationId,
+      dossierId,
+      invoiceId,
+      user.userId,
+    );
+  }
+
   @Post()
   @RequirePermission(PermissionNames.BusinessInvoicesManage)
   create(

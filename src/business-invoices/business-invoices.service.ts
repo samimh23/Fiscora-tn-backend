@@ -750,6 +750,113 @@ export class BusinessInvoicesService {
     return original;
   }
 
+  async matchReceipt(
+    organizationId: string,
+    dossierId: string,
+    invoiceId: string,
+    userId: string,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const invoice = await this.find(organizationId, dossierId, invoiceId);
+    if (!invoice.sourceCommercialDocumentId)
+      throw new BadRequestException(
+        'Cette facture n’est pas rattachée à un bon de réception.',
+      );
+    const receipt = await this.commercialDocuments.findOne({
+      where: { id: invoice.sourceCommercialDocumentId, organizationId, dossierId },
+      relations: { lines: { account: true } },
+    });
+    if (!receipt)
+      throw new NotFoundException('Le bon de réception est introuvable.');
+
+    type Aggregate = {
+      accountCode: string;
+      description: string;
+      quantity: bigint;
+      netAmount: bigint;
+    };
+    const aggregate = (
+      lines: Array<{
+        accountId: string | null;
+        account?: { code: string } | null;
+        description: string;
+        quantity: string;
+        netAmount: string;
+      }>,
+    ) => {
+      const map = new Map<string, Aggregate>();
+      for (const line of lines) {
+        const key = `${line.accountId ?? 'NONE'}::${line.description.trim().toLowerCase()}`;
+        const existing = map.get(key);
+        const quantity = toMillimes(line.quantity);
+        const netAmount = toMillimes(line.netAmount);
+        if (existing) {
+          existing.quantity += quantity;
+          existing.netAmount += netAmount;
+        } else {
+          map.set(key, {
+            accountCode: line.account?.code ?? '',
+            description: line.description,
+            quantity,
+            netAmount,
+          });
+        }
+      }
+      return map;
+    };
+    const receiptLines = aggregate(receipt.lines);
+    const invoiceLines = aggregate(invoice.lines);
+    const keys = new Set([...receiptLines.keys(), ...invoiceLines.keys()]);
+    const quantityTolerance = 1n;
+    const rows = [...keys].map((key) => {
+      const receiptLine = receiptLines.get(key);
+      const invoiceLine = invoiceLines.get(key);
+      const receiptQuantity = receiptLine?.quantity ?? 0n;
+      const invoiceQuantity = invoiceLine?.quantity ?? 0n;
+      const receiptUnitPrice =
+        receiptLine && receiptLine.quantity > 0n
+          ? (receiptLine.netAmount * 1000n) / receiptLine.quantity
+          : 0n;
+      const invoiceUnitPrice =
+        invoiceLine && invoiceLine.quantity > 0n
+          ? (invoiceLine.netAmount * 1000n) / invoiceLine.quantity
+          : 0n;
+      const priceToleranceBase =
+        receiptUnitPrice > invoiceUnitPrice ? receiptUnitPrice : invoiceUnitPrice;
+      const priceDiff =
+        receiptUnitPrice > invoiceUnitPrice
+          ? receiptUnitPrice - invoiceUnitPrice
+          : invoiceUnitPrice - receiptUnitPrice;
+      const priceTolerance = (priceToleranceBase * 10n) / 1000n; // 1%
+      let status: 'OK' | 'ECART_QUANTITE' | 'ECART_PRIX' | 'ABSENT_FACTURE' | 'ABSENT_RECEPTION';
+      if (!receiptLine) status = 'ABSENT_RECEPTION';
+      else if (!invoiceLine) status = 'ABSENT_FACTURE';
+      else if (
+        receiptQuantity > invoiceQuantity
+          ? receiptQuantity - invoiceQuantity > quantityTolerance
+          : invoiceQuantity - receiptQuantity > quantityTolerance
+      )
+        status = 'ECART_QUANTITE';
+      else if (priceDiff > priceTolerance) status = 'ECART_PRIX';
+      else status = 'OK';
+      return {
+        accountCode: (receiptLine ?? invoiceLine)!.accountCode,
+        description: (receiptLine ?? invoiceLine)!.description,
+        receiptQuantity: fromMillimes(receiptQuantity),
+        invoiceQuantity: fromMillimes(invoiceQuantity),
+        receiptUnitPrice: fromMillimes(receiptUnitPrice),
+        invoiceUnitPrice: fromMillimes(invoiceUnitPrice),
+        status,
+      };
+    });
+    return {
+      receiptNumber: receipt.number,
+      invoiceNumber: invoice.number,
+      hasDiscrepancies: rows.some((row) => row.status !== 'OK'),
+      lines: rows.sort((a, b) => a.description.localeCompare(b.description)),
+    };
+  }
+
   private settlementStatus(outstanding: bigint) {
     return outstanding === 0n
       ? InvoiceSettlementStatus.Paid
