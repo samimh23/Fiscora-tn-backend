@@ -136,6 +136,54 @@ export class FinancialStatementsService {
     private readonly notesService: FinancialStatementNotesService,
   ) {}
 
+  async monthlyTrend(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    months: number,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const span = Math.min(Math.max(months, 1), 36);
+    const rows = await this.dataSource.query<
+      Array<{ month: string; revenue: string; expenses: string }>
+    >(
+      `WITH months AS (
+        SELECT date_trunc('month', now())::date - (n || ' months')::interval AS month_start
+        FROM generate_series(0, $3 - 1) AS n
+      ),
+      movements AS (
+        SELECT date_trunc('month', e.entry_date)::date AS month_start,
+          a.type,
+          COALESCE(SUM(l.credit),0) - COALESCE(SUM(l.debit),0) AS net_credit
+        FROM accounting.journal_entry_lines l
+        JOIN accounting.journal_entries e ON e.id = l.entry_id
+        JOIN accounting.ledger_accounts a ON a.id = l.account_id
+        WHERE e.organization_id = $1 AND e.dossier_id = $2
+          AND e.status IN ('COMPTABILISEE','EXTOURNEE')
+          AND a.type IN ('Revenue','Expense')
+          AND e.entry_date >= date_trunc('month', now())::date - (($3 - 1) || ' months')::interval
+        GROUP BY 1, 2
+      )
+      SELECT
+        TO_CHAR(m.month_start, 'YYYY-MM') AS "month",
+        COALESCE(SUM(mv.net_credit) FILTER (WHERE mv.type = 'Revenue'), 0)::numeric(15,3) AS "revenue",
+        COALESCE(-SUM(mv.net_credit) FILTER (WHERE mv.type = 'Expense'), 0)::numeric(15,3) AS "expenses"
+      FROM months m
+      LEFT JOIN movements mv ON mv.month_start = m.month_start
+      GROUP BY m.month_start
+      ORDER BY m.month_start ASC`,
+      [organizationId, dossierId, span],
+    );
+    return rows.map((row) => ({
+      month: row.month,
+      revenue: row.revenue,
+      expenses: row.expenses,
+      netResult: fromMillimes(
+        toMillimes(row.revenue) - toMillimes(row.expenses),
+      ),
+    }));
+  }
+
   async listMappings(
     organizationId: string,
     dossierId: string,

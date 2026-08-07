@@ -43,6 +43,22 @@ export class FinancialStatementsController {
     private readonly exports: FinancialStatementExportService,
   ) {}
 
+  @Get('trend')
+  @RequirePermission(PermissionNames.FinancialStatementsView)
+  monthlyTrend(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+    @Query('months') months?: string,
+  ) {
+    return this.service.monthlyTrend(
+      organizationId,
+      dossierId,
+      user.userId,
+      months ? Number(months) : 12,
+    );
+  }
+
   @Get('mappings')
   @RequirePermission(PermissionNames.FinancialStatementsView)
   mappings(
