@@ -175,7 +175,7 @@ export class ProductivityService {
         ORDER BY t.due_on ASC,
           CASE t.priority WHEN 'URGENTE' THEN 0 WHEN 'HAUTE' THEN 1 WHEN 'NORMALE' THEN 2 ELSE 3 END,
           t.created_at_utc ASC
-        LIMIT 8
+        LIMIT 3
         `,
         params,
       ),
@@ -189,7 +189,7 @@ export class ProductivityService {
         WHERE ${activeDossierFilter}
           AND t.status = 'PRETE_POUR_REVISION'
         ORDER BY t.due_on ASC, t.created_at_utc ASC
-        LIMIT 8
+        LIMIT 3
         `,
         params,
       ),
@@ -216,7 +216,7 @@ export class ProductivityService {
             ELSE 2
           END,
           doc.created_at_utc DESC
-        LIMIT 8
+        LIMIT 3
         `,
         params,
       ),
@@ -234,7 +234,7 @@ export class ProductivityService {
           CASE inv.status WHEN 'VALIDEE' THEN 0 ELSE 1 END,
           inv.invoice_date DESC,
           inv.created_at_utc DESC
-        LIMIT 8
+        LIMIT 3
         `,
         params,
       ),
@@ -252,7 +252,7 @@ export class ProductivityService {
           AND inv.due_date IS NOT NULL
           AND inv.due_date <= CURRENT_DATE
         ORDER BY inv.due_date ASC, inv.outstanding_amount DESC
-        LIMIT 8
+        LIMIT 3
         `,
         params,
       ),
@@ -268,7 +268,7 @@ export class ProductivityService {
         WHERE ${activeDossierFilter}
           AND tx.status <> 'RAPPROCHEE'
         ORDER BY tx.transaction_date ASC, ABS(tx.amount::numeric) DESC
-        LIMIT 8
+        LIMIT 3
         `,
         params,
       ),
@@ -284,7 +284,7 @@ export class ProductivityService {
           AND obl.status NOT IN ('DEPOSEE','PAYEE')
           AND obl.due_on <= CURRENT_DATE + INTERVAL '7 days'
         ORDER BY obl.due_on ASC
-        LIMIT 8
+        LIMIT 3
         `,
         params,
       ),
@@ -298,7 +298,7 @@ export class ProductivityService {
         WHERE ${activeDossierFilter}
           AND pr.status = 'BROUILLON'
         ORDER BY pr.period_year DESC, pr.period_month DESC
-        LIMIT 8
+        LIMIT 3
         `,
         params,
       ),

@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, LessThan, MoreThan, Repository } from 'typeorm';
+import { DataSource, In, LessThan, MoreThan, Not, Repository } from 'typeorm';
 import { fromMillimes, toMillimes } from '../common/money';
 import {
   AccountingJournal,
@@ -35,6 +35,8 @@ import {
   CreateFixedAssetCategoryDto,
   CreateFixedAssetDto,
   DisposeFixedAssetDto,
+  UpdateFixedAssetCategoryDto,
+  UpdateFixedAssetDto,
 } from './dto';
 import { PeriodLockService } from '../period-closing/period-lock.service';
 
@@ -124,6 +126,74 @@ export class FixedAssetsService {
         isActive: true,
       }),
     );
+  }
+
+  async updateCategory(
+    organizationId: string,
+    dossierId: string,
+    categoryId: string,
+    userId: string,
+    dto: UpdateFixedAssetCategoryDto,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    await this.ensureYearOpen(
+      organizationId,
+      dossierId,
+      new Date().getFullYear(),
+    );
+    const category = await this.categories.findOneBy({
+      id: categoryId,
+      organizationId,
+      dossierId,
+      isActive: true,
+    });
+    if (!category)
+      throw new NotFoundException(
+        'La catégorie d’immobilisation est introuvable.',
+      );
+
+    const code = dto.code?.trim().toUpperCase() ?? category.code;
+    if (
+      code !== category.code &&
+      (await this.categories.existsBy({
+        dossierId,
+        code,
+        id: Not(categoryId),
+      }))
+    )
+      throw new ConflictException('Ce code de catégorie existe déjà.');
+
+    const accountIds = [
+      dto.assetAccountId ?? category.assetAccountId,
+      dto.accumulatedDepreciationAccountId ??
+        category.accumulatedDepreciationAccountId,
+      dto.depreciationExpenseAccountId ??
+        category.depreciationExpenseAccountId,
+    ];
+    if (new Set(accountIds).size !== accountIds.length)
+      throw new BadRequestException(
+        'Les trois comptes de la catégorie doivent être différents.',
+      );
+    await this.validateAccountIds(organizationId, dossierId, accountIds);
+
+    const method = dto.defaultMethod ?? category.defaultMethod;
+    const decliningRate =
+      dto.defaultDecliningRate === undefined
+        ? category.defaultDecliningRate
+        : (dto.defaultDecliningRate ?? null);
+    this.validateDecliningRate(method, decliningRate ?? undefined);
+
+    category.code = code;
+    if (dto.name !== undefined) category.name = dto.name.trim();
+    category.assetAccountId = accountIds[0];
+    category.accumulatedDepreciationAccountId = accountIds[1];
+    category.depreciationExpenseAccountId = accountIds[2];
+    category.defaultMethod = method;
+    if (dto.defaultUsefulLifeMonths !== undefined)
+      category.defaultUsefulLifeMonths = dto.defaultUsefulLifeMonths;
+    category.defaultDecliningRate = decliningRate;
+
+    return this.categories.save(category);
   }
 
   async listAssets(organizationId: string, dossierId: string, userId: string) {
@@ -263,6 +333,173 @@ export class FixedAssetsService {
         createdByUserId: userId,
       }),
     );
+  }
+
+  async updateAsset(
+    organizationId: string,
+    dossierId: string,
+    assetId: string,
+    userId: string,
+    dto: UpdateFixedAssetDto,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const asset = await this.findAsset(organizationId, dossierId, assetId);
+    if (
+      [FixedAssetStatus.Disposed, FixedAssetStatus.Retired].includes(
+        asset.status,
+      )
+    )
+      throw new ConflictException(
+        'Une immobilisation sortie ne peut plus être modifiée.',
+      );
+    if (
+      await this.periods.existsBy({
+        assetId: asset.id,
+        status: DepreciationPeriodStatus.Posted,
+      })
+    )
+      throw new ConflictException(
+        'Cette immobilisation a déjà des dotations comptabilisées. Utilisez une correction comptable.',
+      );
+
+    const acquisitionDate = dto.acquisitionDate ?? asset.acquisitionDate;
+    const serviceDate = dto.serviceDate ?? asset.serviceDate;
+    if (serviceDate < acquisitionDate)
+      throw new BadRequestException(
+        'La mise en service ne peut pas précéder l’acquisition.',
+      );
+    await this.ensureYearOpen(
+      organizationId,
+      dossierId,
+      Number(serviceDate.slice(0, 4)),
+    );
+
+    const categoryId = dto.categoryId ?? asset.categoryId;
+    const category = await this.categories.findOneBy({
+      id: categoryId,
+      organizationId,
+      dossierId,
+      isActive: true,
+    });
+    if (!category)
+      throw new NotFoundException(
+        'La catégorie d’immobilisation est introuvable.',
+      );
+
+    const code = dto.code?.trim().toUpperCase() ?? asset.code;
+    if (
+      code !== asset.code &&
+      (await this.assets.existsBy({ dossierId, code, id: Not(assetId) }))
+    )
+      throw new ConflictException('Ce code d’immobilisation existe déjà.');
+
+    const cost = toMillimes(
+      dto.acquisitionCost ?? asset.acquisitionCost,
+      'Coût d’acquisition',
+    );
+    const residual = toMillimes(
+      dto.residualValue ?? asset.residualValue,
+      'Valeur résiduelle',
+    );
+    if (cost <= 0n || residual < 0n || residual >= cost)
+      throw new BadRequestException(
+        'Le coût doit être positif et la valeur résiduelle inférieure au coût.',
+      );
+
+    const accountingMethod = dto.accountingMethod ?? asset.accountingMethod;
+    const usefulLifeMonths = dto.usefulLifeMonths ?? asset.usefulLifeMonths;
+    const accountingRate =
+      dto.accountingDecliningRate === undefined
+        ? asset.accountingDecliningRate
+        : (dto.accountingDecliningRate ?? null);
+    const fiscalMethod = dto.fiscalMethod ?? asset.fiscalMethod;
+    const fiscalUsefulLifeMonths =
+      dto.fiscalUsefulLifeMonths ?? asset.fiscalUsefulLifeMonths;
+    const fiscalRate =
+      dto.fiscalDecliningRate === undefined
+        ? asset.fiscalDecliningRate
+        : (dto.fiscalDecliningRate ?? null);
+    this.validateDecliningRate(accountingMethod, accountingRate ?? undefined);
+    this.validateDecliningRate(fiscalMethod, fiscalRate ?? undefined);
+
+    const purchaseInvoiceId =
+      dto.purchaseInvoiceId === undefined
+        ? asset.purchaseInvoiceId
+        : (dto.purchaseInvoiceId ?? null);
+    const purchaseInvoice = purchaseInvoiceId
+      ? await this.invoices.findOneBy({
+          id: purchaseInvoiceId,
+          organizationId,
+          dossierId,
+          type: BusinessInvoiceType.Purchase,
+          kind: BusinessInvoiceKind.Invoice,
+          status: BusinessInvoiceStatus.Posted,
+        })
+      : null;
+    if (purchaseInvoiceId && !purchaseInvoice)
+      throw new BadRequestException(
+        'La facture d’achat liée doit être comptabilisée.',
+      );
+    const supplierId =
+      dto.supplierId === undefined
+        ? (asset.supplierId ?? purchaseInvoice?.thirdPartyId ?? null)
+        : (dto.supplierId ?? purchaseInvoice?.thirdPartyId ?? null);
+    const supplier = supplierId
+      ? await this.thirdParties.findOneBy({
+          id: supplierId,
+          organizationId,
+          dossierId,
+          isActive: true,
+        })
+      : null;
+    if (
+      supplierId &&
+      (!supplier ||
+        ![ThirdPartyType.Supplier, ThirdPartyType.Both].includes(supplier.type))
+    )
+      throw new BadRequestException('Le fournisseur sélectionné est invalide.');
+    if (
+      purchaseInvoice?.thirdPartyId &&
+      supplierId !== purchaseInvoice.thirdPartyId
+    )
+      throw new BadRequestException(
+        'Le fournisseur ne correspond pas à celui de la facture.',
+      );
+
+    asset.categoryId = category.id;
+    asset.code = code;
+    if (dto.name !== undefined) asset.name = dto.name.trim();
+    if (dto.description !== undefined)
+      asset.description = dto.description?.trim() || null;
+    asset.acquisitionDate = acquisitionDate;
+    asset.serviceDate = serviceDate;
+    asset.purchaseInvoiceId = purchaseInvoiceId;
+    asset.supplierId = supplierId;
+    asset.acquisitionCost = fromMillimes(cost);
+    asset.residualValue = fromMillimes(residual);
+    asset.depreciableBase = fromMillimes(cost - residual);
+    asset.accountingMethod = accountingMethod;
+    asset.usefulLifeMonths = usefulLifeMonths;
+    asset.accountingDecliningRate = accountingRate;
+    asset.fiscalMethod = fiscalMethod;
+    asset.fiscalUsefulLifeMonths = fiscalUsefulLifeMonths;
+    asset.fiscalDecliningRate = fiscalRate;
+    asset.assetAccountId = category.assetAccountId;
+    asset.accumulatedDepreciationAccountId =
+      category.accumulatedDepreciationAccountId;
+    asset.depreciationExpenseAccountId = category.depreciationExpenseAccountId;
+    asset.netBookValue = fromMillimes(
+      cost - toMillimes(asset.postedAccountingDepreciation),
+    );
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.save(FixedAsset, asset);
+      await manager.delete(AssetDepreciationPeriod, {
+        assetId: asset.id,
+        status: DepreciationPeriodStatus.Planned,
+      });
+    });
+    return this.findAsset(organizationId, dossierId, asset.id);
   }
 
   async generateSchedule(

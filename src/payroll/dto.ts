@@ -1,4 +1,7 @@
 import {
+  PartialType,
+} from '@nestjs/swagger';
+import {
   IsBoolean,
   IsDateString,
   IsInt,
@@ -48,6 +51,8 @@ export class CreateEmployeeDto {
   @IsDateString()
   employerSupportStartDate?: string;
 }
+
+export class UpdateEmployeeDto extends PartialType(CreateEmployeeDto) {}
 
 export class GeneratePayrollDto {
   @IsInt()

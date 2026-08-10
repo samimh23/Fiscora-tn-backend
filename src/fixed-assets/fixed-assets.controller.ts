@@ -6,6 +6,7 @@ import {
   ParseIntPipe,
   ParseUUIDPipe,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -22,6 +23,8 @@ import {
   DisposeFixedAssetDto,
   FixedAssetReportQueryDto,
   PostDepreciationDto,
+  UpdateFixedAssetCategoryDto,
+  UpdateFixedAssetDto,
 } from './dto';
 import { FixedAssetsService } from './fixed-assets.service';
 
@@ -55,6 +58,24 @@ export class FixedAssetsController {
     return this.service.createCategory(
       organizationId,
       dossierId,
+      user.userId,
+      dto,
+    );
+  }
+
+  @Put('categories/:categoryId')
+  @RequirePermission(PermissionNames.FixedAssetsManage)
+  updateCategory(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('categoryId', ParseUUIDPipe) categoryId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: UpdateFixedAssetCategoryDto,
+  ) {
+    return this.service.updateCategory(
+      organizationId,
+      dossierId,
+      categoryId,
       user.userId,
       dto,
     );
@@ -123,6 +144,24 @@ export class FixedAssetsController {
     return this.service.createAsset(
       organizationId,
       dossierId,
+      user.userId,
+      dto,
+    );
+  }
+
+  @Put(':assetId')
+  @RequirePermission(PermissionNames.FixedAssetsManage)
+  updateAsset(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('assetId', ParseUUIDPipe) assetId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: UpdateFixedAssetDto,
+  ) {
+    return this.service.updateAsset(
+      organizationId,
+      dossierId,
+      assetId,
       user.userId,
       dto,
     );

@@ -16,7 +16,7 @@ import {
 import { DossiersService } from '../dossiers/dossiers.service';
 import { fromMillimes, multiplyRate, toMillimes } from '../common/money';
 import { FiscalSettingsService } from '../fiscal-settings/fiscal-settings.service';
-import { CreateEmployeeDto, GeneratePayrollDto } from './dto';
+import { CreateEmployeeDto, GeneratePayrollDto, UpdateEmployeeDto } from './dto';
 
 @Injectable()
 export class PayrollService {
@@ -67,6 +67,48 @@ export class PayrollService {
         isActive: true,
       }),
     );
+  }
+
+  async updateEmployee(
+    organizationId: string,
+    dossierId: string,
+    employeeId: string,
+    userId: string,
+    dto: UpdateEmployeeDto,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const employee = await this.employees.findOneBy({
+      id: employeeId,
+      organizationId,
+      dossierId,
+      isActive: true,
+    });
+    if (!employee)
+      throw new NotFoundException('Le salarié est introuvable.');
+
+    if (dto.fullName !== undefined) employee.fullName = dto.fullName.trim();
+    if (dto.cin !== undefined) employee.cin = dto.cin?.trim() || null;
+    if (dto.cnssNumber !== undefined)
+      employee.cnssNumber = dto.cnssNumber?.trim() || null;
+    if (dto.hireDate !== undefined) employee.hireDate = dto.hireDate;
+    if (dto.contractType !== undefined)
+      employee.contractType = dto.contractType.trim();
+    if (dto.grossSalary !== undefined)
+      employee.grossSalary = fromMillimes(toMillimes(dto.grossSalary));
+    if (dto.isHigherEducationGraduate !== undefined)
+      employee.isHigherEducationGraduate = dto.isHigherEducationGraduate;
+    if (dto.employerSupportEligible !== undefined)
+      employee.employerSupportEligible = dto.employerSupportEligible;
+    if (dto.employerSupportStartDate !== undefined)
+      employee.employerSupportStartDate =
+        dto.employerSupportStartDate?.trim() || null;
+    if (!employee.employerSupportEligible) {
+      employee.employerSupportStartDate = null;
+    } else if (!employee.employerSupportStartDate) {
+      employee.employerSupportStartDate = employee.hireDate;
+    }
+
+    return this.employees.save(employee);
   }
 
   async listRuns(organizationId: string, dossierId: string, userId: string) {

@@ -310,6 +310,16 @@ export class BusinessInvoicesService {
         notes: dto.notes?.trim() || null,
         ...calculation.header,
       });
+      // Editing a draft changes the invoice total, so the amount still owed
+      // has to follow it. outstandingAmount is only seeded on creation above
+      // and is not part of calculation.header, so without this an edited draft
+      // keeps the balance computed from its original lines.
+      if (existing)
+        invoice.outstandingAmount = fromMillimes(
+          toMillimes(calculation.header.netPayable) -
+            toMillimes(invoice.paidAmount) -
+            toMillimes(invoice.creditedAmount),
+        );
       const saved = await manager.save(invoice);
       if (existing)
         await manager.delete(BusinessInvoiceLine, { invoiceId: saved.id });

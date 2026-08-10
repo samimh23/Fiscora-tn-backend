@@ -1,4 +1,5 @@
 import { Type } from 'class-transformer';
+import { PartialType } from '@nestjs/swagger';
 import {
   IsDateString,
   IsEnum,
@@ -47,6 +48,10 @@ export class CreateFixedAssetCategoryDto {
   @Matches(rate)
   defaultDecliningRate?: string;
 }
+
+export class UpdateFixedAssetCategoryDto extends PartialType(
+  CreateFixedAssetCategoryDto,
+) {}
 
 export class CreateFixedAssetDto {
   @IsUUID()
@@ -112,6 +117,8 @@ export class CreateFixedAssetDto {
   @Matches(rate)
   fiscalDecliningRate?: string;
 }
+
+export class UpdateFixedAssetDto extends PartialType(CreateFixedAssetDto) {}
 
 export class PostDepreciationDto {
   @IsUUID()

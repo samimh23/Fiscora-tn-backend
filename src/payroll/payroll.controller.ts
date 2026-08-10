@@ -6,6 +6,7 @@ import {
   ParseIntPipe,
   ParseUUIDPipe,
   Post,
+  Put,
   Query,
   StreamableFile,
   UseGuards,
@@ -17,7 +18,7 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { RequirePermission } from '../common/permission.decorator';
 import { PermissionGuard } from '../common/permission.guard';
 import { PermissionNames } from '../database/permissions';
-import { CreateEmployeeDto, GeneratePayrollDto } from './dto';
+import { CreateEmployeeDto, GeneratePayrollDto, UpdateEmployeeDto } from './dto';
 import { PayrollService } from './payroll.service';
 
 @ApiTags('Paie et CNSS')
@@ -48,6 +49,24 @@ export class PayrollController {
     return this.service.createEmployee(
       organizationId,
       dossierId,
+      user.userId,
+      dto,
+    );
+  }
+
+  @Put('employees/:employeeId')
+  @RequirePermission(PermissionNames.PayrollManage)
+  updateEmployee(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('employeeId', ParseUUIDPipe) employeeId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: UpdateEmployeeDto,
+  ) {
+    return this.service.updateEmployee(
+      organizationId,
+      dossierId,
+      employeeId,
       user.userId,
       dto,
     );
