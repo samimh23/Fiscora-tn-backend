@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import {
+  AccountingJournal,
   AuditLog,
   BillingFrequency,
   ClientDossier,
@@ -15,8 +16,12 @@ import {
   DossierAssignmentRole,
   DossierContact,
   DossierStatus,
+  FiscalYear,
+  LedgerAccount,
   OrganizationMembership,
+  ThirdParty,
 } from '../database/entities';
+import { DEFAULT_DOSSIER_JOURNALS } from './default-journals';
 import { PermissionNames, SystemRoleNames } from '../database/permissions';
 import {
   CreateDossierContactDto,
@@ -40,6 +45,14 @@ export class DossiersService {
     private readonly memberships: Repository<OrganizationMembership>,
     @InjectRepository(AuditLog)
     private readonly auditLogs: Repository<AuditLog>,
+    @InjectRepository(AccountingJournal)
+    private readonly journals: Repository<AccountingJournal>,
+    @InjectRepository(FiscalYear)
+    private readonly fiscalYears: Repository<FiscalYear>,
+    @InjectRepository(LedgerAccount)
+    private readonly ledgerAccounts: Repository<LedgerAccount>,
+    @InjectRepository(ThirdParty)
+    private readonly thirdParties: Repository<ThirdParty>,
   ) {}
 
   async list(organizationId: string, userId: string, query: DossierQueryDto) {
@@ -121,6 +134,7 @@ export class DossiersService {
         createdByUserId: actorUserId,
       }),
     );
+    await this.seedDefaultJournals(organizationId, dossier.id);
     await this.addAudit(
       organizationId,
       actorUserId,
@@ -133,6 +147,121 @@ export class DossiersService {
       },
     );
     return this.toDossier(dossier);
+  }
+
+  /**
+   * Crée les journaux standards du dossier. Idempotent : les codes déjà
+   * présents sont ignorés, ce qui permet de rejouer l'opération sur un
+   * dossier existant sans risque de doublon (contrainte unique dossier+code).
+   */
+  async seedDefaultJournals(organizationId: string, dossierId: string) {
+    const existing = await this.journals.find({
+      where: { organizationId, dossierId },
+      select: { code: true },
+    });
+    const taken = new Set(existing.map((item) => item.code.toUpperCase()));
+    const missing = DEFAULT_DOSSIER_JOURNALS.filter(
+      (definition) => !taken.has(definition.code),
+    );
+    if (!missing.length) return 0;
+    await this.journals.save(
+      missing.map((definition) =>
+        this.journals.create({
+          organizationId,
+          dossierId,
+          code: definition.code,
+          name: definition.name,
+          type: definition.type,
+          isActive: true,
+        }),
+      ),
+    );
+    return missing.length;
+  }
+
+  /**
+   * État de configuration du dossier, utilisé par la check-list d'ouverture.
+   * Tant qu'une étape bloquante n'est pas faite, aucune facture ne peut être
+   * saisie : la check-list rend cette dépendance visible au lieu de laisser
+   * le comptable devant une liste déroulante vide.
+   */
+  async setupStatus(
+    organizationId: string,
+    dossierId: string,
+    actorUserId: string,
+  ) {
+    const dossier = await this.getAccessibleEntity(
+      organizationId,
+      dossierId,
+      actorUserId,
+    );
+    const scope = { organizationId, dossierId };
+    const [fiscalYears, accounts, journals, thirdParties] = await Promise.all([
+      this.fiscalYears.countBy(scope),
+      this.ledgerAccounts.countBy(scope),
+      this.journals.countBy({ ...scope, isActive: true }),
+      this.thirdParties.countBy({ ...scope, isActive: true }),
+    ]);
+
+    const steps = [
+      {
+        key: 'fiscal_year',
+        label: 'Exercice comptable',
+        description: 'Définissez la période sur laquelle les écritures seront rattachées.',
+        done: fiscalYears > 0,
+        count: fiscalYears,
+        blocking: true,
+        space: 'production',
+      },
+      {
+        key: 'chart_of_accounts',
+        label: 'Plan comptable NC 01',
+        description: 'Installez la nomenclature tunisienne, puis ajustez les sous-comptes.',
+        done: accounts > 0,
+        count: accounts,
+        blocking: true,
+        space: 'production',
+      },
+      {
+        key: 'journals',
+        label: 'Journaux comptables',
+        description: 'Ventes, achats, banque, caisse, opérations diverses et paie.',
+        done: journals > 0,
+        count: journals,
+        blocking: true,
+        space: 'production',
+      },
+      {
+        key: 'third_parties',
+        label: 'Clients et fournisseurs',
+        description: 'Créez au moins un tiers pour pouvoir émettre une facture.',
+        done: thirdParties > 0,
+        count: thirdParties,
+        blocking: false,
+        space: 'production',
+      },
+      {
+        key: 'tax_identifier',
+        label: 'Matricule fiscal',
+        description: 'Obligatoire pour la liasse fiscale et les déclarations TEJ.',
+        done: Boolean(dossier.taxIdentifier),
+        count: dossier.taxIdentifier ? 1 : 0,
+        blocking: false,
+        space: 'overview',
+      },
+    ];
+
+    const remainingBlocking = steps.filter(
+      (step) => step.blocking && !step.done,
+    );
+    return {
+      dossierId,
+      isComplete: steps.every((step) => step.done),
+      canRecordInvoices: remainingBlocking.length === 0,
+      completedCount: steps.filter((step) => step.done).length,
+      totalCount: steps.length,
+      steps,
+    };
   }
 
   async get(organizationId: string, dossierId: string, userId: string) {

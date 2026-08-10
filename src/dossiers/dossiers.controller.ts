@@ -64,6 +64,36 @@ export class DossiersController {
     return this.service.get(organizationId, dossierId, user.userId);
   }
 
+  @Get(':dossierId/setup-status')
+  @RequirePermission(PermissionNames.DossiersView)
+  setupStatus(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.setupStatus(organizationId, dossierId, user.userId);
+  }
+
+  /** Rattrapage pour les dossiers créés avant l'ajout des journaux par défaut. */
+  @Post(':dossierId/setup/journals')
+  @RequirePermission(PermissionNames.DossiersManage)
+  async createDefaultJournals(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    await this.service.getAccessibleEntity(
+      organizationId,
+      dossierId,
+      user.userId,
+    );
+    const created = await this.service.seedDefaultJournals(
+      organizationId,
+      dossierId,
+    );
+    return { created };
+  }
+
   @Patch(':dossierId')
   @RequirePermission(PermissionNames.DossiersManage)
   update(

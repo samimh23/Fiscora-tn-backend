@@ -3,11 +3,15 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { PermissionGuard } from '../common/permission.guard';
 import {
+  AccountingJournal,
   AuditLog,
   ClientDossier,
   DossierAssignment,
   DossierContact,
+  FiscalYear,
+  LedgerAccount,
   OrganizationMembership,
+  ThirdParty,
 } from '../database/entities';
 import { DossiersController } from './dossiers.controller';
 import { DossiersService } from './dossiers.service';
@@ -21,6 +25,10 @@ import { DossiersService } from './dossiers.service';
       DossierAssignment,
       OrganizationMembership,
       AuditLog,
+      AccountingJournal,
+      FiscalYear,
+      LedgerAccount,
+      ThirdParty,
     ]),
   ],
   controllers: [DossiersController],
