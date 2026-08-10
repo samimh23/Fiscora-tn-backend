@@ -20,6 +20,7 @@ import { FinancialStatementExportService } from './financial-statement-export.se
 import { FinancialStatementNotesService } from './financial-statement-notes.service';
 import { FinancialStatementsController } from './financial-statements.controller';
 import { FinancialStatementsService } from './financial-statements.service';
+import { TejExportService } from './tej/tej-export.service';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { FinancialStatementsService } from './financial-statements.service';
     FinancialStatementsService,
     FinancialStatementExportService,
     FinancialStatementNotesService,
+    TejExportService,
     PermissionGuard,
   ],
 })

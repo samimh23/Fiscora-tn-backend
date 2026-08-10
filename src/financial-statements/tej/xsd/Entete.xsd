@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:lf="http://www.impots.finances.gov.tn/liasse"
+	xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+	targetNamespace="http://www.impots.finances.gov.tn/liasse" elementFormDefault="qualified"
+	attributeFormDefault="unqualified" vc:minVersion="1.1"
+	xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning">
+	<xsd:include schemaLocation="Typescommuns.xsd"/>
+	<xsd:complexType name="T_Entete">
+		<xsd:annotation>
+			<xsd:documentation>Entête d'une déclaration</xsd:documentation>
+		</xsd:annotation>
+		<xsd:sequence>
+			<xsd:element name="MatriculeFiscalDeclarant" type="lf:T_MatriculeFiscal_13c"/>
+			<xsd:element name="NometPrenomouRaisonSociale" type="lf:T_ChaineTexte250"/>
+			<xsd:element name="Activite" type="lf:T_ChaineTexte250"/>
+			<xsd:element name="Adresse" type="lf:T_ChaineTexte250"/>
+			<xsd:element name="Exercice" type="lf:T_Annee"/>
+			<xsd:element name="DateDebutExercice" type="lf:T_Date"/>
+			<xsd:element name="DateClotureExercice" type="lf:T_Date"/>
+			<xsd:element name="ActeDeDepot" type="lf:T_ActeDeDepot" default="0"/>
+			<xsd:element name="NatureDepot" type="lf:T_NatureDepot"/>
+		</xsd:sequence>
+	</xsd:complexType>
+</xsd:schema>

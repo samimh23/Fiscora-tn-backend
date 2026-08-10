@@ -1,0 +1,3406 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:lf="http://www.impots.finances.gov.tn/liasse" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning" targetNamespace="http://www.impots.finances.gov.tn/liasse" elementFormDefault="qualified" attributeFormDefault="unqualified" vc:minVersion="1.1">
+	<xsd:include schemaLocation="Typescommuns.xsd"/>
+	<xsd:include schemaLocation="Entete.xsd"/>
+	<xsd:element name="F6001">
+		<xsd:annotation>
+			<xsd:documentation>Bilan-actifs (Cas general)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:complexType>
+			<xsd:sequence>
+				<xsd:element name="VersionDocument" type="xsd:string"/>
+				<xsd:element name="Entete" type="lf:T_Entete"/>
+				<xsd:element name="Details">
+					<xsd:complexType>
+						<xsd:all>
+							<xsd:element name="F60010001">
+								<xsd:annotation>
+									<xsd:documentation>Actifs non courants (Brut). "F60010002" + "F60010031"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actifs non courants (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010002">
+								<xsd:annotation>
+									<xsd:documentation>Actifs immobilises (Brut). "F60010003" + "F60010012" + "F60010021"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actifs immobilises (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010003">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations Incorporelles (Brut). "F60010004" + "F60010005" + "F60010006" + "F60010007" + "F60010008" + "F60010009" + "F60010010" + "F60010011"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations Incorporelles (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010004">
+								<xsd:annotation>
+									<xsd:documentation>Investissement recherche et developpement (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Investissement recherche et developpement (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010005">
+								<xsd:annotation>
+									<xsd:documentation>Concess. marque,brevet,licence,marque (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Concess. marque,brevet,licence,marque (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010006">
+								<xsd:annotation>
+									<xsd:documentation>Logiciels (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Logiciels (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010007">
+								<xsd:annotation>
+									<xsd:documentation>Fonds commercial (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fonds commercial (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010008">
+								<xsd:annotation>
+									<xsd:documentation>Droit au bail (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Droit au bail (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010009">
+								<xsd:annotation>
+									<xsd:documentation>Autres Immobilisations Incorporelles (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Immobilisations Incorporelles (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010010">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations Incorporelles en cours (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations Incorporelles en cours (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010011">
+								<xsd:annotation>
+									<xsd:documentation>Av. et Ac. Verses/Cmde.Immob.Incorp. (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Av. et Ac. Verses/Cmde.Immob.Incorp. (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010012">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations corporelles (Brut). "F60010013" + "F60010014" + "F60010015" + "F60010016" + "F60010017" + "F60010018" + "F60010019" + "F60010020"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations corporelles (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010013">
+								<xsd:annotation>
+									<xsd:documentation>Terrains (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Terrains (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010014">
+								<xsd:annotation>
+									<xsd:documentation>Constructions (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Constructions (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010015">
+								<xsd:annotation>
+									<xsd:documentation>Inst. Tech., materiel et outillages Industriels (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Inst. Tech., materiel et outillages Industriels (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010016">
+								<xsd:annotation>
+									<xsd:documentation>Materiel de transport  (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Materiel de transport  (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010017">
+								<xsd:annotation>
+									<xsd:documentation>Autres Immobilisations Corporelles  (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Immobilisations Corporelles  (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010018">
+								<xsd:annotation>
+									<xsd:documentation>Immob. Corporelles en cours (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immob. Corporelles en cours (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010019">
+								<xsd:annotation>
+									<xsd:documentation>Av. et Ac. Verses/Commande Immob.Corp. (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Av. et Ac. Verses/Commande Immob.Corp. (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010020">
+								<xsd:annotation>
+									<xsd:documentation>Immob. a statut juridique particulier (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immob. a statut juridique particulier (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010021">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations Financieres (Brut). "F60010022" + "F60010023" + "F60010024" + "F60010025" + "F60010026" + "F60010027" + "F60010028" + "F60010029" + "F60010030"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations Financieres (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010022">
+								<xsd:annotation>
+									<xsd:documentation>Actions (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actions (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010023">
+								<xsd:annotation>
+									<xsd:documentation>Autres creances rattach. a des participat. (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres creances rattach. a des participat. (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010024">
+								<xsd:annotation>
+									<xsd:documentation>Creances rattach. a des stes en participat. (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Creances rattach. a des stes en participat. (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010025">
+								<xsd:annotation>
+									<xsd:documentation>Vers.a eff./titre de participation non liberes (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Vers.a eff./titre de participation non liberes (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010026">
+								<xsd:annotation>
+									<xsd:documentation>Titres immobilises (droit de propriete) (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Titres immobilises (droit de propriete) (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010027">
+								<xsd:annotation>
+									<xsd:documentation>Titres immobilises (droit de creance) (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Titres immobilises (droit de creance) (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010028">
+								<xsd:annotation>
+									<xsd:documentation>Depots et cautionnements verses (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Depots et cautionnements verses (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010029">
+								<xsd:annotation>
+									<xsd:documentation>Autres creances immobilisees (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres creances immobilisees (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010030">
+								<xsd:annotation>
+									<xsd:documentation>Vers.a eff./Titres immobilises non liberes (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Vers.a eff./Titres immobilises non liberes (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010031">
+								<xsd:annotation>
+									<xsd:documentation>Autres Actifs Non Courants (Brut). "F60010032" + "F60010033" + "F60010034" + "F60010035"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Actifs Non Courants (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010032">
+								<xsd:annotation>
+									<xsd:documentation>Frais preliminaires (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Frais preliminaires (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010033">
+								<xsd:annotation>
+									<xsd:documentation>Charges a repartir (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Charges a repartir (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010034">
+								<xsd:annotation>
+									<xsd:documentation>Frais d'emission et primes de Remb. Empts (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Frais d'emission et primes de Remb. Empts (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010035">
+								<xsd:annotation>
+									<xsd:documentation>ecarts de conversion (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="ecarts de conversion (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010036">
+								<xsd:annotation>
+									<xsd:documentation>Actifs courants (Brut). "F60010037" + "F60010044" + "F60010050" + "F60010059" + "F60010064" + "F60010064"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actifs courants (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010037">
+								<xsd:annotation>
+									<xsd:documentation>Stocks (Brut). "F60010038" + "F60010039" + "F60010040" + "F60010041" + "F60010042" + "F60010043"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010038">
+								<xsd:annotation>
+									<xsd:documentation>Stocks Matieres Premieres et Fournit. Liees (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks Matieres Premieres et Fournit. Liees (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010039">
+								<xsd:annotation>
+									<xsd:documentation>Stocks Autres Approvisionnements (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks Autres Approvisionnements (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010040">
+								<xsd:annotation>
+									<xsd:documentation>Stocks En-cours de production de biens (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks En-cours de production de biens (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010041">
+								<xsd:annotation>
+									<xsd:documentation>Stocks En-cours de production services (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks En-cours de production services (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010042">
+								<xsd:annotation>
+									<xsd:documentation>Stocks de produits (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks de produits (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010043">
+								<xsd:annotation>
+									<xsd:documentation>Stocks de marchandises (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks de marchandises (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010044">
+								<xsd:annotation>
+									<xsd:documentation>Clients et Comptes Rattaches (Brut). "F60010045" + "F60010046" + "F60010047" + "F60010048" + "F60010049"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients et Comptes Rattaches (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010045">
+								<xsd:annotation>
+									<xsd:documentation>Clients  et  comptes rattaches (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients  et  comptes rattaches (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010046">
+								<xsd:annotation>
+									<xsd:documentation>Clients - effets a recevoir (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients - effets a recevoir (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010047">
+								<xsd:annotation>
+									<xsd:documentation>Clients douteux ou litigieux (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients douteux ou litigieux (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010048">
+								<xsd:annotation>
+									<xsd:documentation>Creances/travaux non encore facturables (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Creances/travaux non encore facturables (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010049">
+								<xsd:annotation>
+									<xsd:documentation>Clt-pdts non encore factures (pdt a recev.) (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clt-pdts non encore factures (pdt a recev.) (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010050">
+								<xsd:annotation>
+									<xsd:documentation>Autres Actifs Courants (Brut). "F60010051" + "F60010052" + "F60010053" + "F60010054" + "F60010055" + "F60010056" + "F60010057" + "F60010058"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Actifs Courants (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010051">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs debiteurs (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs debiteurs (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010052">
+								<xsd:annotation>
+									<xsd:documentation>Personnel et comptes rattaches (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Personnel et comptes rattaches (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010053">
+								<xsd:annotation>
+									<xsd:documentation>etat et collectivites publiques (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="etat et collectivites publiques (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010054">
+								<xsd:annotation>
+									<xsd:documentation>Societes du groupe  et  associes (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Societes du groupe  et  associes (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010055">
+								<xsd:annotation>
+									<xsd:documentation>Debiteurs divers et Crediteurs divers (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Debiteurs divers et Crediteurs divers (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010056">
+								<xsd:annotation>
+									<xsd:documentation>Comptes transitoires ou d'attente (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Comptes transitoires ou d'attente (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010057">
+								<xsd:annotation>
+									<xsd:documentation>Comptes de regularisation (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Comptes de regularisation (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010058">
+								<xsd:annotation>
+									<xsd:documentation>Prov. / deprec. comptes debiteurs divers (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prov. / deprec. comptes debiteurs divers (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010059">
+								<xsd:annotation>
+									<xsd:documentation>Placements et Autres Actifs Financiers (Brut). "F60010060" + "F60010061" + "F60010062" + "F60010063"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Placements et Autres Actifs Financiers (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010060">
+								<xsd:annotation>
+									<xsd:documentation>Prets et autres creances Fin. courants (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prets et autres creances Fin. courants (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010061">
+								<xsd:annotation>
+									<xsd:documentation>Placements courants (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Placements courants (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010062">
+								<xsd:annotation>
+									<xsd:documentation>Regies d'avances et accreditifs (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Regies d'avances et accreditifs (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010063">
+								<xsd:annotation>
+									<xsd:documentation>Prov. / deprec. des comptes financiers (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prov. / deprec. des comptes financiers (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010064">
+								<xsd:annotation>
+									<xsd:documentation>Liquidites et equivalents de liquidites (Brut). "F60010065" + "F60010066" + "F60010067"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Liquidites et equivalents de liquidites (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010065">
+								<xsd:annotation>
+									<xsd:documentation>Banques, etabl. Financiers et assimiles (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Banques, etabl. Financiers et assimiles (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010066">
+								<xsd:annotation>
+									<xsd:documentation>Caisse (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Caisse (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010067">
+								<xsd:annotation>
+									<xsd:documentation>Autres Postes des Actifs du Bilan (Brut)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Postes des Actifs du Bilan (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60010068">
+								<xsd:annotation>
+									<xsd:documentation>Total des actifs (Brut). "F60010001" + "F60010036" + "F60010067"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Total des actifs (Brut)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011001">
+								<xsd:annotation>
+									<xsd:documentation>Actifs non courants (Amortissement/Provision). "F60011002" + "F60011031"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actifs non courants (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011002">
+								<xsd:annotation>
+									<xsd:documentation>Actifs immobilises (Amortissement/Provision). "F60011003" + "F60011012" + "F60011021"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actifs immobilises (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011003">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations Incorporelles (Amortissement/Provision). "F60011004" + "F60011005" + "F60011006" + "F60011007" + "F60011008" + "F60011009" + "F60011010" + "F60011011"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations Incorporelles (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011004">
+								<xsd:annotation>
+									<xsd:documentation>Investissement recherche et developpement (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Investissement recherche et developpement (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011005">
+								<xsd:annotation>
+									<xsd:documentation>Concess. marque,brevet,licence,marque (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Concess. marque,brevet,licence,marque (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011006">
+								<xsd:annotation>
+									<xsd:documentation>Logiciels (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Logiciels (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011007">
+								<xsd:annotation>
+									<xsd:documentation>Fonds commercial (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fonds commercial (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011008">
+								<xsd:annotation>
+									<xsd:documentation>Droit au bail (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Droit au bail (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011009">
+								<xsd:annotation>
+									<xsd:documentation>Autres Immobilisations Incorporelles (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Immobilisations Incorporelles (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011010">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations Incorporelles en cours (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations Incorporelles en cours (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011011">
+								<xsd:annotation>
+									<xsd:documentation>Av. et Ac. Verses/Cmde.Immob.Incorp. (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Av. et Ac. Verses/Cmde.Immob.Incorp. (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011012">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations corporelles (Amortissement/Provision). "F60011013" + "F60011014" + "F60011015" + "F60011016" + "F60011017" + "F60011018" + "F60011019" + "F60011020"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations corporelles (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011013">
+								<xsd:annotation>
+									<xsd:documentation>Terrains (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Terrains (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011014">
+								<xsd:annotation>
+									<xsd:documentation>Constructions (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Constructions (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011015">
+								<xsd:annotation>
+									<xsd:documentation>Inst. Tech., materiel et outillages Industriels (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Inst. Tech., materiel et outillages Industriels (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011016">
+								<xsd:annotation>
+									<xsd:documentation>Materiel de transport  (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Materiel de transport  (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011017">
+								<xsd:annotation>
+									<xsd:documentation>Autres Immobilisations Corporelles  (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Immobilisations Corporelles  (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011018">
+								<xsd:annotation>
+									<xsd:documentation>Immob. Corporelles en cours (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immob. Corporelles en cours (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011019">
+								<xsd:annotation>
+									<xsd:documentation>Av. et Ac. Verses/Commande Immob.Corp. (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Av. et Ac. Verses/Commande Immob.Corp. (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011020">
+								<xsd:annotation>
+									<xsd:documentation>Immob. a statut juridique particulier (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immob. a statut juridique particulier (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011021">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations Financieres (Amortissement/Provision). "F60011022" + "F60011023" + "F60011024" + "F60011025" + "F60011026" + "F60011027" + "F60011028" + "F60011029" + "F60011030"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations Financieres (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011022">
+								<xsd:annotation>
+									<xsd:documentation>Actions (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actions (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011023">
+								<xsd:annotation>
+									<xsd:documentation>Autres creances rattach. a des participat. (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres creances rattach. a des participat. (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011024">
+								<xsd:annotation>
+									<xsd:documentation>Creances rattach. a des stes en participat. (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Creances rattach. a des stes en participat. (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011025">
+								<xsd:annotation>
+									<xsd:documentation>Vers.a eff./titre de participation non liberes (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Vers.a eff./titre de participation non liberes (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011026">
+								<xsd:annotation>
+									<xsd:documentation>Titres immobilises (droit de propriete) (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Titres immobilises (droit de propriete) (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011027">
+								<xsd:annotation>
+									<xsd:documentation>Titres immobilises (droit de creance) (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Titres immobilises (droit de creance) (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011028">
+								<xsd:annotation>
+									<xsd:documentation>Depots et cautionnements verses (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Depots et cautionnements verses (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011029">
+								<xsd:annotation>
+									<xsd:documentation>Autres creances immobilisees (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres creances immobilisees (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011030">
+								<xsd:annotation>
+									<xsd:documentation>Vers.a eff./Titres immobilises non liberes (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Vers.a eff./Titres immobilises non liberes (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011031">
+								<xsd:annotation>
+									<xsd:documentation>Autres Actifs Non Courants (Amortissement/Provision). "F60011032" + "F60011033" + "F60011034" + "F60011035"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Actifs Non Courants (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011032">
+								<xsd:annotation>
+									<xsd:documentation>Frais preliminaires (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Frais preliminaires (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011033">
+								<xsd:annotation>
+									<xsd:documentation>Charges a repartir (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Charges a repartir (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011034">
+								<xsd:annotation>
+									<xsd:documentation>Frais d'emission et primes de Remb. Empts (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Frais d'emission et primes de Remb. Empts (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011035">
+								<xsd:annotation>
+									<xsd:documentation>ecarts de conversion (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="ecarts de conversion (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011036">
+								<xsd:annotation>
+									<xsd:documentation>Actifs courants (Amortissement/Provision). "F60011037" + "F60011044" + "F60011050" + "F60011059" + "F60011064"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actifs courants (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011037">
+								<xsd:annotation>
+									<xsd:documentation>Stocks (Amortissement/Provision). "F60011038" + "F60011039" + "F60011040" + "F60011041" + "F60011042" + "F60011043"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011038">
+								<xsd:annotation>
+									<xsd:documentation>Stocks Matieres Premieres et Fournit. Liees (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks Matieres Premieres et Fournit. Liees (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011039">
+								<xsd:annotation>
+									<xsd:documentation>Stocks Autres Approvisionnements (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks Autres Approvisionnements (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011040">
+								<xsd:annotation>
+									<xsd:documentation>Stocks En-cours de production de biens (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks En-cours de production de biens (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011041">
+								<xsd:annotation>
+									<xsd:documentation>Stocks En-cours de production services (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks En-cours de production services (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011042">
+								<xsd:annotation>
+									<xsd:documentation>Stocks de produits (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks de produits (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011043">
+								<xsd:annotation>
+									<xsd:documentation>Stocks de marchandises (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks de marchandises (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011044">
+								<xsd:annotation>
+									<xsd:documentation>Clients et Comptes Rattaches (Amortissement/Provision). "F60011045" + "F60011046" + "F60011047" + "F60011048" + "F60011049"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients et Comptes Rattaches (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011045">
+								<xsd:annotation>
+									<xsd:documentation>Clients  et  comptes rattaches (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients  et  comptes rattaches (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011046">
+								<xsd:annotation>
+									<xsd:documentation>Clients - effets a recevoir (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients - effets a recevoir (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011047">
+								<xsd:annotation>
+									<xsd:documentation>Clients douteux ou litigieux (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients douteux ou litigieux (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011048">
+								<xsd:annotation>
+									<xsd:documentation>Creances/travaux non encore facturables (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Creances/travaux non encore facturables (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011049">
+								<xsd:annotation>
+									<xsd:documentation>Clt-pdts non encore factures (pdt a recev.) (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clt-pdts non encore factures (pdt a recev.) (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011050">
+								<xsd:annotation>
+									<xsd:documentation>Autres Actifs Courants (Amortissement/Provision). "F60011051" + "F60011052" + "F60011053" + "F60011054" + "F60011055" + "F60011056" + "F60011057" + "F60011058"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Actifs Courants (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011051">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs debiteurs (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs debiteurs (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011052">
+								<xsd:annotation>
+									<xsd:documentation>Personnel et comptes rattaches (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Personnel et comptes rattaches (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011053">
+								<xsd:annotation>
+									<xsd:documentation>etat et collectivites publiques (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="etat et collectivites publiques (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011054">
+								<xsd:annotation>
+									<xsd:documentation>Societes du groupe  et  associes (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Societes du groupe  et  associes (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011055">
+								<xsd:annotation>
+									<xsd:documentation>Debiteurs divers et Crediteurs divers (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Debiteurs divers et Crediteurs divers (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011056">
+								<xsd:annotation>
+									<xsd:documentation>Comptes transitoires ou d'attente (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Comptes transitoires ou d'attente (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011057">
+								<xsd:annotation>
+									<xsd:documentation>Comptes de regularisation (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Comptes de regularisation (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011058">
+								<xsd:annotation>
+									<xsd:documentation>Prov. / deprec. comptes debiteurs divers (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prov. / deprec. comptes debiteurs divers (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011059">
+								<xsd:annotation>
+									<xsd:documentation>Placements et Autres Actifs Financiers (Amortissement/Provision). "F60011060" + "F60011061" + "F60011062" + "F60011063"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Placements et Autres Actifs Financiers (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011060">
+								<xsd:annotation>
+									<xsd:documentation>Prets et autres creances Fin. courants (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prets et autres creances Fin. courants (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011061">
+								<xsd:annotation>
+									<xsd:documentation>Placements courants (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Placements courants (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011062">
+								<xsd:annotation>
+									<xsd:documentation>Regies d'avances et accreditifs (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Regies d'avances et accreditifs (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011063">
+								<xsd:annotation>
+									<xsd:documentation>Prov. / deprec. des comptes financiers (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prov. / deprec. des comptes financiers (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011064">
+								<xsd:annotation>
+									<xsd:documentation>Liquidites et equivalents de liquidites (Amortissement/Provision). "F60011065" + "F60011066"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Liquidites et equivalents de liquidites (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011065">
+								<xsd:annotation>
+									<xsd:documentation>Banques, etabl. Financiers et assimiles (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Banques, etabl. Financiers et assimiles (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011066">
+								<xsd:annotation>
+									<xsd:documentation>Caisse (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Caisse (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011067">
+								<xsd:annotation>
+									<xsd:documentation>Autres Postes des Actifs du Bilan (Amortissement/Provision)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Postes des Actifs du Bilan (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60011068">
+								<xsd:annotation>
+									<xsd:documentation>Total des actifs (Amortissement/Provision). "F60011001" + "F60011036" + "F60011067"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Total des actifs (Amortissement/Provision)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012001">
+								<xsd:annotation>
+									<xsd:documentation>Actifs non courants (Net). "F60012002" + "F60012031"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actifs non courants (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012002">
+								<xsd:annotation>
+									<xsd:documentation>Actifs immobilises (Net). "F60012003" + "F60012012" + "F60012021"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actifs immobilises (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012003">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations Incorporelles (Net). "F60012004" + "F60012005" + "F60012006" + "F60012007" + "F60012008" + "F60012009" + "F60012010" + "F60012011"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations Incorporelles (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012004">
+								<xsd:annotation>
+									<xsd:documentation>Investissement recherche et developpement (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Investissement recherche et developpement (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012005">
+								<xsd:annotation>
+									<xsd:documentation>Concess. marque,brevet,licence,marque (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Concess. marque,brevet,licence,marque (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012006">
+								<xsd:annotation>
+									<xsd:documentation>Logiciels (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Logiciels (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012007">
+								<xsd:annotation>
+									<xsd:documentation>Fonds commercial (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fonds commercial (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012008">
+								<xsd:annotation>
+									<xsd:documentation>Droit au bail (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Droit au bail (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012009">
+								<xsd:annotation>
+									<xsd:documentation>Autres Immobilisations Incorporelles (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Immobilisations Incorporelles (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012010">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations Incorporelles en cours (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations Incorporelles en cours (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012011">
+								<xsd:annotation>
+									<xsd:documentation>Av. et Ac. Verses/Cmde.Immob.Incorp. (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Av. et Ac. Verses/Cmde.Immob.Incorp. (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012012">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations corporelles (Net). "F60012013" + "F60012014" + "F60012015" + "F60012016" + "F60012017" + "F60012018" + "F60012019" + "F60012020"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations corporelles (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012013">
+								<xsd:annotation>
+									<xsd:documentation>Terrains (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Terrains (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012014">
+								<xsd:annotation>
+									<xsd:documentation>Constructions (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Constructions (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012015">
+								<xsd:annotation>
+									<xsd:documentation>Inst. Tech., materiel et outillages Industriels (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Inst. Tech., materiel et outillages Industriels (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012016">
+								<xsd:annotation>
+									<xsd:documentation>Materiel de transport  (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Materiel de transport  (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012017">
+								<xsd:annotation>
+									<xsd:documentation>Autres Immobilisations Corporelles  (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Immobilisations Corporelles  (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012018">
+								<xsd:annotation>
+									<xsd:documentation>Immob. Corporelles en cours (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immob. Corporelles en cours (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012019">
+								<xsd:annotation>
+									<xsd:documentation>Av. et Ac. Verses/Commande Immob.Corp. (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Av. et Ac. Verses/Commande Immob.Corp. (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012020">
+								<xsd:annotation>
+									<xsd:documentation>Immob. a statut juridique particulier (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immob. a statut juridique particulier (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012021">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations Financieres (Net). "F60012022" + "F60012023" + "F60012024" + "F60012025" + "F60012026" + "F60012027" + "F60012028" + "F60012029" + "F60012030"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations Financieres (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012022">
+								<xsd:annotation>
+									<xsd:documentation>Actions (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actions (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012023">
+								<xsd:annotation>
+									<xsd:documentation>Autres creances rattach. a des participat. (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres creances rattach. a des participat. (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012024">
+								<xsd:annotation>
+									<xsd:documentation>Creances rattach. a des stes en participat. (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Creances rattach. a des stes en participat. (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012025">
+								<xsd:annotation>
+									<xsd:documentation>Vers.a eff./titre de participation non liberes (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Vers.a eff./titre de participation non liberes (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012026">
+								<xsd:annotation>
+									<xsd:documentation>Titres immobilises (droit de propriete) (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Titres immobilises (droit de propriete) (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012027">
+								<xsd:annotation>
+									<xsd:documentation>Titres immobilises (droit de creance) (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Titres immobilises (droit de creance) (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012028">
+								<xsd:annotation>
+									<xsd:documentation>Depots et cautionnements verses (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Depots et cautionnements verses (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012029">
+								<xsd:annotation>
+									<xsd:documentation>Autres creances immobilisees (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres creances immobilisees (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012030">
+								<xsd:annotation>
+									<xsd:documentation>Vers.a eff./Titres immobilises non liberes (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Vers.a eff./Titres immobilises non liberes (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012031">
+								<xsd:annotation>
+									<xsd:documentation>Autres Actifs Non Courants (Net). "F60012032" + "F60012033" + "F60012034" + "F60012035"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Actifs Non Courants (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012032">
+								<xsd:annotation>
+									<xsd:documentation>Frais preliminaires (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Frais preliminaires (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012033">
+								<xsd:annotation>
+									<xsd:documentation>Charges a repartir (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Charges a repartir (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012034">
+								<xsd:annotation>
+									<xsd:documentation>Frais d'emission et primes de Remb. Empts (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Frais d'emission et primes de Remb. Empts (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012035">
+								<xsd:annotation>
+									<xsd:documentation>ecarts de conversion (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="ecarts de conversion (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012036">
+								<xsd:annotation>
+									<xsd:documentation>Actifs courants (Net). "F60012037" + "F60012044" + "F60012050" + "F60012059" + "F60012064"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actifs courants (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012037">
+								<xsd:annotation>
+									<xsd:documentation>Stocks (Net). "F60012038" + "F60012039" + "F60012040" + "F60012041" + "F60012042" + "F60012043"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012038">
+								<xsd:annotation>
+									<xsd:documentation>Stocks Matieres Premieres et Fournit. Liees (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks Matieres Premieres et Fournit. Liees (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012039">
+								<xsd:annotation>
+									<xsd:documentation>Stocks Autres Approvisionnements (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks Autres Approvisionnements (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012040">
+								<xsd:annotation>
+									<xsd:documentation>Stocks En-cours de production de biens (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks En-cours de production de biens (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012041">
+								<xsd:annotation>
+									<xsd:documentation>Stocks En-cours de production services (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks En-cours de production services (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012042">
+								<xsd:annotation>
+									<xsd:documentation>Stocks de produits (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks de produits (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012043">
+								<xsd:annotation>
+									<xsd:documentation>Stocks de marchandises (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks de marchandises (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012044">
+								<xsd:annotation>
+									<xsd:documentation>Clients et Comptes Rattaches (Net). "F60012045" + "F60012046" + "F60012047" + "F60012048" + "F60012049"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients et Comptes Rattaches (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012045">
+								<xsd:annotation>
+									<xsd:documentation>Clients  et  comptes rattaches (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients  et  comptes rattaches (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012046">
+								<xsd:annotation>
+									<xsd:documentation>Clients - effets a recevoir (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients - effets a recevoir (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012047">
+								<xsd:annotation>
+									<xsd:documentation>Clients douteux ou litigieux (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients douteux ou litigieux (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012048">
+								<xsd:annotation>
+									<xsd:documentation>Creances/travaux non encore facturables (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Creances/travaux non encore facturables (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012049">
+								<xsd:annotation>
+									<xsd:documentation>Clt-pdts non encore factures (pdt a recev.) (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clt-pdts non encore factures (pdt a recev.) (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012050">
+								<xsd:annotation>
+									<xsd:documentation>Autres Actifs Courants (Net). "F60012051" + "F60012052" + "F60012053" + "F60012054" + "F60012055" + "F60012056" + "F60012057" + "F60012058"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Actifs Courants (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012051">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs debiteurs (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs debiteurs (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012052">
+								<xsd:annotation>
+									<xsd:documentation>Personnel et comptes rattaches (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Personnel et comptes rattaches (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012053">
+								<xsd:annotation>
+									<xsd:documentation>etat et collectivites publiques (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="etat et collectivites publiques (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012054">
+								<xsd:annotation>
+									<xsd:documentation>Societes du groupe  et  associes (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Societes du groupe  et  associes (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012055">
+								<xsd:annotation>
+									<xsd:documentation>Debiteurs divers et Crediteurs divers (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Debiteurs divers et Crediteurs divers (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012056">
+								<xsd:annotation>
+									<xsd:documentation>Comptes transitoires ou d'attente (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Comptes transitoires ou d'attente (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012057">
+								<xsd:annotation>
+									<xsd:documentation>Comptes de regularisation (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Comptes de regularisation (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012058">
+								<xsd:annotation>
+									<xsd:documentation>Prov. / deprec. comptes debiteurs divers (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prov. / deprec. comptes debiteurs divers (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012059">
+								<xsd:annotation>
+									<xsd:documentation>Placements et Autres Actifs Financiers (Net). "F60012060" + "F60012061" + "F60012062" + "F60012063"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Placements et Autres Actifs Financiers (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012060">
+								<xsd:annotation>
+									<xsd:documentation>Prets et autres creances Fin. courants (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prets et autres creances Fin. courants (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012061">
+								<xsd:annotation>
+									<xsd:documentation>Placements courants (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Placements courants (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012062">
+								<xsd:annotation>
+									<xsd:documentation>Regies d'avances et accreditifs (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Regies d'avances et accreditifs (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012063">
+								<xsd:annotation>
+									<xsd:documentation>Prov. / deprec. des comptes financiers (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prov. / deprec. des comptes financiers (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012064">
+								<xsd:annotation>
+									<xsd:documentation>Liquidites et equivalents de liquidites (Net). "F60012065" + "F60012066"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Liquidites et equivalents de liquidites (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012065">
+								<xsd:annotation>
+									<xsd:documentation>Banques, etabl. Financiers et assimiles (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Banques, etabl. Financiers et assimiles (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012066">
+								<xsd:annotation>
+									<xsd:documentation>Caisse (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Caisse (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012067">
+								<xsd:annotation>
+									<xsd:documentation>Autres Postes des Actifs du Bilan (Net)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Postes des Actifs du Bilan (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60012068">
+								<xsd:annotation>
+									<xsd:documentation>Total des actifs (Net). "F60012001" + "F60012036" + "F60012067"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Total des actifs (Net)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013001">
+								<xsd:annotation>
+									<xsd:documentation>Actifs non courants (Net N-1). "F60013002" + "F60013031"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actifs non courants (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013002">
+								<xsd:annotation>
+									<xsd:documentation>Actifs immobilises (Net N-1). "F60013003" + "F60013012" + "F60013021"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actifs immobilises (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013003">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations Incorporelles (Net N-1). "F60013004" + "F60013005" + "F60013006" + "F60013007" + "F60013008" + "F60013009" + "F60013010" + "F60013011"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations Incorporelles (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013004">
+								<xsd:annotation>
+									<xsd:documentation>Investissement recherche et developpement (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Investissement recherche et developpement (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013005">
+								<xsd:annotation>
+									<xsd:documentation>Concess. marque,brevet,licence,marque (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Concess. marque,brevet,licence,marque (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013006">
+								<xsd:annotation>
+									<xsd:documentation>Logiciels (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Logiciels (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013007">
+								<xsd:annotation>
+									<xsd:documentation>Fonds commercial (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fonds commercial (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013008">
+								<xsd:annotation>
+									<xsd:documentation>Droit au bail (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Droit au bail (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013009">
+								<xsd:annotation>
+									<xsd:documentation>Autres Immobilisations Incorporelles (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Immobilisations Incorporelles (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013010">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations Incorporelles en cours (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations Incorporelles en cours (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013011">
+								<xsd:annotation>
+									<xsd:documentation>Av. et Ac. Verses/Cmde.Immob.Incorp. (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Av. et Ac. Verses/Cmde.Immob.Incorp. (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013012">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations corporelles (Net N-1). "F60013013" + "F60013014" + "F60013015" + "F60013016" + "F60013017" + "F60013018" + "F60013019" + "F60013020"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations corporelles (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013013">
+								<xsd:annotation>
+									<xsd:documentation>Terrains (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Terrains (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013014">
+								<xsd:annotation>
+									<xsd:documentation>Constructions (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Constructions (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013015">
+								<xsd:annotation>
+									<xsd:documentation>Inst. Tech., materiel et outillages Industriels (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Inst. Tech., materiel et outillages Industriels (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013016">
+								<xsd:annotation>
+									<xsd:documentation>Materiel de transport  (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Materiel de transport  (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013017">
+								<xsd:annotation>
+									<xsd:documentation>Autres Immobilisations Corporelles  (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Immobilisations Corporelles  (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013018">
+								<xsd:annotation>
+									<xsd:documentation>Immob. Corporelles en cours (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immob. Corporelles en cours (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013019">
+								<xsd:annotation>
+									<xsd:documentation>Av. et Ac. Verses/Commande Immob.Corp. (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Av. et Ac. Verses/Commande Immob.Corp. (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013020">
+								<xsd:annotation>
+									<xsd:documentation>Immob. a statut juridique particulier (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immob. a statut juridique particulier (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013021">
+								<xsd:annotation>
+									<xsd:documentation>Immobilisations Financieres (Net N-1). "F60013022" + "F60013023" + "F60013024" + "F60013025" + "F60013026" + "F60013027" + "F60013028" + "F60013029" + "F60013030"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Immobilisations Financieres (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013022">
+								<xsd:annotation>
+									<xsd:documentation>Actions (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actions (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013023">
+								<xsd:annotation>
+									<xsd:documentation>Autres creances rattach. a des participat. (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres creances rattach. a des participat. (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013024">
+								<xsd:annotation>
+									<xsd:documentation>Creances rattach. a des stes en participat. (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Creances rattach. a des stes en participat. (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013025">
+								<xsd:annotation>
+									<xsd:documentation>Vers.a eff./titre de participation non liberes (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Vers.a eff./titre de participation non liberes (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013026">
+								<xsd:annotation>
+									<xsd:documentation>Titres immobilises (droit de propriete) (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Titres immobilises (droit de propriete) (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013027">
+								<xsd:annotation>
+									<xsd:documentation>Titres immobilises (droit de creance) (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Titres immobilises (droit de creance) (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013028">
+								<xsd:annotation>
+									<xsd:documentation>Depots et cautionnements verses (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Depots et cautionnements verses (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013029">
+								<xsd:annotation>
+									<xsd:documentation>Autres creances immobilisees (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres creances immobilisees (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013030">
+								<xsd:annotation>
+									<xsd:documentation>Vers.a eff./Titres immobilises non liberes (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Vers.a eff./Titres immobilises non liberes (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013031">
+								<xsd:annotation>
+									<xsd:documentation>Autres Actifs Non Courants (Net N-1). "F60013032" + "F60013033" + "F60013034" + "F60013035"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Actifs Non Courants (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013032">
+								<xsd:annotation>
+									<xsd:documentation>Frais preliminaires (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Frais preliminaires (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013033">
+								<xsd:annotation>
+									<xsd:documentation>Charges a repartir (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Charges a repartir (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013034">
+								<xsd:annotation>
+									<xsd:documentation>Frais d'emission et primes de Remb. Empts (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Frais d'emission et primes de Remb. Empts (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013035">
+								<xsd:annotation>
+									<xsd:documentation>ecarts de conversion (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="ecarts de conversion (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013036">
+								<xsd:annotation>
+									<xsd:documentation>Actifs courants (Net N-1). "F60013037" + "F60013044" + "F60013050" + "F60013059" + "F60013064"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Actifs courants (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013037">
+								<xsd:annotation>
+									<xsd:documentation>Stocks (Net N-1). "F60013038" + "F60013039" + "F60013040" + "F60013041" + "F60013042" + "F60013043"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013038">
+								<xsd:annotation>
+									<xsd:documentation>Stocks Matieres Premieres et Fournit. Liees (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks Matieres Premieres et Fournit. Liees (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013039">
+								<xsd:annotation>
+									<xsd:documentation>Stocks Autres Approvisionnements (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks Autres Approvisionnements (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013040">
+								<xsd:annotation>
+									<xsd:documentation>Stocks En-cours de production de biens (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks En-cours de production de biens (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013041">
+								<xsd:annotation>
+									<xsd:documentation>Stocks En-cours de production services (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks En-cours de production services (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013042">
+								<xsd:annotation>
+									<xsd:documentation>Stocks de produits (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks de produits (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013043">
+								<xsd:annotation>
+									<xsd:documentation>Stocks de marchandises (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Stocks de marchandises (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013044">
+								<xsd:annotation>
+									<xsd:documentation>Clients et Comptes Rattaches (Net N-1). "F60013045" + "F60013046" + "F60013047" + "F60013048" + "F60013049"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients et Comptes Rattaches (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013045">
+								<xsd:annotation>
+									<xsd:documentation>Clients  et  comptes rattaches (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients  et  comptes rattaches (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013046">
+								<xsd:annotation>
+									<xsd:documentation>Clients - effets a recevoir (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients - effets a recevoir (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013047">
+								<xsd:annotation>
+									<xsd:documentation>Clients douteux ou litigieux (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients douteux ou litigieux (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013048">
+								<xsd:annotation>
+									<xsd:documentation>Creances/travaux non encore facturables (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Creances/travaux non encore facturables (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013049">
+								<xsd:annotation>
+									<xsd:documentation>Clt-pdts non encore factures (pdt a recev.) (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clt-pdts non encore factures (pdt a recev.) (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013050">
+								<xsd:annotation>
+									<xsd:documentation>Autres Actifs Courants (Net N-1). "F60013051" + "F60013052" + "F60013053" + "F60013054" + "F60013055" + "F60013056" + "F60013057" + "F60013058"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Actifs Courants (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013051">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs debiteurs (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs debiteurs (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013052">
+								<xsd:annotation>
+									<xsd:documentation>Personnel et comptes rattaches (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Personnel et comptes rattaches (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013053">
+								<xsd:annotation>
+									<xsd:documentation>etat et collectivites publiques (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="etat et collectivites publiques (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013054">
+								<xsd:annotation>
+									<xsd:documentation>Societes du groupe  et  associes (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Societes du groupe  et  associes (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013055">
+								<xsd:annotation>
+									<xsd:documentation>Debiteurs divers et Crediteurs divers (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Debiteurs divers et Crediteurs divers (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013056">
+								<xsd:annotation>
+									<xsd:documentation>Comptes transitoires ou d'attente (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Comptes transitoires ou d'attente (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013057">
+								<xsd:annotation>
+									<xsd:documentation>Comptes de regularisation (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Comptes de regularisation (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013058">
+								<xsd:annotation>
+									<xsd:documentation>Prov. / deprec. comptes debiteurs divers (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prov. / deprec. comptes debiteurs divers (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013059">
+								<xsd:annotation>
+									<xsd:documentation>Placements et Autres Actifs Financiers (Net N-1). "F60013060" + "F60013061" + "F60013062" + "F60013063"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Placements et Autres Actifs Financiers (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013060">
+								<xsd:annotation>
+									<xsd:documentation>Prets et autres creances Fin. courants (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prets et autres creances Fin. courants (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013061">
+								<xsd:annotation>
+									<xsd:documentation>Placements courants (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Placements courants (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013062">
+								<xsd:annotation>
+									<xsd:documentation>Regies d'avances et accreditifs (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Regies d'avances et accreditifs (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013063">
+								<xsd:annotation>
+									<xsd:documentation>Prov. / deprec. des comptes financiers (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prov. / deprec. des comptes financiers (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013064">
+								<xsd:annotation>
+									<xsd:documentation>Liquidites et equivalents de liquidites (Net N-1). "F60013065" + "F60013066"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Liquidites et equivalents de liquidites (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013065">
+								<xsd:annotation>
+									<xsd:documentation>Banques, etabl. Financiers et assimiles (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Banques, etabl. Financiers et assimiles (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013066">
+								<xsd:annotation>
+									<xsd:documentation>Caisse (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Caisse (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013067">
+								<xsd:annotation>
+									<xsd:documentation>Autres Postes des Actifs du Bilan (Net N-1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Postes des Actifs du Bilan (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60013068">
+								<xsd:annotation>
+									<xsd:documentation>Total des actifs (Net N-1). "F60013001" + "F60013036" + "F60013067"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Total des actifs (Net N-1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+						</xsd:all>
+						<xsd:assert test="lf:F60010001 = sum( ((lf:F60010002) , (lf:F60010031)))"/>
+						<xsd:assert test="lf:F60010002 = sum( ((lf:F60010003) , (lf:F60010012) , (lf:F60010021)))"/>
+						<xsd:assert test="lf:F60010003 = sum( ((lf:F60010004) , (lf:F60010005) , (lf:F60010006) , (lf:F60010007) , (lf:F60010008) , (lf:F60010009) , (lf:F60010010) , (lf:F60010011)))"/>
+						<xsd:assert test="lf:F60010012 = sum( ((lf:F60010013) , (lf:F60010014) , (lf:F60010015) , (lf:F60010016) , (lf:F60010017) , (lf:F60010018) , (lf:F60010019) , (lf:F60010020)))"/>
+						<xsd:assert test="lf:F60010021 = sum( ((lf:F60010022) , (lf:F60010023) , (lf:F60010024) , (lf:F60010025) , (lf:F60010026) , (lf:F60010027) , (lf:F60010028) , (lf:F60010029) , (lf:F60010030)))"/>
+						<xsd:assert test="lf:F60010031 = sum( ((lf:F60010032) , (lf:F60010033) , (lf:F60010034) , (lf:F60010035)))"/>
+						<xsd:assert test="lf:F60010036 = sum( ((lf:F60010037) , (lf:F60010044) , (lf:F60010050) , (lf:F60010059) , (lf:F60010064)))"/>
+						<xsd:assert test="lf:F60010037 = sum( ((lf:F60010038) , (lf:F60010039) , (lf:F60010040) , (lf:F60010041) , (lf:F60010042) , (lf:F60010043)))"/>
+						<xsd:assert test="lf:F60010044 = sum( ((lf:F60010045) , (lf:F60010046) , (lf:F60010047) , (lf:F60010048) , (lf:F60010049)))"/>
+						<xsd:assert test="lf:F60010050 = sum( ((lf:F60010051) , (lf:F60010052) , (lf:F60010053) , (lf:F60010054) , (lf:F60010055) , (lf:F60010056) , (lf:F60010057) , (lf:F60010058)))"/>
+						<xsd:assert test="lf:F60010059 = sum( ((lf:F60010060) , (lf:F60010061) , (lf:F60010062) , (lf:F60010063)))"/>
+						<xsd:assert test="lf:F60010064 = sum( ((lf:F60010065) , (lf:F60010066)))"/>
+						<xsd:assert test="lf:F60010068 = sum( ((lf:F60010001) , (lf:F60010036) , (lf:F60010067)))"/>
+						<xsd:assert test="lf:F60011001 = sum( ((lf:F60011002) , (lf:F60011031)))"/>
+						<xsd:assert test="lf:F60011002 = sum( ((lf:F60011003) , (lf:F60011012) , (lf:F60011021)))"/>
+						<xsd:assert test="lf:F60011003 = sum( ((lf:F60011004) , (lf:F60011005) , (lf:F60011006) , (lf:F60011007) , (lf:F60011008) , (lf:F60011009) , (lf:F60011010) , (lf:F60011011)))"/>
+						<xsd:assert test="lf:F60011012 = sum( ((lf:F60011013) , (lf:F60011014) , (lf:F60011015) , (lf:F60011016) , (lf:F60011017) , (lf:F60011018) , (lf:F60011019) , (lf:F60011020)))"/>
+						<xsd:assert test="lf:F60011021 = sum( ((lf:F60011022) , (lf:F60011023) , (lf:F60011024) , (lf:F60011025) , (lf:F60011026) , (lf:F60011027) , (lf:F60011028) , (lf:F60011029) , (lf:F60011030)))"/>
+						<xsd:assert test="lf:F60011031 = sum( ((lf:F60011032) , (lf:F60011033) , (lf:F60011034) , (lf:F60011035)))"/>
+						<xsd:assert test="lf:F60011036 = sum( ((lf:F60011037) , (lf:F60011044) , (lf:F60011050) , (lf:F60011059) , (lf:F60011064)))"/>
+						<xsd:assert test="lf:F60011037 = sum( ((lf:F60011038) , (lf:F60011039) , (lf:F60011040) , (lf:F60011041) , (lf:F60011042) , (lf:F60011043)))"/>
+						<xsd:assert test="lf:F60011044 = sum( ((lf:F60011045) , (lf:F60011046) , (lf:F60011047) , (lf:F60011048) , (lf:F60011049)))"/>
+						<xsd:assert test="lf:F60011050 = sum( ((lf:F60011051) , (lf:F60011052) , (lf:F60011053) , (lf:F60011054) , (lf:F60011055) , (lf:F60011056) , (lf:F60011057) , (lf:F60011058)))"/>
+						<xsd:assert test="lf:F60011059 = sum( ((lf:F60011060) , (lf:F60011061) , (lf:F60011062) , (lf:F60011063)))"/>
+						<xsd:assert test="lf:F60011064 = sum( ((lf:F60011065) , (lf:F60011066)))"/>
+						<xsd:assert test="lf:F60011068 = sum( ((lf:F60011001) , (lf:F60011036) , (lf:F60011067)))"/>
+						<xsd:assert test="lf:F60012001 = sum( ((lf:F60012002) , (lf:F60012031)))"/>
+						<xsd:assert test="lf:F60012002 = sum( ((lf:F60012003) , (lf:F60012012) , (lf:F60012021)))"/>
+						<xsd:assert test="lf:F60012003 = sum( ((lf:F60012004) , (lf:F60012005) , (lf:F60012006) , (lf:F60012007) , (lf:F60012008) , (lf:F60012009) , (lf:F60012010) , (lf:F60012011)))"/>
+						<xsd:assert test="lf:F60012012 = sum( ((lf:F60012013) , (lf:F60012014) , (lf:F60012015) , (lf:F60012016) , (lf:F60012017) , (lf:F60012018) , (lf:F60012019) , (lf:F60012020)))"/>
+						<xsd:assert test="lf:F60012021 = sum( ((lf:F60012022) , (lf:F60012023) , (lf:F60012024) , (lf:F60012025) , (lf:F60012026) , (lf:F60012027) , (lf:F60012028) , (lf:F60012029) , (lf:F60012030)))"/>
+						<xsd:assert test="lf:F60012031 = sum( ((lf:F60012032) , (lf:F60012033) , (lf:F60012034) , (lf:F60012035)))"/>
+						<xsd:assert test="lf:F60012036 = sum( ((lf:F60012037) , (lf:F60012044) , (lf:F60012050) , (lf:F60012059) , (lf:F60012064)))"/>
+						<xsd:assert test="lf:F60012037 = sum( ((lf:F60012038) , (lf:F60012039) , (lf:F60012040) , (lf:F60012041) , (lf:F60012042) , (lf:F60012043)))"/>
+						<xsd:assert test="lf:F60012044 = sum( ((lf:F60012045) , (lf:F60012046) , (lf:F60012047) , (lf:F60012048) , (lf:F60012049)))"/>
+						<xsd:assert test="lf:F60012050 = sum( ((lf:F60012051) , (lf:F60012052) , (lf:F60012053) , (lf:F60012054) , (lf:F60012055) , (lf:F60012056) , (lf:F60012057) , (lf:F60012058)))"/>
+						<xsd:assert test="lf:F60012059 = sum( ((lf:F60012060) , (lf:F60012061) , (lf:F60012062) , (lf:F60012063)))"/>
+						<xsd:assert test="lf:F60012064 = sum( ((lf:F60012065) , (lf:F60012066)))"/>
+						<xsd:assert test="lf:F60012068 = sum( ((lf:F60012001) , (lf:F60012036) , (lf:F60012067)))"/>
+						<xsd:assert test="lf:F60013001 = sum( ((lf:F60013002) , (lf:F60013031)))"/>
+						<xsd:assert test="lf:F60013002 = sum( ((lf:F60013003) , (lf:F60013012) , (lf:F60013021)))"/>
+						<xsd:assert test="lf:F60013003 = sum( ((lf:F60013004) , (lf:F60013005) , (lf:F60013006) , (lf:F60013007) , (lf:F60013008) , (lf:F60013009) , (lf:F60013010) , (lf:F60013011)))"/>
+						<xsd:assert test="lf:F60013012 = sum( ((lf:F60013013) , (lf:F60013014) , (lf:F60013015) , (lf:F60013016) , (lf:F60013017) , (lf:F60013018) , (lf:F60013019) , (lf:F60013020)))"/>
+						<xsd:assert test="lf:F60013021 = sum( ((lf:F60013022) , (lf:F60013023) , (lf:F60013024) , (lf:F60013025) , (lf:F60013026) , (lf:F60013027) , (lf:F60013028) , (lf:F60013029) , (lf:F60013030)))"/>
+						<xsd:assert test="lf:F60013031 = sum( ((lf:F60013032) , (lf:F60013033) , (lf:F60013034) , (lf:F60013035)))"/>
+						<xsd:assert test="lf:F60013036 = sum( ((lf:F60013037) , (lf:F60013044) , (lf:F60013050) , (lf:F60013059) , (lf:F60013064)))"/>
+						<xsd:assert test="lf:F60013037 = sum( ((lf:F60013038) , (lf:F60013039) , (lf:F60013040) , (lf:F60013041) , (lf:F60013042) , (lf:F60013043)))"/>
+						<xsd:assert test="lf:F60013044 = sum( ((lf:F60013045) , (lf:F60013046) , (lf:F60013047) , (lf:F60013048) , (lf:F60013049)))"/>
+						<xsd:assert test="lf:F60013050 = sum( ((lf:F60013051) , (lf:F60013052) , (lf:F60013053) , (lf:F60013054) , (lf:F60013055) , (lf:F60013056) , (lf:F60013057) , (lf:F60013058)))"/>
+						<xsd:assert test="lf:F60013059 = sum( ((lf:F60013060) , (lf:F60013061) , (lf:F60013062) , (lf:F60013063)))"/>
+						<xsd:assert test="lf:F60013064 = sum( ((lf:F60013065) , (lf:F60013066)))"/>
+						<xsd:assert test="lf:F60013068 = sum( ((lf:F60013001) , (lf:F60013036) , (lf:F60013067)))"/>
+						<xsd:assert test="lf:F60012001 = sum( ((lf:F60010001) , (-1)*(lf:F60011001)))"/>
+						<xsd:assert test="lf:F60012002 = sum( ((lf:F60010002) , (-1)*(lf:F60011002)))"/>
+						<xsd:assert test="lf:F60012003 = sum( ((lf:F60010003) , (-1)*(lf:F60011003)))"/>
+						<xsd:assert test="lf:F60012004 = sum( ((lf:F60010004) , (-1)*(lf:F60011004)))"/>
+						<xsd:assert test="lf:F60012005 = sum( ((lf:F60010005) , (-1)*(lf:F60011005)))"/>
+						<xsd:assert test="lf:F60012006 = sum( ((lf:F60010006) , (-1)*(lf:F60011006)))"/>
+						<xsd:assert test="lf:F60012007 = sum( ((lf:F60010007) , (-1)*(lf:F60011007)))"/>
+						<xsd:assert test="lf:F60012008 = sum( ((lf:F60010008) , (-1)*(lf:F60011008)))"/>
+						<xsd:assert test="lf:F60012009 = sum( ((lf:F60010009) , (-1)*(lf:F60011009)))"/>
+						<xsd:assert test="lf:F60012010 = sum( ((lf:F60010010) , (-1)*(lf:F60011010)))"/>
+						<xsd:assert test="lf:F60012011 = sum( ((lf:F60010011) , (-1)*(lf:F60011011)))"/>
+						<xsd:assert test="lf:F60012012 = sum( ((lf:F60010012) , (-1)*(lf:F60011012)))"/>
+						<xsd:assert test="lf:F60012013 = sum( ((lf:F60010013) , (-1)*(lf:F60011013)))"/>
+						<xsd:assert test="lf:F60012014 = sum( ((lf:F60010014) , (-1)*(lf:F60011014)))"/>
+						<xsd:assert test="lf:F60012015 = sum( ((lf:F60010015) , (-1)*(lf:F60011015)))"/>
+						<xsd:assert test="lf:F60012016 = sum( ((lf:F60010016) , (-1)*(lf:F60011016)))"/>
+						<xsd:assert test="lf:F60012017 = sum( ((lf:F60010017) , (-1)*(lf:F60011017)))"/>
+						<xsd:assert test="lf:F60012018 = sum( ((lf:F60010018) , (-1)*(lf:F60011018)))"/>
+						<xsd:assert test="lf:F60012019 = sum( ((lf:F60010019) , (-1)*(lf:F60011019)))"/>
+						<xsd:assert test="lf:F60012020 = sum( ((lf:F60010020) , (-1)*(lf:F60011020)))"/>
+						<xsd:assert test="lf:F60012021 = sum( ((lf:F60010021) , (-1)*(lf:F60011021)))"/>
+						<xsd:assert test="lf:F60012022 = sum( ((lf:F60010022) , (-1)*(lf:F60011022)))"/>
+						<xsd:assert test="lf:F60012023 = sum( ((lf:F60010023) , (-1)*(lf:F60011023)))"/>
+						<xsd:assert test="lf:F60012024 = sum( ((lf:F60010024) , (-1)*(lf:F60011024)))"/>
+						<xsd:assert test="lf:F60012025 = sum( ((lf:F60010025) , (-1)*(lf:F60011025)))"/>
+						<xsd:assert test="lf:F60012026 = sum( ((lf:F60010026) , (-1)*(lf:F60011026)))"/>
+						<xsd:assert test="lf:F60012027 = sum( ((lf:F60010027) , (-1)*(lf:F60011027)))"/>
+						<xsd:assert test="lf:F60012028 = sum( ((lf:F60010028) , (-1)*(lf:F60011028)))"/>
+						<xsd:assert test="lf:F60012029 = sum( ((lf:F60010029) , (-1)*(lf:F60011029)))"/>
+						<xsd:assert test="lf:F60012030 = sum( ((lf:F60010030) , (-1)*(lf:F60011030)))"/>
+						<xsd:assert test="lf:F60012031 = sum( ((lf:F60010031) , (-1)*(lf:F60011031)))"/>
+						<xsd:assert test="lf:F60012032 = sum( ((lf:F60010032) , (-1)*(lf:F60011032)))"/>
+						<xsd:assert test="lf:F60012033 = sum( ((lf:F60010033) , (-1)*(lf:F60011033)))"/>
+						<xsd:assert test="lf:F60012034 = sum( ((lf:F60010034) , (-1)*(lf:F60011034)))"/>
+						<xsd:assert test="lf:F60012035 = sum( ((lf:F60010035) , (-1)*(lf:F60011035)))"/>
+						<xsd:assert test="lf:F60012036 = sum( ((lf:F60010036) , (-1)*(lf:F60011036)))"/>
+						<xsd:assert test="lf:F60012037 = sum( ((lf:F60010037) , (-1)*(lf:F60011037)))"/>
+						<xsd:assert test="lf:F60012038 = sum( ((lf:F60010038) , (-1)*(lf:F60011038)))"/>
+						<xsd:assert test="lf:F60012039 = sum( ((lf:F60010039) , (-1)*(lf:F60011039)))"/>
+						<xsd:assert test="lf:F60012040 = sum( ((lf:F60010040) , (-1)*(lf:F60011040)))"/>
+						<xsd:assert test="lf:F60012041 = sum( ((lf:F60010041) , (-1)*(lf:F60011041)))"/>
+						<xsd:assert test="lf:F60012042 = sum( ((lf:F60010042) , (-1)*(lf:F60011042)))"/>
+						<xsd:assert test="lf:F60012043 = sum( ((lf:F60010043) , (-1)*(lf:F60011043)))"/>
+						<xsd:assert test="lf:F60012044 = sum( ((lf:F60010044) , (-1)*(lf:F60011044)))"/>
+						<xsd:assert test="lf:F60012045 = sum( ((lf:F60010045) , (-1)*(lf:F60011045)))"/>
+						<xsd:assert test="lf:F60012046 = sum( ((lf:F60010046) , (-1)*(lf:F60011046)))"/>
+						<xsd:assert test="lf:F60012047 = sum( ((lf:F60010047) , (-1)*(lf:F60011047)))"/>
+						<xsd:assert test="lf:F60012048 = sum( ((lf:F60010048) , (-1)*(lf:F60011048)))"/>
+						<xsd:assert test="lf:F60012049 = sum( ((lf:F60010049) , (-1)*(lf:F60011049)))"/>
+						<xsd:assert test="lf:F60012050 = sum( ((lf:F60010050) , (-1)*(lf:F60011050)))"/>
+						<xsd:assert test="lf:F60012051 = sum( ((lf:F60010051) , (-1)*(lf:F60011051)))"/>
+						<xsd:assert test="lf:F60012052 = sum( ((lf:F60010052) , (-1)*(lf:F60011052)))"/>
+						<xsd:assert test="lf:F60012053 = sum( ((lf:F60010053) , (-1)*(lf:F60011053)))"/>
+						<xsd:assert test="lf:F60012054 = sum( ((lf:F60010054) , (-1)*(lf:F60011054)))"/>
+						<xsd:assert test="lf:F60012055 = sum( ((lf:F60010055) , (-1)*(lf:F60011055)))"/>
+						<xsd:assert test="lf:F60012056 = sum( ((lf:F60010056) , (-1)*(lf:F60011056)))"/>
+						<xsd:assert test="lf:F60012057 = sum( ((lf:F60010057) , (-1)*(lf:F60011057)))"/>
+						<xsd:assert test="lf:F60012058 = sum( ((lf:F60010058) , (-1)*(lf:F60011058)))"/>
+						<xsd:assert test="lf:F60012059 = sum( ((lf:F60010059) , (-1)*(lf:F60011059)))"/>
+						<xsd:assert test="lf:F60012060 = sum( ((lf:F60010060) , (-1)*(lf:F60011060)))"/>
+						<xsd:assert test="lf:F60012061 = sum( ((lf:F60010061) , (-1)*(lf:F60011061)))"/>
+						<xsd:assert test="lf:F60012062 = sum( ((lf:F60010062) , (-1)*(lf:F60011062)))"/>
+						<xsd:assert test="lf:F60012063 = sum( ((lf:F60010063) , (-1)*(lf:F60011063)))"/>
+						<xsd:assert test="lf:F60012064 = sum( ((lf:F60010064) , (-1)*(lf:F60011064)))"/>
+						<xsd:assert test="lf:F60012065 = sum( ((lf:F60010065) , (-1)*(lf:F60011065)))"/>
+						<xsd:assert test="lf:F60012066 = sum( ((lf:F60010066) , (-1)*(lf:F60011066)))"/>
+						<xsd:assert test="lf:F60012067 = sum( ((lf:F60010067) , (-1)*(lf:F60011067)))"/>
+						<xsd:assert test="lf:F60012068 = sum( ((lf:F60010068) , (-1)*(lf:F60011068)))"/>
+					</xsd:complexType>
+				</xsd:element>
+			</xsd:sequence>
+		</xsd:complexType>
+	</xsd:element>
+</xsd:schema>

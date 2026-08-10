@@ -29,6 +29,7 @@ import {
 import { FinancialStatementExportService } from './financial-statement-export.service';
 import { FinancialStatementNotesService } from './financial-statement-notes.service';
 import { FinancialStatementsService } from './financial-statements.service';
+import { TejExportService } from './tej/tej-export.service';
 
 @ApiTags('États financiers tunisiens')
 @ApiBearerAuth()
@@ -41,7 +42,19 @@ export class FinancialStatementsController {
     private readonly service: FinancialStatementsService,
     private readonly notes: FinancialStatementNotesService,
     private readonly exports: FinancialStatementExportService,
+    private readonly tej: TejExportService,
   ) {}
+
+  @Get('tej/:year')
+  @RequirePermission(PermissionNames.FinancialStatementsManage)
+  tejLiasse(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('year', ParseIntPipe) year: number,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.tej.generate(organizationId, dossierId, user.userId, year);
+  }
 
   @Get('trend')
   @RequirePermission(PermissionNames.FinancialStatementsView)

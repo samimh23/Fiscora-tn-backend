@@ -1,0 +1,413 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:lf="http://www.impots.finances.gov.tn/liasse" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning" targetNamespace="http://www.impots.finances.gov.tn/liasse" elementFormDefault="qualified" attributeFormDefault="unqualified" vc:minVersion="1.1">
+	<xsd:simpleType name="T_NumMatriculeFiscal">
+		<xsd:annotation>
+			<xsd:documentation>Numero matricule fiscal</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:string">
+			<xsd:length value="7"/>
+			<xsd:whiteSpace value="collapse"/>
+			<xsd:pattern value="[0-9]{7}"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_CleMatriculeFiscal">
+		<xsd:annotation>
+			<xsd:documentation>Clé matricule fiscal</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:string">
+			<xsd:length value="1"/>
+			<xsd:pattern value="[ABCDEFGHJKLMNPQRSTVWXYZ]"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_CodeCategorie">
+		<xsd:annotation>
+			<xsd:documentation>Code categorie</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:string">
+			<xsd:length value="1"/>
+			<xsd:enumeration value="C"/>
+			<xsd:enumeration value="M"/>
+			<xsd:enumeration value="N"/>
+			<xsd:enumeration value="P"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_CodeTva">
+		<xsd:annotation>
+			<xsd:documentation>Code TVA</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:string">
+			<xsd:length value="1"/>
+			<xsd:enumeration value="A"/>
+			<xsd:enumeration value="B"/>
+			<xsd:enumeration value="D"/>
+			<xsd:enumeration value="P"/>
+			<xsd:enumeration value="N"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_MatriculeFiscal_13c">
+		<xsd:annotation>
+			<xsd:documentation>Matricule fiscal de structure : MAT-CLE-TVA-CAT-ETB</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:token">
+			<xsd:pattern value="[0-9]{7}[ABCDEFGHJKLMNPQRSTVWXYZ][ABDNP][CMNP][0]{3}"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_Annee">
+		<xsd:annotation>
+			<xsd:documentation>Année</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:gYear"/>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_TypeIdentifiantContribuable">
+		<xsd:annotation>
+			<xsd:documentation>Type identifiant contribuable</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:string">
+			<xsd:length value="1"/>
+			<xsd:enumeration value="1">
+				<xsd:annotation>
+					<xsd:documentation>Matricule fiscal</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="2">
+				<xsd:annotation>
+					<xsd:documentation>CIN</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="3">
+				<xsd:annotation>
+					<xsd:documentation>Carte de sejour</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="4">
+				<xsd:annotation>
+					<xsd:documentation>Autre identifiant</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_ChaineTexte250">
+		<xsd:annotation>
+			<xsd:documentation>Chaine de 250 caracteres au maximum</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:string">
+			<xsd:maxLength value="250"/>
+			<xsd:whiteSpace value="collapse"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_Date">
+		<xsd:annotation>
+			<xsd:documentation>Date au format dd/mm/yyyy (Les années sont comprises entre 1900 et 2099)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:token">
+			<xsd:pattern value="((31/(0[13578]|1[02])/((19|20)\d{2}))|((0[1-9]|[12]\d|30)/(0[13456789]|1[012])/((19|20)\d{2}))|((0[1-9]|1\d|2[0-8])/02/((19|20)\d{2}))|(29/02/(19|20)((0[048]|[2468][048]|[13579][26]))))"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_ActeDeDepot">
+		<xsd:annotation>
+			<xsd:documentation>Actes de dépôts</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:token">
+			<xsd:minLength value="1"/>
+			<xsd:maxLength value="1"/>
+			<xsd:enumeration value="0"/>
+			<xsd:enumeration value="1"/>
+			<xsd:enumeration value="2"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NatureDepot">
+		<xsd:annotation>
+			<xsd:documentation>Nature dépôt : Definitif ou Provisoire</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:token">
+			<xsd:minLength value="1"/>
+			<xsd:maxLength value="1"/>
+			<xsd:enumeration value="D"/>
+			<xsd:enumeration value="P"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_ModeleLiasse">
+		<xsd:annotation>
+			<xsd:documentation>Modele liasse fiscale</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:string">
+			<xsd:length value="1"/>
+			<xsd:enumeration value="G">
+				<xsd:annotation>
+					<xsd:documentation>Cas general</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="B">
+				<xsd:annotation>
+					<xsd:documentation>Banques</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="A">
+				<xsd:annotation>
+					<xsd:documentation>Assurances et réassurances</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="C">
+				<xsd:annotation>
+					<xsd:documentation>Associations, micro-credits</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="O">
+				<xsd:annotation>
+					<xsd:documentation>OPCVM</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombrePositif13">
+		<xsd:annotation>
+			<xsd:documentation>Nombre positif obligatoire de 13 caractères au maximum, sans partie decimale (0, 1, 2, ...)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:nonNegativeInteger">
+			<xsd:totalDigits value="13"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombrePositif15">
+		<xsd:annotation>
+			<xsd:documentation>Nombre positif obligatoire de 15 caractères au maximum, sans partie decimale (0, 1, 2, ...)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:nonNegativeInteger">
+			<xsd:totalDigits value="15"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombreNegatif13">
+		<xsd:annotation>
+			<xsd:documentation>Nombre negatif obligatoire de 13 caractères au maximum, sans partie decimale (..., -2, -1, 0)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:nonPositiveInteger">
+			<xsd:totalDigits value="13"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombreNegatif15">
+		<xsd:annotation>
+			<xsd:documentation>Nombre negatif obligatoire de 15 caractères au maximum, sans partie decimale (..., -2, -1, 0)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:nonPositiveInteger">
+			<xsd:totalDigits value="15"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_Nombre13">
+		<xsd:annotation>
+			<xsd:documentation>Nombre (Montant) obligatoire de 13 caractères au maximum, sans partie décimale et qui peut etre negatif</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:integer">
+			<xsd:totalDigits value="13"/>
+			<xsd:fractionDigits value="0"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_Nombre15">
+		<xsd:annotation>
+			<xsd:documentation>Nombre (Montant) obligatoire de 13 caractères au maximum, sans partie décimale et qui peut etre negatif</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:integer">
+			<xsd:totalDigits value="15"/>
+			<xsd:fractionDigits value="0"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombrePositifSM">
+		<xsd:annotation>
+			<xsd:documentation>Nombre positif obligatoire de 13 caractères au maximum, sans partie decimale (0, 1, 2, ...)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:nonNegativeInteger">
+			<xsd:totalDigits value="13"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombreNegatifSM">
+		<xsd:annotation>
+			<xsd:documentation>Nombre negatif obligatoire de 13 caractères au maximum, sans partie decimale (..., -2, -1, 0)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:nonPositiveInteger">
+			<xsd:totalDigits value="13"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombreSM">
+		<xsd:annotation>
+			<xsd:documentation>Nombre (Montant) obligatoire de 13 caractères au maximum, sans partie décimale et qui peut etre negatif</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:integer">
+			<xsd:totalDigits value="13"/>
+			<xsd:fractionDigits value="0"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombrePositifMD">
+		<xsd:annotation>
+			<xsd:documentation>Nombre positif obligatoire de 13 caractères au maximum, sans partie decimale (0, 1, 2, ...)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:nonNegativeInteger">
+			<xsd:totalDigits value="15"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombreNegatifMD">
+		<xsd:annotation>
+			<xsd:documentation>Nombre negatif obligatoire de 13 caractères au maximum, sans partie decimale (..., -2, -1, 0)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:nonPositiveInteger">
+			<xsd:totalDigits value="15"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombreMD">
+		<xsd:annotation>
+			<xsd:documentation>Nombre (Montant) obligatoire de 13 caractères au maximum, sans partie décimale et qui peut etre negatif</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:integer">
+			<xsd:totalDigits value="15"/>
+			<xsd:fractionDigits value="0"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombrePositifLG">
+		<xsd:annotation>
+			<xsd:documentation>Nombre positif obligatoire de 13 caractères au maximum, sans partie decimale (0, 1, 2, ...)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:nonNegativeInteger">
+			<xsd:totalDigits value="20"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombreNegatifLG">
+		<xsd:annotation>
+			<xsd:documentation>Nombre negatif obligatoire de 13 caractères au maximum, sans partie decimale (..., -2, -1, 0)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:nonPositiveInteger">
+			<xsd:totalDigits value="20"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombreLG">
+		<xsd:annotation>
+			<xsd:documentation>Nombre (Montant) obligatoire de 13 caractères au maximum, sans partie décimale et qui peut etre negatif</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:integer">
+			<xsd:totalDigits value="20"/>
+			<xsd:fractionDigits value="0"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombrePositifXL">
+		<xsd:annotation>
+			<xsd:documentation>Nombre positif obligatoire de 13 caractères au maximum, sans partie decimale (0, 1, 2, ...)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:nonNegativeInteger">
+			<xsd:totalDigits value="25"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombreNegatifXL">
+		<xsd:annotation>
+			<xsd:documentation>Nombre negatif obligatoire de 13 caractères au maximum, sans partie decimale (..., -2, -1, 0)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:nonPositiveInteger">
+			<xsd:totalDigits value="25"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_NombreXL">
+		<xsd:annotation>
+			<xsd:documentation>Nombre (Montant) obligatoire de 13 caractères au maximum, sans partie décimale et qui peut etre negatif</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:integer">
+			<xsd:totalDigits value="25"/>
+			<xsd:fractionDigits value="0"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_Taux52">
+		<xsd:annotation>
+			<xsd:documentation>Taux de 5 chiffres avec 2 positions décimale</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:decimal">
+			<xsd:totalDigits value="5"/>
+			<xsd:fractionDigits value="2"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_Taux63">
+		<xsd:annotation>
+			<xsd:documentation>Taux de 6 chiffres avec 3 positions décimale</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:decimal">
+			<xsd:totalDigits value="6"/>
+			<xsd:fractionDigits value="3"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_BeneficePerte">
+		<xsd:annotation>
+			<xsd:documentation>Nature resultat : Benefice (B) ou Perte (P)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:string">
+			<xsd:length value="1"/>
+			<xsd:enumeration value="B"/>
+			<xsd:enumeration value="P"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="T_CodeTableau">
+		<xsd:annotation>
+			<xsd:documentation>Codification des tableaux de la liasse fiscale</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="xsd:string">
+			<xsd:length value="5"/>
+			<xsd:enumeration value="F6001">
+				<xsd:annotation>
+					<xsd:documentation>Bilan - Actifs (Cas general)</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="F6002">
+				<xsd:annotation>
+					<xsd:documentation>Bilan - Passifs (Cas general)</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="F6003">
+				<xsd:annotation>
+					<xsd:documentation>Etat de resultats (Cas general)</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="F6004">
+				<xsd:annotation>
+					<xsd:documentation>Etat de flux de tresorerie (Cas general)</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="F6005">
+				<xsd:annotation>
+					<xsd:documentation>Tableau de determination du resultat fiscal à partir du resultat comptable</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="F6006">
+				<xsd:annotation>
+					<xsd:documentation>Notes, principes comptables appliqués</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="F6007">
+				<xsd:annotation>
+					<xsd:documentation>Faits marquants de l'exercice</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="F6008">
+				<xsd:annotation>
+					<xsd:documentation>Schema des soldes intermediaires de gestion</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="F6009">
+				<xsd:annotation>
+					<xsd:documentation>Autres feuillets - Liasse - Notes aux états financiers</xsd:documentation>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="F6101"/>
+			<xsd:enumeration value="F6103"/>
+			<xsd:enumeration value="F6104"/>
+			<xsd:enumeration value="F6105"/>
+			<xsd:enumeration value="F6201"/>
+			<xsd:enumeration value="F6202"/>
+			<xsd:enumeration value="F6203"/>
+			<xsd:enumeration value="F6204"/>
+			<xsd:enumeration value="F6205"/>
+			<xsd:enumeration value="F6206"/>
+			<xsd:enumeration value="F6207"/>
+			<xsd:enumeration value="F6301"/>
+			<xsd:enumeration value="F6303"/>
+			<xsd:enumeration value="F6304"/>
+			<xsd:enumeration value="F6401"/>
+			<xsd:enumeration value="F6403"/>
+			<xsd:enumeration value="F6404"/>
+			<xsd:enumeration value="G7002"/>
+			<xsd:enumeration value="G7003"/>
+			<xsd:enumeration value="G7004"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+</xsd:schema>

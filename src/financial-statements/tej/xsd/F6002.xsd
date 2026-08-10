@@ -1,0 +1,1318 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:lf="http://www.impots.finances.gov.tn/liasse" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning" targetNamespace="http://www.impots.finances.gov.tn/liasse" elementFormDefault="qualified" attributeFormDefault="unqualified" vc:minVersion="1.1">
+	<xsd:include schemaLocation="Typescommuns.xsd"/>
+	<xsd:include schemaLocation="Entete.xsd"/>
+	<xsd:element name="F6002">
+		<xsd:annotation>
+			<xsd:documentation>Bilan-passifs (Cas general)</xsd:documentation>
+		</xsd:annotation>
+		<xsd:complexType>
+			<xsd:sequence>
+				<xsd:element name="VersionDocument" type="xsd:string"/>
+				<xsd:element name="Entete" type="lf:T_Entete"/>
+				<xsd:element name="Details">
+					<xsd:complexType>
+						<xsd:all>
+							<xsd:element name="F60020001" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Capitaux propres (Net Exercice).  "F60020006" + "F60020007"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Capitaux propres (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020002" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Capital social (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Capital social (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020003" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Réserves (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Réserves (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020004" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Autres capitaux propres (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres capitaux propres (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020005" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Résultats reportés (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Résultats reportés (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020006" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Capitaux propres avant résultat de l'exercice (Net Exercice) F60020002 + F60020003 + F60020004 + F60020005 </xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Capitaux propres avant résultat de l'exercice (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020007">
+								<xsd:annotation>
+									<xsd:documentation>résultat de l'exercice (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="résultat de l'exercice (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020008" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Total Passifs (Net Exercice). "F60020009" + "F60020031"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Total Passifs (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020009" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Passifs non courants (Net Exercice). "F60020010" + "F60020019" + "F60020022"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Passifs non courants (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020010" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Emprunts (Net Exercice). "F60020011" + "F60020012" + "F60020013" + "F60020014" + "F60020015" + "F60020016" + "F60020017" + "F60020018"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Emprunts (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020011" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Emprunts obligataires (assortis de s�ret�s) (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Emprunts obligataires (assortis de s�ret�s) (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020012" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Empts auprès d'étab.Fin. (assortis de s�ret�s) (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Empts auprès d'étab.Fin. (assortis de s�ret�s) (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020013" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Empts auprès d'étab.Fin. (assorti de s�ret�s) (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Empts auprès d'étab.Fin. (assorti de s�ret�s) (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020014" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Empts et dettes assorties de condit. particulières (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Empts et dettes assorties de condit. particulières (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020015" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Emprunts non assortis de s�ret�s (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Emprunts non assortis de s�ret�s (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020016" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Dettes rattachées � des participations (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Dettes rattachées � des participations (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020017" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Dépôts  et  cautionnements reçus (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Dépôts  et  cautionnements reçus (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020018" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Autres emprunts et dettes (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres emprunts et dettes (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020019" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Autres Passifs Financiers (Net Exercice). "F60020020" + "F60020021"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Passifs Financiers (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020020" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Ecarts de conversion (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Ecarts de conversion (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020021" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Autres passifs financiers (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres passifs financiers (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020022" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Provisions (Net Exercice). "F60020023" + "F60020024" + "F60020025" + "F60020026" + "F60020027" + "F60020028" + "F60020029" + "F60020030"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Provisions (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020023" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Provisions pour risques (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Provisions pour risques (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020024" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Prov.pour charges à répartir/plusieurs exercices (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prov.pour charges à répartir/plusieurs exercices (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020025" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Prov.pour retraites et obligations similaires (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prov.pour retraites et obligations similaires (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020026" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Provisions d'origine règlementaire (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Provisions d'origine règlementaire (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020027" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Provisions pour impôts (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Provisions pour impôts (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020028" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Prov.pour renouvellement des immobilisations (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prov.pour renouvellement des immobilisations (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020029" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Provisions pour amortissement (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Provisions pour amortissement (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020030" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Autres provisions pour charges (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres provisions pour charges (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020031" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Passifs courants (Net Exercice). "F60020032" + "F60020038" + "F60020047"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Passifs courants (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020032" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs et Comptes Rattachés (Net Exercice). "F60020033" + "F60020034" + "F60020035" + "F60020036" + "F60020037"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs et Comptes Rattachés (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020033" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs d'exploitation (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs d'exploitation (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020034" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs d'exploitation - effets à payer (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs d'exploitation - effets à payer (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020035" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs d'immobilisations (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs d'immobilisations (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020036" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs d'immobilisations - effets à payer (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs d'immobilisations - effets à payer (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020037" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs - factures non parvenues (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs - factures non parvenues (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020038" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Autres passifs courants (Net Exercice). "F60020039" + "F60020040" + "F60020041" + "F60020042" + "F60020043" + "F60020044" + "F60020045" + "F60020046"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres passifs courants (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020039" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Clients créditeurs (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients créditeurs (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020040" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Sociétés du groupe  et  associés (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Sociétés du groupe  et  associés (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020041" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Etat et collectivités publiques (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Etat et collectivités publiques (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020042" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Sociétés du groupe  et  associés (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Sociétés du groupe  et  associés (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020043" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Débiteurs divers et créditeurs divers (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Débiteurs divers et créditeurs divers (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020044" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Comptes transitoires ou d'attente (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Comptes transitoires ou d'attente (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020045" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Comptes de régularisation (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Comptes de régularisation (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020046" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Provisions courantes pour risques et charges (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Provisions courantes pour risques et charges (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020047" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Concours Bancaires et Autres Passifs Financiers (Net Exercice). "F60020048" + "F60020049" + "F60020050" + "F60020051"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Concours Bancaires et Autres Passifs Financiers (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020048" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Emprunts et autres dettes financières courants (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Emprunts et autres dettes financières courants (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020049" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Emprunts échus et impayés (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Emprunts échus et impayés (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020050" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Intérêts courus (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Intérêts courus (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020051" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Banques, établissements financiers et assimilés (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Banques, �tablissements financiers et assimilés (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020052" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Autres Postes des Capitaux Propres et Passifs du Bilan (Net Exercice)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Postes des Capitaux Propres et Passifs du Bilan (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020053" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Total des capitaux propres et passifs (Net Exercice). "F60020001" + "F60020008" + "F60020052"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Total des capitaux propres et passifs (Net Exercice)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020054" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Capitaux propres (Net Exercice - 1).  "F60020059" + "F60020060"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Capitaux propres (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020055" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Capital social (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Capital social (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020056" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Réserves (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Réserves (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020057" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Autres capitaux propres (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres capitaux propres (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020058" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Résultats reportés (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Résultats reportés (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020059" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Capitaux propres avant résultat de l'exercice (Net Exercice - 1) = lf:F60020059 = lf:F60020055 + lf:F60020056 + lf:F60020057 + lf:F60020058</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Capitaux propres avant résultat de l'exercice (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020060">
+								<xsd:annotation>
+									<xsd:documentation>résultat de l'exercice (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="résultat de l'exercice (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020061" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Total Passifs (Net Exercice - 1). "F60020062" + "F60020084"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Total Passifs (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020062" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Passifs non courants (Net Exercice - 1). "F60020063" + "F60020072" + "F60020075"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Passifs non courants (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020063" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Emprunts (Net Exercice - 1). "F60020064" + "F60020065" + "F60020066" + "F60020067" + "F60020068" + "F60020069" + "F60020070" + "F60020071"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Emprunts (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020064" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Emprunts obligataires (assortis de s�ret�s) (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Emprunts obligataires (assortis de s�ret�s) (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020065" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Empts auprès d'étab.Fin. (assortis de s�ret�s) (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Empts auprès d'étab.Fin. (assortis de s�ret�s) (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020066" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Empts auprès d'étab.Fin. (assorti de s�ret�s) (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Empts auprès d'étab.Fin. (assorti de s�ret�s) (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020067" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Empts et dettes assorties de condit. particulières (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Empts et dettes assorties de condit. particulières (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020068" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Emprunts non assortis de s�ret�s (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Emprunts non assortis de s�ret�s (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020069" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Dettes rattachées à des participations (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Dettes rattachées à des participations (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020070" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Dépôts  et  cautionnements reçus (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Dépôts  et  cautionnements reçus (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020071" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Autres emprunts et dettes (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres emprunts et dettes (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020072" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Autres Passifs Financiers (Net Exercice - 1). "F60020073" + "F60020074"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Passifs Financiers (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020073" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Ecarts de conversion (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Ecarts de conversion (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020074" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Autres passifs financiers (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres passifs financiers (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020075" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Provisions (Net Exercice - 1). "F60020076" + "F60020077" + "F60020078" + "F60020079" + "F60020080" + "F60020081" + "F60020082" + "F60020083"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Provisions (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020076" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Provisions pour risques (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Provisions pour risques (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020077" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Prov.pour charges à répartir/plusieurs exercices (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prov.pour charges � répartir/plusieurs exercices (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020078" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Prov.pour retraites et obligations similaires (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prov.pour retraites et obligations similaires (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020079" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Provisions d'origine règlementaire (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Provisions d'origine règlementaire (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020080" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Provisions pour impôts (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Provisions pour impôts (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020081" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Prov.pour renouvellement des immobilisations (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Prov.pour renouvellement des immobilisations (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020082" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Provisions pour amortissement (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Provisions pour amortissement (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020083" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Autres provisions pour charges (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres provisions pour charges (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020084" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Passifs courants (Net Exercice - 1). "F60020085" + "F60020091" + "F60020100"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Passifs courants (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020085" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs et Comptes Rattachés (Net Exercice - 1). "F60020086" + "F60020087" + "F60020088" + "F60020089" + "F60020090"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs et Comptes Rattachés (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020086" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs d'exploitation (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs d'exploitation (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020087" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs d'exploitation - effets à payer (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs d'exploitation - effets à payer (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020088" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs d'immobilisations (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs d'immobilisations (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020089" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs d'immobilisations - effets à payer (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs d'immobilisations - effets à payer (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020090" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Fournisseurs - factures non parvenues (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_Nombre15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Fournisseurs - factures non parvenues (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020091" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Autres passifs courants (Net Exercice - 1). "F60020092" + "F60020093" + "F60020094" + "F60020095" + "F60020096" + "F60020097" + "F60020098" + "F60020099"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres passifs courants (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020092" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Clients créditeurs (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Clients créditeurs (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020093" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Sociétés du groupe  et  associés (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Sociétés du groupe  et  associés (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020094" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Etat et collectivités publiques (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Etat et collectivités publiques (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020095" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Sociétés du groupe  et  associés (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Sociétés du groupe  et  associés (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020096" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Débiteurs divers et créditeurs divers (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Débiteurs divers et créditeurs divers (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020097" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Comptes transitoires ou d'attente (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Comptes transitoires ou d'attente (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020098" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Comptes de régularisation (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Comptes de régularisation (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020099" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Provisions courantes pour risques et charges (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Provisions courantes pour risques et charges (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020100" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Concours Bancaires et Autres Passifs Financiers (Net Exercice - 1). "F60020101" + "F60020102" + "F60020103" + "F60020104"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Concours Bancaires et Autres Passifs Financiers (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020101" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Emprunts et autres dettes financières courants (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Emprunts et autres dettes financières courants (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020102" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Emprunts échus et impayés (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Emprunts échus et impayés (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020103" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Intérêts courus (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Intérêts courus (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020104" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Banques, établissements financiers et assimilés (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Banques, établissements financiers et assimilés (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020105" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Autres Postes des Capitaux Propres et Passifs du Bilan (Net Exercice - 1)</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Autres Postes des Capitaux Propres et Passifs du Bilan (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+							<xsd:element name="F60020106" maxOccurs="1">
+								<xsd:annotation>
+									<xsd:documentation>Total des capitaux propres et passifs (Net Exercice - 1). "F60020054" + "F60020061" + "F60020105"</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:simpleContent>
+										<xsd:extension base="lf:T_NombrePositif15">
+											<xsd:attribute name="Libelle" type="xsd:string" default="Total des capitaux propres et passifs (Net Exercice - 1)"/>
+										</xsd:extension>
+									</xsd:simpleContent>
+								</xsd:complexType>
+							</xsd:element>
+						</xsd:all>
+						<xsd:assert test="lf:F60020001 = sum( ((lf:F60020006) , (lf:F60020007 )))"/>
+						<xsd:assert test="lf:F60020006 = sum( ((lf:F60020002) , (lf:F60020003) , (lf:F60020004) , (lf:F60020005)))"/>
+						<xsd:assert test="lf:F60020008 = sum( ((lf:F60020009) , (lf:F60020031)))"/>
+						<xsd:assert test="lf:F60020009 = sum( ((lf:F60020010) , (lf:F60020019) , (lf:F60020022)))"/>
+						<xsd:assert test="lf:F60020010 = sum( ((lf:F60020011) , (lf:F60020012) , (lf:F60020013) , (lf:F60020014) , (lf:F60020015) , (lf:F60020016) , (lf:F60020017) , (lf:F60020018)))"/>
+						<xsd:assert test="lf:F60020019 = sum( ((lf:F60020020) , (lf:F60020021)))"/>
+						<xsd:assert test="lf:F60020022 = sum( ((lf:F60020023) , (lf:F60020024) , (lf:F60020025) , (lf:F60020026) , (lf:F60020027) , (lf:F60020028) , (lf:F60020029) , (lf:F60020030)))"/>
+						<xsd:assert test="lf:F60020031 = sum( ((lf:F60020032) , (lf:F60020038) , (lf:F60020047)))"/>
+						<xsd:assert test="lf:F60020032 = sum( ((lf:F60020033) , (lf:F60020034) , (lf:F60020035) , (lf:F60020036) , (lf:F60020037)))"/>
+						<xsd:assert test="lf:F60020038 = sum( ((lf:F60020039) , (lf:F60020040) , (lf:F60020041) , (lf:F60020042) , (lf:F60020043) , (lf:F60020044) , (lf:F60020045) , (lf:F60020046)))"/>
+						<xsd:assert test="lf:F60020047 = sum( ((lf:F60020048) , (lf:F60020049) , (lf:F60020050) , (lf:F60020051)))"/>
+						<xsd:assert test="lf:F60020053 = sum( ((lf:F60020001) , (lf:F60020008) , (lf:F60020052)))"/>
+						<xsd:assert test="lf:F60020054 = sum( ((lf:F60020059) , (lf:F60020060)))"/>
+						<xsd:assert test="lf:F60020059 = sum( ((lf:F60020055) , (lf:F60020056) , (lf:F60020057) , (lf:F60020058)))"/>
+						<xsd:assert test="lf:F60020061 = sum( ((lf:F60020062) , (lf:F60020084)))"/>
+						<xsd:assert test="lf:F60020062 = sum( ((lf:F60020063) , (lf:F60020072) , (lf:F60020075)))"/>
+						<xsd:assert test="lf:F60020063 = sum( ((lf:F60020064) , (lf:F60020065) , (lf:F60020066) , (lf:F60020067) , (lf:F60020068) , (lf:F60020069) , (lf:F60020070) , (lf:F60020071)))"/>
+						<xsd:assert test="lf:F60020072 = sum( ((lf:F60020073) , (lf:F60020074)))"/>
+						<xsd:assert test="lf:F60020075 = sum( ((lf:F60020076) , (lf:F60020077) , (lf:F60020078) , (lf:F60020079) , (lf:F60020080) , (lf:F60020081) , (lf:F60020082) , (lf:F60020083)))"/>
+						<xsd:assert test="lf:F60020084 = sum( ((lf:F60020085) , (lf:F60020091) , (lf:F60020100)))"/>
+						<xsd:assert test="lf:F60020085 = sum( ((lf:F60020086) , (lf:F60020087) , (lf:F60020088) , (lf:F60020089) , (lf:F60020090)))"/>
+						<xsd:assert test="lf:F60020091 = sum( ((lf:F60020092) , (lf:F60020093) , (lf:F60020094) , (lf:F60020095) , (lf:F60020096) , (lf:F60020097) , (lf:F60020098) , (lf:F60020099)))"/>
+						<xsd:assert test="lf:F60020100 = sum( ((lf:F60020101) , (lf:F60020102) , (lf:F60020103) , (lf:F60020104)))"/>
+						<xsd:assert test="lf:F60020106 = sum( ((lf:F60020054) , (lf:F60020061) , (lf:F60020105)))"/>
+					</xsd:complexType>
+				</xsd:element>
+			</xsd:sequence>
+		</xsd:complexType>
+	</xsd:element>
+</xsd:schema>
