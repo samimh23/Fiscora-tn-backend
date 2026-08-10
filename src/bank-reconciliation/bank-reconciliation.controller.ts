@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -21,10 +23,13 @@ import { BankReconciliationService } from './bank-reconciliation.service';
 import {
   CreateBankRuleDto,
   CreateBankAccountDto,
+  CreateBankDto,
   GenerateBankEntryDto,
   ImportBankStatementDto,
   MatchJournalEntryDto,
   MatchPaymentDto,
+  UpdateBankAccountDto,
+  UpdateBankRuleDto,
 } from './dto';
 
 @ApiTags('Rapprochement bancaire')
@@ -66,6 +71,56 @@ export class BankReconciliationController {
     );
   }
 
+  @Put('accounts/:accountId')
+  @RequirePermission(PermissionNames.BankReconciliationManage)
+  updateAccount(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('accountId', ParseUUIDPipe) accountId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: UpdateBankAccountDto,
+  ) {
+    return this.service.updateBankAccount(
+      organizationId,
+      dossierId,
+      accountId,
+      user.userId,
+      dto,
+    );
+  }
+
+  @Delete('accounts/:accountId')
+  @RequirePermission(PermissionNames.BankReconciliationManage)
+  deactivateAccount(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('accountId', ParseUUIDPipe) accountId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.deactivateBankAccount(
+      organizationId,
+      dossierId,
+      accountId,
+      user.userId,
+    );
+  }
+
+  // Les établissements sont partagés par tout le cabinet : pas de dossierId.
+  @Get('banks')
+  @RequirePermission(PermissionNames.BankReconciliationView)
+  listBanks(@Param('organizationId', ParseUUIDPipe) organizationId: string) {
+    return this.service.listBanks(organizationId);
+  }
+
+  @Post('banks')
+  @RequirePermission(PermissionNames.BankReconciliationManage)
+  createBank(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Body() dto: CreateBankDto,
+  ) {
+    return this.service.createBank(organizationId, dto);
+  }
+
   @Get('rules')
   @RequirePermission(PermissionNames.BankReconciliationView)
   listRules(
@@ -85,6 +140,40 @@ export class BankReconciliationController {
     @Body() dto: CreateBankRuleDto,
   ) {
     return this.service.createRule(organizationId, dossierId, user.userId, dto);
+  }
+
+  @Put('rules/:ruleId')
+  @RequirePermission(PermissionNames.BankReconciliationManage)
+  updateRule(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('ruleId', ParseUUIDPipe) ruleId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: UpdateBankRuleDto,
+  ) {
+    return this.service.updateRule(
+      organizationId,
+      dossierId,
+      ruleId,
+      user.userId,
+      dto,
+    );
+  }
+
+  @Delete('rules/:ruleId')
+  @RequirePermission(PermissionNames.BankReconciliationManage)
+  deactivateRule(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('ruleId', ParseUUIDPipe) ruleId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.deactivateRule(
+      organizationId,
+      dossierId,
+      ruleId,
+      user.userId,
+    );
   }
 
   @Get('statements')
@@ -147,6 +236,22 @@ export class BankReconciliationController {
       organizationId,
       dossierId,
       statementId,
+      user.userId,
+    );
+  }
+
+  @Get('transactions/:transactionId/suggestions')
+  @RequirePermission(PermissionNames.BankReconciliationView)
+  matchSuggestions(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('transactionId', ParseUUIDPipe) transactionId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.matchSuggestions(
+      organizationId,
+      dossierId,
+      transactionId,
       user.userId,
     );
   }

@@ -1,4 +1,5 @@
 import { Transform } from 'class-transformer';
+import { PartialType } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsDateString,
@@ -14,14 +15,36 @@ import { BankRuleDirection, BankRuleMatchType } from '../database/entities';
 const signedMoney = /^-?\d+(\.\d{1,3})?$/;
 const tunisianIbanOrRib = /^(TN\d{22}|\d{20})$/i;
 
+export class CreateBankDto {
+  @IsString()
+  @MaxLength(150)
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  bankCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  bic?: string;
+}
+
 export class CreateBankAccountDto {
   @IsString()
   @MaxLength(150)
   name!: string;
 
+  /** Établissement existant. À défaut, `bankName` en crée/réutilise un. */
+  @IsOptional()
+  @IsUUID()
+  bankId?: string;
+
+  @IsOptional()
   @IsString()
   @MaxLength(150)
-  bankName!: string;
+  bankName?: string;
 
   @IsOptional()
   @Transform(({ value }) =>
@@ -48,6 +71,8 @@ export class CreateBankAccountDto {
   @MaxLength(3)
   currency?: string;
 }
+
+export class UpdateBankAccountDto extends PartialType(CreateBankAccountDto) {}
 
 export class ImportBankStatementDto {
   @IsUUID()
@@ -129,3 +154,5 @@ export class CreateBankRuleDto {
   @IsUUID()
   suggestedThirdPartyId?: string;
 }
+
+export class UpdateBankRuleDto extends PartialType(CreateBankRuleDto) {}

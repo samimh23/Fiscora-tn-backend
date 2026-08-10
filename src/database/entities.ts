@@ -3580,6 +3580,43 @@ export enum BankRuleDirection {
   Credit = 'CREDIT',
 }
 
+/**
+ * Établissement bancaire (BIAT, BNA, Amen…), partagé par tout le cabinet.
+ *
+ * Séparé du compte bancaire : un même établissement porte les comptes de
+ * plusieurs dossiers clients. En texte libre, le même nom finissait saisi de
+ * dix façons différentes et rien ne pouvait être rattaché à l'établissement —
+ * notamment le format de relevé, qui diffère d'une banque à l'autre.
+ */
+@Entity({ schema: 'accounting', name: 'banks' })
+@Unique(['organizationId', 'normalizedName'])
+@Index(['organizationId', 'isActive'])
+export class Bank extends AuditableEntity {
+  /** NULL = établissement du catalogue national, visible par tous les cabinets. */
+  @Column({ name: 'organization_id', type: 'uuid', nullable: true })
+  organizationId!: string | null;
+
+  @Column({ length: 150 })
+  name!: string;
+
+  @Column({ name: 'legal_name', type: 'varchar', length: 200, nullable: true })
+  legalName!: string | null;
+
+  /** Nom replié (sans accents ni ponctuation) : empêche « BIAT » et « B.I.A.T ». */
+  @Column({ name: 'normalized_name', length: 150 })
+  normalizedName!: string;
+
+  /** Code établissement de la BCT, présent dans l'IBAN tunisien. */
+  @Column({ name: 'bank_code', type: 'varchar', length: 10, nullable: true })
+  bankCode!: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  bic!: string | null;
+
+  @Column({ name: 'is_active', default: true })
+  isActive!: boolean;
+}
+
 @Entity({ schema: 'accounting', name: 'bank_accounts' })
 @Unique(['dossierId', 'name'])
 @Index(['organizationId', 'dossierId', 'isActive'])
@@ -3597,8 +3634,12 @@ export class BankAccount extends AuditableEntity {
   @Column({ length: 150 })
   name!: string;
 
-  @Column({ name: 'bank_name', length: 150 })
-  bankName!: string;
+  @Column({ name: 'bank_id', type: 'uuid' })
+  bankId!: string;
+
+  @ManyToOne(() => Bank, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'bank_id' })
+  bank!: Bank;
 
   @Column({ type: 'varchar', length: 50, nullable: true })
   iban!: string | null;
@@ -5387,6 +5428,7 @@ export const ENTITIES = [
   BusinessInvoiceLine,
   ThirdPartyPayment,
   PaymentAllocation,
+  Bank,
   BankAccount,
   BankStatement,
   BankTransaction,

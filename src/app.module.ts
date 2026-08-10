@@ -83,6 +83,8 @@ import { PaymentInstruments1784374000000 } from './database/migrations/178437400
 import { InvoiceVatSuspension1784375000000 } from './database/migrations/1784375000000-invoice-vat-suspension';
 import { AuditLogImmutability1784376000000 } from './database/migrations/1784376000000-audit-log-immutability';
 import { InvoiceMultiCurrency1784377000000 } from './database/migrations/1784377000000-invoice-multi-currency';
+import { BankReference1784378000000 } from './database/migrations/1784378000000-bank-reference';
+import { TunisianBanksCatalog1784379000000 } from './database/migrations/1784379000000-tunisian-banks-catalog';
 
 @Module({
   imports: [
@@ -144,6 +146,8 @@ import { InvoiceMultiCurrency1784377000000 } from './database/migrations/1784377
           InvoiceVatSuspension1784375000000,
           AuditLogImmutability1784376000000,
           InvoiceMultiCurrency1784377000000,
+          BankReference1784378000000,
+          TunisianBanksCatalog1784379000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,

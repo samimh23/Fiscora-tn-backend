@@ -17,6 +17,7 @@ import {
 import { fromMillimes, toMillimes } from '../common/money';
 import {
   AccountingJournal,
+  Bank,
   BankAccount,
   BankMatchType,
   BankReconciliationRule,
@@ -32,16 +33,34 @@ import {
   JournalType,
   LedgerAccount,
   PaymentDirection,
+  ThirdParty,
   ThirdPartyPayment,
   ThirdPartyPaymentStatus,
 } from '../database/entities';
 import { DossiersService } from '../dossiers/dossiers.service';
+import {
+  scorePaymentSuggestion,
+  type SuggestionScore,
+} from './bank-match.engine';
 import { parseBankFile } from './bank-file.parser';
+
+type PaymentSuggestion = SuggestionScore & {
+  paymentId: string;
+  reference: string | null;
+  method: string;
+  paymentDate: string;
+  amount: string;
+  thirdPartyName: string | null;
+  journalEntryId: string | null;
+};
 import {
   CreateBankRuleDto,
   CreateBankAccountDto,
+  CreateBankDto,
   GenerateBankEntryDto,
   ImportBankStatementDto,
+  UpdateBankAccountDto,
+  UpdateBankRuleDto,
 } from './dto';
 import { PeriodLockService } from '../period-closing/period-lock.service';
 
@@ -49,6 +68,8 @@ import { PeriodLockService } from '../period-closing/period-lock.service';
 export class BankReconciliationService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
+    @InjectRepository(Bank)
+    private readonly banks: Repository<Bank>,
     @InjectRepository(BankAccount)
     private readonly bankAccounts: Repository<BankAccount>,
     @InjectRepository(BankStatement)
@@ -77,7 +98,7 @@ export class BankReconciliationService {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     return this.bankAccounts.find({
       where: { organizationId, dossierId, isActive: true },
-      relations: { ledgerAccount: true, journal: true },
+      relations: { ledgerAccount: true, journal: true, bank: true },
       order: { name: 'ASC' },
     });
   }
@@ -117,16 +138,209 @@ export class BankReconciliationService {
       .getExists();
     if (duplicate)
       throw new ConflictException('Ce compte bancaire existe déjà.');
+    const bank = await this.resolveBank(organizationId, dto);
     return this.bankAccounts.save(
       this.bankAccounts.create({
         organizationId,
         dossierId,
         name: dto.name.trim(),
-        bankName: dto.bankName.trim(),
+        bankId: bank.id,
         iban: dto.iban?.replace(/\s/g, '').toUpperCase() || null,
         ledgerAccountId: account.id,
         journalId: journal.id,
         currency: (dto.currency || 'TND').toUpperCase(),
+        isActive: true,
+      }),
+    );
+  }
+
+  async updateBankAccount(
+    organizationId: string,
+    dossierId: string,
+    accountId: string,
+    userId: string,
+    dto: UpdateBankAccountDto,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const bankAccount = await this.bankAccounts.findOne({
+      where: { id: accountId, organizationId, dossierId, isActive: true },
+      relations: { bank: true, ledgerAccount: true, journal: true },
+    });
+    if (!bankAccount)
+      throw new NotFoundException('Le compte bancaire est introuvable.');
+
+    const nextName = dto.name?.trim() || bankAccount.name;
+    const duplicate = await this.bankAccounts
+      .createQueryBuilder('bank')
+      .where('bank.dossier_id = :dossierId', { dossierId })
+      .andWhere('bank.id != :accountId', { accountId })
+      .andWhere('bank.is_active = true')
+      .andWhere('UPPER(bank.name) = UPPER(:name)', { name: nextName })
+      .getExists();
+    if (duplicate)
+      throw new ConflictException('Ce compte bancaire existe déjà.');
+
+    const hasStatements = await this.statements.existsBy({
+      bankAccountId: bankAccount.id,
+    });
+    const ledgerAccountId = dto.ledgerAccountId ?? bankAccount.ledgerAccountId;
+    const journalId = dto.journalId ?? bankAccount.journalId;
+    const currency = (dto.currency ?? bankAccount.currency).toUpperCase();
+    if (
+      hasStatements &&
+      (ledgerAccountId !== bankAccount.ledgerAccountId ||
+        journalId !== bankAccount.journalId ||
+        currency !== bankAccount.currency)
+    )
+      throw new ConflictException(
+        'Ce compte possède déjà des relevés : vous pouvez corriger le nom, la banque ou le RIB, mais pas le compte comptable, le journal ou la devise.',
+      );
+
+    if (ledgerAccountId !== bankAccount.ledgerAccountId) {
+      const account = await this.accounts.findOneBy({
+        id: ledgerAccountId,
+        organizationId,
+        dossierId,
+        isActive: true,
+        allowsPosting: true,
+      });
+      if (!account)
+        throw new BadRequestException(
+          'Le compte comptable de banque est invalide.',
+        );
+      bankAccount.ledgerAccountId = account.id;
+    }
+    if (journalId !== bankAccount.journalId) {
+      const journal = await this.journals.findOneBy({
+        id: journalId,
+        organizationId,
+        dossierId,
+        isActive: true,
+      });
+      if (!journal || journal.type !== JournalType.Bank)
+        throw new BadRequestException('Sélectionnez un journal de banque.');
+      bankAccount.journalId = journal.id;
+    }
+    if (dto.bankId || dto.bankName) {
+      const bank = await this.resolveBank(organizationId, {
+        name: nextName,
+        bankId: dto.bankId,
+        bankName: dto.bankName ?? bankAccount.bank.name,
+        ledgerAccountId,
+        journalId,
+        currency,
+      });
+      bankAccount.bankId = bank.id;
+    }
+    bankAccount.name = nextName;
+    bankAccount.iban = dto.iban?.replace(/\s/g, '').toUpperCase() ?? bankAccount.iban;
+    bankAccount.currency = currency;
+    return this.bankAccounts.save(bankAccount);
+  }
+
+  async deactivateBankAccount(
+    organizationId: string,
+    dossierId: string,
+    accountId: string,
+    userId: string,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const bankAccount = await this.bankAccounts.findOneBy({
+      id: accountId,
+      organizationId,
+      dossierId,
+      isActive: true,
+    });
+    if (!bankAccount)
+      throw new NotFoundException('Le compte bancaire est introuvable.');
+    const openStatements = await this.statements.exists({
+      where: {
+        bankAccountId: bankAccount.id,
+        status: Not(BankStatementStatus.Reconciled),
+      },
+    });
+    if (openStatements)
+      throw new ConflictException(
+        'Ce compte possède des relevés non rapprochés. Rapprochez-les avant de le désactiver.',
+      );
+    bankAccount.isActive = false;
+    return this.bankAccounts.save(bankAccount);
+  }
+
+  /** Catalogue national (organization_id NULL) + établissements du cabinet. */
+  async listBanks(organizationId: string) {
+    return this.banks.find({
+      where: [
+        { organizationId: IsNull(), isActive: true },
+        { organizationId, isActive: true },
+      ],
+      order: { name: 'ASC' },
+    });
+  }
+
+  async createBank(organizationId: string, dto: CreateBankDto) {
+    const name = dto.name.trim();
+    const normalizedName = normalizeBankName(name);
+    if (!normalizedName)
+      throw new BadRequestException('Le nom de l’établissement est requis.');
+    const existing = await this.banks.findOneBy({
+      organizationId,
+      normalizedName,
+    });
+    if (existing)
+      throw new ConflictException('Cet établissement bancaire existe déjà.');
+    return this.banks.save(
+      this.banks.create({
+        organizationId,
+        name,
+        normalizedName,
+        bankCode: dto.bankCode?.trim() || null,
+        bic: dto.bic?.trim().toUpperCase() || null,
+        isActive: true,
+      }),
+    );
+  }
+
+  /**
+   * Un établissement existant s'il est désigné, sinon celui qui porte ce nom,
+   * sinon un nouveau. Le repli sur le nom normalisé évite de recréer « BIAT »
+   * à côté de « Biat » à chaque saisie.
+   */
+  private async resolveBank(
+    organizationId: string,
+    dto: CreateBankAccountDto,
+  ) {
+    if (dto.bankId) {
+      const bank = await this.banks.findOne({
+        where: [
+          { id: dto.bankId, organizationId: IsNull() },
+          { id: dto.bankId, organizationId },
+        ],
+      });
+      if (!bank)
+        throw new NotFoundException('L’établissement bancaire est introuvable.');
+      return bank;
+    }
+    const name = dto.bankName?.trim() ?? '';
+    const normalizedName = normalizeBankName(name);
+    if (!normalizedName)
+      throw new BadRequestException('Sélectionnez ou saisissez un établissement bancaire.');
+    // Le catalogue national prime : saisir « BIAT » ne doit pas recréer une
+    // copie locale à côté de l'établissement déjà référencé.
+    const existing = await this.banks.findOne({
+      where: [
+        { organizationId: IsNull(), normalizedName },
+        { organizationId, normalizedName },
+      ],
+    });
+    if (existing) return existing;
+    return this.banks.save(
+      this.banks.create({
+        organizationId,
+        name,
+        normalizedName,
+        bankCode: null,
+        bic: null,
         isActive: true,
       }),
     );
@@ -183,6 +397,90 @@ export class BankReconciliationService {
         lastUsedAtUtc: null,
       }),
     );
+  }
+
+  async updateRule(
+    organizationId: string,
+    dossierId: string,
+    ruleId: string,
+    userId: string,
+    dto: UpdateBankRuleDto,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const rule = await this.rules.findOne({
+      where: { id: ruleId, organizationId, dossierId, isActive: true },
+      relations: { suggestedAccount: true, suggestedThirdParty: true },
+    });
+    if (!rule) throw new NotFoundException('La règle bancaire est introuvable.');
+
+    const label = dto.label?.trim() || rule.label;
+    const pattern = dto.pattern?.trim() || rule.pattern;
+    if (!label || !pattern)
+      throw new BadRequestException('Le libellé et le motif sont requis.');
+    const duplicate = await this.rules
+      .createQueryBuilder('rule')
+      .where('rule.dossier_id = :dossierId', { dossierId })
+      .andWhere('rule.id != :ruleId', { ruleId })
+      .andWhere('rule.is_active = true')
+      .andWhere('UPPER(rule.label) = UPPER(:label)', { label })
+      .getExists();
+    if (duplicate)
+      throw new ConflictException('Une règle porte déjà ce nom dans ce dossier.');
+
+    const suggestedAccountId = dto.suggestedAccountId ?? rule.suggestedAccountId;
+    const account = await this.accounts.findOneBy({
+      id: suggestedAccountId,
+      organizationId,
+      dossierId,
+      isActive: true,
+      allowsPosting: true,
+    });
+    if (!account)
+      throw new BadRequestException('Le compte suggéré est invalide.');
+    if (dto.suggestedThirdPartyId) {
+      const thirdParty = await this.payments.manager.findOne(ThirdParty, {
+        where: {
+          id: dto.suggestedThirdPartyId,
+          organizationId,
+          dossierId,
+          isActive: true,
+        },
+      });
+      if (!thirdParty)
+        throw new BadRequestException('Le tiers suggéré est invalide.');
+    }
+    rule.label = label;
+    rule.pattern = pattern;
+    rule.matchType = dto.matchType ?? rule.matchType;
+    rule.direction = dto.direction ?? rule.direction;
+    rule.suggestedAccountId = account.id;
+    rule.suggestedThirdPartyId =
+      dto.suggestedThirdPartyId === undefined
+        ? rule.suggestedThirdPartyId
+        : dto.suggestedThirdPartyId || null;
+    await this.rules.save(rule);
+    return this.rules.findOneOrFail({
+      where: { id: rule.id },
+      relations: { suggestedAccount: true, suggestedThirdParty: true },
+    });
+  }
+
+  async deactivateRule(
+    organizationId: string,
+    dossierId: string,
+    ruleId: string,
+    userId: string,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const rule = await this.rules.findOneBy({
+      id: ruleId,
+      organizationId,
+      dossierId,
+      isActive: true,
+    });
+    if (!rule) throw new NotFoundException('La règle bancaire est introuvable.');
+    rule.isActive = false;
+    return this.rules.save(rule);
   }
 
   async listStatements(
@@ -730,6 +1028,38 @@ export class BankReconciliationService {
     return statement;
   }
 
+  /**
+   * Règlements candidats pour une opération bancaire, classés du plus au
+   * moins probable.
+   *
+   * `autoMatch` utilise déjà ce principe de score mais n'agit que sur les
+   * correspondances certaines : tout le reste restait invisible et devait être
+   * retrouvé à la main dans le grand livre. On expose donc les candidats pour
+   * que le comptable confirme d'un clic. Les montants différents ne sont
+   * jamais proposés comme certains : ils sortent avec un score bas et un motif
+   * explicite, la décision reste humaine.
+   */
+  async matchSuggestions(
+    organizationId: string,
+    dossierId: string,
+    transactionId: string,
+    userId: string,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const transaction = await this.findTransaction(
+      organizationId,
+      dossierId,
+      transactionId,
+    );
+    const candidates = await this.paymentCandidates(organizationId, dossierId, [
+      transaction,
+    ]);
+    return {
+      transactionId,
+      suggestions: candidates.get(transaction.id) ?? [],
+    };
+  }
+
   private async findTransaction(
     organizationId: string,
     dossierId: string,
@@ -738,7 +1068,7 @@ export class BankReconciliationService {
     const transaction = await this.transactions.findOne({
       where: { id: transactionId, organizationId, dossierId },
       relations: {
-        statement: { bankAccount: { ledgerAccount: true, journal: true } },
+        statement: { bankAccount: { ledgerAccount: true, journal: true, bank: true } },
         matchedPayment: { thirdParty: true },
         journalEntry: true,
       },
@@ -827,9 +1157,18 @@ export class BankReconciliationService {
       relations: { suggestedAccount: true, suggestedThirdParty: true },
       order: { updatedAtUtc: 'DESC' },
     });
+    // Les règlements candidats sont chargés une seule fois pour tout le
+    // relevé puis notés en mémoire : une requête par ligne rendrait l'écran
+    // inutilisable sur un relevé de plusieurs centaines d'opérations.
+    const paymentsByTransaction = await this.paymentCandidates(
+      organizationId,
+      dossierId,
+      transactions,
+    );
     return transactions.map((transaction) => {
       if (transaction.status !== BankTransactionStatus.Unmatched)
-        return { ...transaction, ruleSuggestion: null };
+        return { ...transaction, ruleSuggestion: null, paymentSuggestions: [] };
+      const paymentSuggestions = paymentsByTransaction.get(transaction.id) ?? [];
       const suggestion = rules
         .map((rule) => ({
           rule,
@@ -837,9 +1176,11 @@ export class BankReconciliationService {
         }))
         .filter((candidate) => candidate.confidence > 0)
         .sort((a, b) => b.confidence - a.confidence)[0];
-      if (!suggestion) return { ...transaction, ruleSuggestion: null };
+      if (!suggestion)
+        return { ...transaction, ruleSuggestion: null, paymentSuggestions };
       return {
         ...transaction,
+        paymentSuggestions,
         ruleSuggestion: {
           ruleId: suggestion.rule.id,
           label: suggestion.rule.label,
@@ -852,6 +1193,79 @@ export class BankReconciliationService {
         },
       };
     });
+  }
+
+  /**
+   * Règlements candidats pour un lot d'opérations, notés puis classés.
+   * Une seule requête couvre toutes les lignes ; un règlement déjà rattaché
+   * ailleurs n'est jamais reproposé.
+   */
+  private async paymentCandidates(
+    organizationId: string,
+    dossierId: string,
+    transactions: BankTransaction[],
+  ) {
+    const result = new Map<string, PaymentSuggestion[]>();
+    const pending = transactions.filter(
+      (item) => item.status === BankTransactionStatus.Unmatched,
+    );
+    if (!pending.length) return result;
+
+    const dates = pending.map((item) => item.transactionDate).sort();
+    const [payments, matched] = await Promise.all([
+      this.payments.find({
+        where: {
+          organizationId,
+          dossierId,
+          status: ThirdPartyPaymentStatus.Posted,
+          paymentDate: Between(
+            shiftDate(dates[0], -15),
+            shiftDate(dates[dates.length - 1], 15),
+          ),
+        },
+        relations: { thirdParty: true },
+      }),
+      this.transactions.find({
+        where: { organizationId, dossierId, matchedPaymentId: Not(IsNull()) },
+        select: { matchedPaymentId: true },
+      }),
+    ]);
+    const used = new Set(
+      matched
+        .map((item) => item.matchedPaymentId)
+        .filter((id): id is string => Boolean(id)),
+    );
+    const available = payments.filter((payment) => !used.has(payment.id));
+
+    for (const transaction of pending) {
+      const amount = toMillimes(transaction.amount);
+      const expectedDirection =
+        amount > 0n ? PaymentDirection.Receipt : PaymentDirection.Disbursement;
+      const scored: PaymentSuggestion[] = [];
+      for (const payment of available) {
+        if (payment.direction !== expectedDirection) continue;
+        const score = scorePaymentSuggestion(transaction, {
+          paymentDate: payment.paymentDate,
+          amount: payment.amount,
+          reference: payment.reference,
+          thirdPartyName: payment.thirdParty?.name ?? null,
+        });
+        if (!score) continue;
+        scored.push({
+          paymentId: payment.id,
+          reference: payment.reference,
+          method: payment.method,
+          paymentDate: payment.paymentDate,
+          amount: payment.amount,
+          thirdPartyName: payment.thirdParty?.name ?? null,
+          journalEntryId: payment.journalEntryId,
+          ...score,
+        });
+      }
+      scored.sort((a, b) => b.confidence - a.confidence);
+      if (scored.length) result.set(transaction.id, scored.slice(0, 3));
+    }
+    return result;
   }
 
   private ruleScore(transaction: BankTransaction, rule: BankReconciliationRule) {
@@ -919,6 +1333,10 @@ function shiftDate(value: string, days: number) {
   const date = new Date(`${value}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+export function normalizeBankName(value: string) {
+  return normalizeText(value);
 }
 
 function normalizeText(value: string) {

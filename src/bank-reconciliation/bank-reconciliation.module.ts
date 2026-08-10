@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { PermissionGuard } from '../common/permission.guard';
 import {
   AccountingJournal,
+  Bank,
   BankAccount,
   BankReconciliationRule,
   BankStatement,
@@ -23,6 +24,7 @@ import { PeriodClosingModule } from '../period-closing/period-closing.module';
     AuthModule,
     PeriodClosingModule,
     TypeOrmModule.forFeature([
+      Bank,
       BankAccount,
       BankReconciliationRule,
       BankStatement,
