@@ -170,7 +170,10 @@ export class AuthService {
     });
   }
 
-  async requestPasswordReset(dto: RequestPasswordResetDto, requestedIp?: string) {
+  async requestPasswordReset(
+    dto: RequestPasswordResetDto,
+    requestedIp?: string,
+  ) {
     const user = await this.users.findOneBy({
       normalizedEmail: this.normalizeEmail(dto.email),
     });

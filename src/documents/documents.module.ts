@@ -15,6 +15,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
 import { MalwareScannerService } from './malware-scanner.service';
+import { documentObjectStorageProvider } from './object-storage/object-storage.provider';
 
 @Module({
   imports: [
@@ -31,7 +32,12 @@ import { MalwareScannerService } from './malware-scanner.service';
     ]),
   ],
   controllers: [DocumentsController],
-  providers: [DocumentsService, MalwareScannerService, PermissionGuard],
+  providers: [
+    DocumentsService,
+    MalwareScannerService,
+    PermissionGuard,
+    documentObjectStorageProvider,
+  ],
   exports: [DocumentsService],
 })
 export class DocumentsModule {}

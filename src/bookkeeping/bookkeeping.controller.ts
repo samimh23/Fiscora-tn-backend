@@ -63,6 +63,24 @@ export class BookkeepingController {
     );
   }
 
+  @Put('journals/:journalId')
+  @RequirePermission(PermissionNames.AccountingManage)
+  updateJournal(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('journalId', ParseUUIDPipe) journalId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: CreateJournalDto,
+  ) {
+    return this.service.updateJournal(
+      organizationId,
+      dossierId,
+      journalId,
+      user.userId,
+      dto,
+    );
+  }
+
   @Get('entries')
   @RequirePermission(PermissionNames.AccountingView)
   entries(

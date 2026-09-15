@@ -85,7 +85,10 @@ export class PlatformAdminController {
   }
 
   @Post('email/test')
-  sendTestEmail(@CurrentUser() user: JwtUser, @Body() dto: SendPlatformTestEmailDto) {
+  sendTestEmail(
+    @CurrentUser() user: JwtUser,
+    @Body() dto: SendPlatformTestEmailDto,
+  ) {
     return this.service.sendTestEmail(user, dto);
   }
 

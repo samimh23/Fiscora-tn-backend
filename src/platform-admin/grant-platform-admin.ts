@@ -14,6 +14,7 @@ const dataSource = new DataSource({
   username: process.env.DB_USER ?? 'accounting',
   password: process.env.DB_PASSWORD ?? 'accounting_dev',
   database: process.env.DB_NAME ?? 'accounting_nest',
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : false,
   schema: 'public',
 });
 

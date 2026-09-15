@@ -15,7 +15,11 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { RequirePermission } from '../common/permission.decorator';
 import { PermissionGuard } from '../common/permission.guard';
 import { PermissionNames } from '../database/permissions';
-import { CreateThirdPartyDto, CreateThirdPartyPaymentDto } from './dto';
+import {
+  CorrectThirdPartyPaymentDto,
+  CreateThirdPartyDto,
+  CreateThirdPartyPaymentDto,
+} from './dto';
 import { SettlementsService } from './settlements.service';
 
 @ApiTags('Clients, fournisseurs et règlements')
@@ -112,6 +116,24 @@ export class SettlementsController {
       dossierId,
       paymentId,
       user.userId,
+    );
+  }
+
+  @Post('payments/:paymentId/correct')
+  @RequirePermission(PermissionNames.AccountingPost)
+  correctPayment(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('paymentId', ParseUUIDPipe) paymentId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: CorrectThirdPartyPaymentDto,
+  ) {
+    return this.service.correctPayment(
+      organizationId,
+      dossierId,
+      paymentId,
+      user.userId,
+      dto,
     );
   }
 

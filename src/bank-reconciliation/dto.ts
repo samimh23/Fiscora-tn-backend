@@ -1,4 +1,4 @@
-import { Transform } from 'class-transformer';
+import { Transform, type TransformFnParams } from 'class-transformer';
 import { PartialType } from '@nestjs/swagger';
 import {
   IsBoolean,
@@ -47,7 +47,7 @@ export class CreateBankAccountDto {
   bankName?: string;
 
   @IsOptional()
-  @Transform(({ value }) =>
+  @Transform(({ value }: TransformFnParams): unknown =>
     typeof value === 'string'
       ? value.replace(/[\s.\-_/]/g, '').toUpperCase()
       : value,

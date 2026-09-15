@@ -5,10 +5,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { fromMillimes, toMillimes } from '../common/money';
 import {
   AccountingJournal,
+  AuditLog,
+  BankStatement,
+  BankStatementStatus,
+  BankTransaction,
+  BankTransactionStatus,
   BusinessInvoice,
   BusinessInvoiceKind,
   BusinessInvoiceStatus,
@@ -24,10 +29,15 @@ import {
   PaymentInstrumentStatus,
   ThirdParty,
   ThirdPartyPayment,
+  ThirdPartyPaymentCorrectionType,
   ThirdPartyPaymentStatus,
 } from '../database/entities';
 import { DossiersService } from '../dossiers/dossiers.service';
-import { CreateThirdPartyDto, CreateThirdPartyPaymentDto } from './dto';
+import {
+  CorrectThirdPartyPaymentDto,
+  CreateThirdPartyDto,
+  CreateThirdPartyPaymentDto,
+} from './dto';
 import { PeriodLockService } from '../period-closing/period-lock.service';
 
 @Injectable()
@@ -429,6 +439,297 @@ export class SettlementsService {
     });
   }
 
+  async correctPayment(
+    organizationId: string,
+    dossierId: string,
+    paymentId: string,
+    userId: string,
+    dto: CorrectThirdPartyPaymentDto,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const reason = dto.reason.trim();
+    if (reason.length < 3)
+      throw new BadRequestException(
+        'Le motif de correction doit contenir au moins 3 caractères.',
+      );
+
+    return this.dataSource.transaction(async (manager) => {
+      const payment = await manager.findOne(ThirdPartyPayment, {
+        where: { id: paymentId, organizationId, dossierId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!payment)
+        throw new NotFoundException('Le règlement est introuvable.');
+      if (payment.status === ThirdPartyPaymentStatus.Cancelled)
+        throw new ConflictException('Ce règlement a déjà été corrigé.');
+      if (dto.correctionDate < payment.paymentDate)
+        throw new BadRequestException(
+          'La date de correction ne peut pas précéder le règlement.',
+        );
+      if (
+        payment.status === ThirdPartyPaymentStatus.Draft &&
+        dto.correctionType === ThirdPartyPaymentCorrectionType.Refund
+      )
+        throw new ConflictException(
+          'Un brouillon non comptabilisé ne peut pas être remboursé. Annulez sa saisie.',
+        );
+
+      let reversalEntryId: string | null = null;
+      const restoredInvoiceIds: string[] = [];
+      if (payment.status === ThirdPartyPaymentStatus.Posted) {
+        reversalEntryId = await this.reversePostedPayment(
+          manager,
+          payment,
+          userId,
+          dto.correctionDate,
+          reason,
+        );
+        restoredInvoiceIds.push(
+          ...(await this.restorePaymentAllocations(
+            manager,
+            payment,
+            organizationId,
+            dossierId,
+          )),
+        );
+      } else {
+        const entry = await manager.findOne(JournalEntry, {
+          where: {
+            id: payment.journalEntryId,
+            organizationId,
+            dossierId,
+            status: JournalEntryStatus.Draft,
+          },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (entry) {
+          entry.status = JournalEntryStatus.Rejected;
+          entry.reviewedByUserId = userId;
+          entry.reviewedAtUtc = new Date();
+          entry.reviewComment = `Règlement annulé : ${reason}`;
+          await manager.save(entry);
+        }
+      }
+
+      const releasedTransactions = await this.releaseBankMatches(
+        manager,
+        payment,
+        organizationId,
+        dossierId,
+      );
+      payment.status = ThirdPartyPaymentStatus.Cancelled;
+      payment.correctionType = dto.correctionType;
+      payment.correctionDate = dto.correctionDate;
+      payment.correctionReason = reason;
+      payment.correctedByUserId = userId;
+      payment.correctedAtUtc = new Date();
+      payment.reversalJournalEntryId = reversalEntryId;
+      await manager.save(payment);
+
+      const audits = manager.getRepository(AuditLog);
+      await audits.save(
+        audits.create({
+          organizationId,
+          actorUserId: userId,
+          action: 'third_party_payment.corrected',
+          entityType: 'ThirdPartyPayment',
+          entityId: payment.id,
+          detailsJson: {
+            dossierId,
+            correctionType: dto.correctionType,
+            correctionDate: dto.correctionDate,
+            reason,
+            reversalEntryId,
+            restoredInvoiceIds,
+            releasedBankTransactionIds: releasedTransactions,
+          },
+        }),
+      );
+      return manager.findOneOrFail(ThirdPartyPayment, {
+        where: { id: payment.id },
+        relations: { thirdParty: true, allocations: { invoice: true } },
+      });
+    });
+  }
+
+  private async reversePostedPayment(
+    manager: EntityManager,
+    payment: ThirdPartyPayment,
+    userId: string,
+    correctionDate: string,
+    reason: string,
+  ) {
+    await this.periodLocks.assertDateOpen(
+      payment.organizationId,
+      payment.dossierId,
+      correctionDate,
+      manager,
+    );
+    const entry = await manager.findOne(JournalEntry, {
+      where: {
+        id: payment.journalEntryId,
+        organizationId: payment.organizationId,
+        dossierId: payment.dossierId,
+      },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!entry || entry.status !== JournalEntryStatus.Posted)
+      throw new ConflictException(
+        'L’écriture du règlement ne peut plus être extournée automatiquement.',
+      );
+    const originalLines = await manager.find(JournalEntryLine, {
+      where: { entryId: entry.id, organizationId: payment.organizationId },
+    });
+    if (!originalLines.length)
+      throw new ConflictException(
+        'L’écriture du règlement ne contient aucune ligne à extourner.',
+      );
+    const reversal = await manager.save(
+      manager.create(JournalEntry, {
+        organizationId: payment.organizationId,
+        dossierId: payment.dossierId,
+        journalId: entry.journalId,
+        entryDate: correctionDate,
+        pieceReference: `EXT-${entry.pieceReference}`.slice(0, 100),
+        description: `Correction règlement : ${reason}`.slice(0, 300),
+        status: JournalEntryStatus.Posted,
+        totalDebit: entry.totalDebit,
+        totalCredit: entry.totalCredit,
+        sourceDocumentId: null,
+        createdByUserId: userId,
+        postedByUserId: userId,
+        postedAtUtc: new Date(),
+        submittedByUserId: null,
+        submittedAtUtc: null,
+        reviewedByUserId: null,
+        reviewedAtUtc: null,
+        reviewComment: null,
+        reversalEntryId: entry.id,
+      }),
+    );
+    await manager.save(
+      originalLines.map((line) =>
+        manager.create(JournalEntryLine, {
+          organizationId: payment.organizationId,
+          entryId: reversal.id,
+          accountId: line.accountId,
+          label: `Extourne : ${line.label}`.slice(0, 300),
+          debit: line.credit,
+          credit: line.debit,
+          thirdPartyName: line.thirdPartyName,
+          costCenterId: line.costCenterId,
+          reconciliationId: null,
+          letterCode: null,
+          reconciledAtUtc: null,
+        }),
+      ),
+    );
+    entry.status = JournalEntryStatus.Reversed;
+    entry.reversalEntryId = reversal.id;
+    await manager.save(entry);
+    return reversal.id;
+  }
+
+  private async restorePaymentAllocations(
+    manager: EntityManager,
+    payment: ThirdPartyPayment,
+    organizationId: string,
+    dossierId: string,
+  ) {
+    const allocations = await manager.find(PaymentAllocation, {
+      where: { paymentId: payment.id, organizationId },
+    });
+    const invoiceIds: string[] = [];
+    for (const allocation of allocations) {
+      const invoice = await manager.findOne(BusinessInvoice, {
+        where: { id: allocation.invoiceId, organizationId, dossierId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!invoice)
+        throw new ConflictException(
+          'Une facture affectée au règlement est introuvable.',
+        );
+      const amount = toMillimes(allocation.amount);
+      const paid = toMillimes(invoice.paidAmount);
+      if (amount > paid)
+        throw new ConflictException(
+          `Le montant réglé de la facture ${invoice.number} est incohérent.`,
+        );
+      const nextPaid = paid - amount;
+      const nextOutstanding = toMillimes(invoice.outstandingAmount) + amount;
+      invoice.paidAmount = fromMillimes(nextPaid);
+      invoice.outstandingAmount = fromMillimes(nextOutstanding);
+      invoice.settlementStatus =
+        nextOutstanding === 0n
+          ? InvoiceSettlementStatus.Paid
+          : nextPaid === 0n
+            ? InvoiceSettlementStatus.Unpaid
+            : InvoiceSettlementStatus.PartiallyPaid;
+      await manager.save(invoice);
+      invoiceIds.push(invoice.id);
+    }
+    return invoiceIds;
+  }
+
+  private async releaseBankMatches(
+    manager: EntityManager,
+    payment: ThirdPartyPayment,
+    organizationId: string,
+    dossierId: string,
+  ) {
+    const transactions = await manager.find(BankTransaction, {
+      where: [
+        { organizationId, dossierId, matchedPaymentId: payment.id },
+        {
+          organizationId,
+          dossierId,
+          journalEntryId: payment.journalEntryId,
+          status: BankTransactionStatus.Matched,
+        },
+      ],
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!transactions.length) return [];
+    const statementIds = [
+      ...new Set(transactions.map((item) => item.statementId)),
+    ];
+    for (const transaction of transactions) {
+      transaction.status = BankTransactionStatus.Unmatched;
+      transaction.matchType = null;
+      transaction.matchConfidence = null;
+      transaction.matchedPaymentId = null;
+      transaction.journalEntryId = null;
+      transaction.matchedByUserId = null;
+      transaction.matchedAtUtc = null;
+    }
+    await manager.save(transactions);
+    for (const statementId of statementIds) {
+      const statement = await manager.findOne(BankStatement, {
+        where: { id: statementId, organizationId, dossierId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!statement) continue;
+      const [total, matched] = await Promise.all([
+        manager.count(BankTransaction, { where: { statementId } }),
+        manager.count(BankTransaction, {
+          where: { statementId, status: BankTransactionStatus.Matched },
+        }),
+      ]);
+      statement.status =
+        matched === total
+          ? BankStatementStatus.Ready
+          : matched > 0
+            ? BankStatementStatus.PartiallyMatched
+            : BankStatementStatus.Imported;
+      statement.bookClosingBalance = null;
+      statement.difference = null;
+      statement.reconciledByUserId = null;
+      statement.reconciledAtUtc = null;
+      await manager.save(statement);
+    }
+    return transactions.map((item) => item.id);
+  }
+
   async depositInstrument(
     organizationId: string,
     dossierId: string,
@@ -493,85 +794,69 @@ export class SettlementsService {
         throw new ConflictException(
           'Seul un effet à l’état « Déposé » peut être déclaré impayé.',
         );
+      const correctionDate = new Date().toISOString().slice(0, 10);
+      const correctionReason = 'Effet déclaré impayé';
+      let reversalEntryId: string | null = null;
+      let restoredInvoiceIds: string[] = [];
       if (payment.status === ThirdPartyPaymentStatus.Posted) {
-        const entry = await manager.findOneByOrFail(JournalEntry, {
-          id: payment.journalEntryId,
-          organizationId,
-          dossierId,
-        });
-        await this.periodLocks.assertDateOpen(
-          organizationId,
-          dossierId,
-          new Date().toISOString().slice(0, 10),
+        reversalEntryId = await this.reversePostedPayment(
           manager,
+          payment,
+          userId,
+          correctionDate,
+          correctionReason,
         );
-        const originalLines = await manager.find(JournalEntryLine, {
-          where: { entryId: entry.id, organizationId },
-        });
-        const reversal = await manager.save(
-          manager.create(JournalEntry, {
-            organizationId,
-            dossierId,
-            journalId: entry.journalId,
-            entryDate: new Date().toISOString().slice(0, 10),
-            pieceReference: `IMPAYE-${entry.pieceReference}`.slice(0, 100),
-            description: `Effet impayé : ${entry.description}`.slice(0, 300),
-            status: JournalEntryStatus.Posted,
-            totalDebit: entry.totalDebit,
-            totalCredit: entry.totalCredit,
-            sourceDocumentId: null,
-            createdByUserId: userId,
-            postedByUserId: userId,
-            postedAtUtc: new Date(),
-            reversalEntryId: entry.id,
-          }),
+        restoredInvoiceIds = await this.restorePaymentAllocations(
+          manager,
+          payment,
+          organizationId,
+          dossierId,
         );
-        await manager.save(
-          originalLines.map((line) =>
-            manager.create(JournalEntryLine, {
-              organizationId,
-              entryId: reversal.id,
-              accountId: line.accountId,
-              label: `Extourne (impayé) : ${line.label}`.slice(0, 300),
-              debit: line.credit,
-              credit: line.debit,
-              thirdPartyName: line.thirdPartyName,
-            }),
-          ),
-        );
-        const allocations = await manager.find(PaymentAllocation, {
-          where: { paymentId: payment.id, organizationId },
-        });
-        for (const allocation of allocations) {
-          const invoice = await manager.findOne(BusinessInvoice, {
-            where: { id: allocation.invoiceId, organizationId, dossierId },
-            lock: { mode: 'pessimistic_write' },
-          });
-          if (!invoice) continue;
-          const amount = toMillimes(allocation.amount);
-          invoice.paidAmount = fromMillimes(
-            toMillimes(invoice.paidAmount) - amount,
-          );
-          const outstanding = toMillimes(invoice.outstandingAmount) + amount;
-          invoice.outstandingAmount = fromMillimes(outstanding);
-          invoice.settlementStatus = InvoiceSettlementStatus.Unpaid;
-          await manager.save(invoice);
-        }
-        payment.status = ThirdPartyPaymentStatus.Cancelled;
-      } else {
-        payment.status = ThirdPartyPaymentStatus.Cancelled;
       }
+      const releasedTransactions = await this.releaseBankMatches(
+        manager,
+        payment,
+        organizationId,
+        dossierId,
+      );
+      payment.status = ThirdPartyPaymentStatus.Cancelled;
       payment.instrumentStatus = PaymentInstrumentStatus.Rejected;
+      payment.correctionType = ThirdPartyPaymentCorrectionType.EntryReversal;
+      payment.correctionDate = correctionDate;
+      payment.correctionReason = correctionReason;
+      payment.correctedByUserId = userId;
+      payment.correctedAtUtc = new Date();
+      payment.reversalJournalEntryId = reversalEntryId;
       await manager.save(payment);
+      const audits = manager.getRepository(AuditLog);
+      await audits.save(
+        audits.create({
+          organizationId,
+          actorUserId: userId,
+          action: 'third_party_payment.instrument_rejected',
+          entityType: 'ThirdPartyPayment',
+          entityId: payment.id,
+          detailsJson: {
+            dossierId,
+            correctionDate,
+            reason: correctionReason,
+            reversalEntryId,
+            restoredInvoiceIds,
+            releasedBankTransactionIds: releasedTransactions,
+          },
+        }),
+      );
       return payment;
     });
   }
 
   private isInstrumentMethod(method: string) {
     const normalized = method.trim().toLowerCase();
-    return normalized.includes('chèque') ||
+    return (
+      normalized.includes('chèque') ||
       normalized.includes('cheque') ||
-      normalized.includes('traite');
+      normalized.includes('traite')
+    );
   }
 
   private async validateAccountIds(

@@ -207,7 +207,8 @@ export class DossiersService {
       {
         key: 'fiscal_year',
         label: 'Exercice comptable',
-        description: 'Définissez la période sur laquelle les écritures seront rattachées.',
+        description:
+          'Définissez la période sur laquelle les écritures seront rattachées.',
         done: fiscalYears > 0,
         count: fiscalYears,
         blocking: true,
@@ -216,7 +217,8 @@ export class DossiersService {
       {
         key: 'chart_of_accounts',
         label: 'Plan comptable NC 01',
-        description: 'Installez la nomenclature tunisienne, puis ajustez les sous-comptes.',
+        description:
+          'Installez la nomenclature tunisienne, puis ajustez les sous-comptes.',
         done: accounts > 0,
         count: accounts,
         blocking: true,
@@ -225,7 +227,8 @@ export class DossiersService {
       {
         key: 'journals',
         label: 'Journaux comptables',
-        description: 'Ventes, achats, banque, caisse, opérations diverses et paie.',
+        description:
+          'Ventes, achats, banque, caisse, opérations diverses et paie.',
         done: journals > 0,
         count: journals,
         blocking: true,
@@ -234,7 +237,8 @@ export class DossiersService {
       {
         key: 'third_parties',
         label: 'Clients et fournisseurs',
-        description: 'Créez au moins un tiers pour pouvoir émettre une facture.',
+        description:
+          'Créez au moins un tiers pour pouvoir émettre une facture.',
         done: thirdParties > 0,
         count: thirdParties,
         blocking: false,
@@ -243,7 +247,8 @@ export class DossiersService {
       {
         key: 'tax_identifier',
         label: 'Matricule fiscal',
-        description: 'Obligatoire pour la liasse fiscale et les déclarations TEJ.',
+        description:
+          'Obligatoire pour la liasse fiscale et les déclarations TEJ.',
         done: Boolean(dossier.taxIdentifier),
         count: dossier.taxIdentifier ? 1 : 0,
         blocking: false,

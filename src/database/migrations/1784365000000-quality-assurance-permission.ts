@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class QualityAssurancePermission1784365000000
-  implements MigrationInterface
-{
+export class QualityAssurancePermission1784365000000 implements MigrationInterface {
   name = 'QualityAssurancePermission1784365000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

@@ -870,7 +870,11 @@ export class BusinessInvoicesService {
         'Cette facture n’est pas rattachée à un bon de réception.',
       );
     const receipt = await this.commercialDocuments.findOne({
-      where: { id: invoice.sourceCommercialDocumentId, organizationId, dossierId },
+      where: {
+        id: invoice.sourceCommercialDocumentId,
+        organizationId,
+        dossierId,
+      },
       relations: { lines: { account: true } },
     });
     if (!receipt)
@@ -929,13 +933,20 @@ export class BusinessInvoicesService {
           ? (invoiceLine.netAmount * 1000n) / invoiceLine.quantity
           : 0n;
       const priceToleranceBase =
-        receiptUnitPrice > invoiceUnitPrice ? receiptUnitPrice : invoiceUnitPrice;
+        receiptUnitPrice > invoiceUnitPrice
+          ? receiptUnitPrice
+          : invoiceUnitPrice;
       const priceDiff =
         receiptUnitPrice > invoiceUnitPrice
           ? receiptUnitPrice - invoiceUnitPrice
           : invoiceUnitPrice - receiptUnitPrice;
       const priceTolerance = (priceToleranceBase * 10n) / 1000n; // 1%
-      let status: 'OK' | 'ECART_QUANTITE' | 'ECART_PRIX' | 'ABSENT_FACTURE' | 'ABSENT_RECEPTION';
+      let status:
+        | 'OK'
+        | 'ECART_QUANTITE'
+        | 'ECART_PRIX'
+        | 'ABSENT_FACTURE'
+        | 'ABSENT_RECEPTION';
       if (!receiptLine) status = 'ABSENT_RECEPTION';
       else if (!invoiceLine) status = 'ABSENT_FACTURE';
       else if (
@@ -985,13 +996,11 @@ export class BusinessInvoicesService {
         'Cette facture ne comporte pas de retenue à la source.',
       );
     const snapshot =
-      (invoice.taxSnapshot?.withholding as
-        | {
-            natureCode?: string;
-            rate?: string;
-            sourceLabel?: string;
-          }
-        | null) ?? null;
+      (invoice.taxSnapshot?.withholding as {
+        natureCode?: string;
+        rate?: string;
+        sourceLabel?: string;
+      } | null) ?? null;
 
     const document = new PDFDocument({
       size: 'A4',
@@ -1079,18 +1088,12 @@ export class BusinessInvoicesService {
     );
 
     y += 6;
-    document
-      .roundedRect(48, y, 499, 50, 6)
-      .fillAndStroke('#DCFCE7', '#16A34A');
+    document.roundedRect(48, y, 499, 50, 6).fillAndStroke('#DCFCE7', '#16A34A');
     document
       .fillColor('#14532D')
       .font('Helvetica-Bold')
       .fontSize(14)
-      .text(
-        `Montant retenu : ${invoice.withholdingAmount} TND`,
-        64,
-        y + 17,
-      );
+      .text(`Montant retenu : ${invoice.withholdingAmount} TND`, 64, y + 17);
     y += 80;
 
     document

@@ -35,7 +35,11 @@ export async function parseBankFile(
     rows = parseCsv(file.buffer.toString('utf8'));
   } else if (extension === 'ofx' || extension === 'qfx') {
     return parseOfx(file.buffer.toString('utf8'));
-  } else if (extension === 'sta' || extension === '940' || extension === 'mt940') {
+  } else if (
+    extension === 'sta' ||
+    extension === '940' ||
+    extension === 'mt940'
+  ) {
     return parseMt940(file.buffer.toString('utf8'));
   } else {
     throw new BadRequestException(
@@ -255,25 +259,34 @@ function countSeparator(line: string, separator: string) {
 
 function parseOfx(text: string): ParsedBankTransaction[] {
   const clean = text.replace(/^\uFEFF/, '');
-  const blocks = clean.match(/<STMTTRN>[\s\S]*?(?=<\/STMTTRN>|<STMTTRN>|<\/BANKTRANLIST>)/gi);
+  const blocks = clean.match(
+    /<STMTTRN>[\s\S]*?(?=<\/STMTTRN>|<STMTTRN>|<\/BANKTRANLIST>)/gi,
+  );
   if (!blocks?.length)
-    throw new BadRequestException('Le fichier OFX ne contient aucune opération bancaire.');
+    throw new BadRequestException(
+      'Le fichier OFX ne contient aucune opération bancaire.',
+    );
 
   const parsed: ParsedBankTransaction[] = [];
   const errors: string[] = [];
   blocks.forEach((block, index) => {
     try {
       const transactionDate = parseOfxDate(readOfxTag(block, 'DTPOSTED'));
-      const valueDate = readOfxTag(block, 'DTUSER') || readOfxTag(block, 'DTAVAIL');
+      const valueDate =
+        readOfxTag(block, 'DTUSER') || readOfxTag(block, 'DTAVAIL');
       const amount = normalizeMoney(readOfxTag(block, 'TRNAMT'));
       if (toMillimes(amount) === 0n) throw new Error('montant nul');
       const fitId = readOfxTag(block, 'FITID') || readOfxTag(block, 'SRVRTID');
-      const checkNumber = readOfxTag(block, 'CHECKNUM') || readOfxTag(block, 'REFNUM');
+      const checkNumber =
+        readOfxTag(block, 'CHECKNUM') || readOfxTag(block, 'REFNUM');
       const name = readOfxTag(block, 'NAME') || readOfxTag(block, 'PAYEE');
       const memo = readOfxTag(block, 'MEMO');
-      const description = decodeOfxText([name, memo].filter(Boolean).join(' — ')).slice(0, 500);
+      const description = decodeOfxText(
+        [name, memo].filter(Boolean).join(' — '),
+      ).slice(0, 500);
       if (!description) throw new Error('libellé vide');
-      const reference = decodeOfxText(fitId || checkNumber || '').slice(0, 150) || null;
+      const reference =
+        decodeOfxText(fitId || checkNumber || '').slice(0, 150) || null;
       const balance = readOfxTag(block, 'BALAMT');
       const base = [
         fitId || '',
@@ -305,7 +318,10 @@ function parseOfx(text: string): ParsedBankTransaction[] {
 
 function readOfxTag(block: string, tag: string) {
   const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const closed = new RegExp(`<${escaped}>([\\s\\S]*?)<\\/${escaped}>`, 'i').exec(block);
+  const closed = new RegExp(
+    `<${escaped}>([\\s\\S]*?)<\\/${escaped}>`,
+    'i',
+  ).exec(block);
   if (closed) return closed[1].trim();
   const sgml = new RegExp(`<${escaped}>([^\\r\\n<]*)`, 'i').exec(block);
   return sgml?.[1]?.trim() ?? '';
@@ -331,7 +347,7 @@ function decodeOfxText(value: string) {
 // optionally followed by one or more ":86:" lines with free-text details.
 // Field 61 layout: YYMMDD[MMDD]D|C|RD|RC amount(comma decimal) type ref
 export function parseMt940(text: string): ParsedBankTransaction[] {
-  const clean = text.replace(/^﻿/, '').replace(/\r\n/g, '\n');
+  const clean = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
   // Unwrap SWIFT's hard line-continuation so a tag's value isn't split
   // across lines: any line not starting with ':' or '-' continues the
   // previous tag.
@@ -361,9 +377,7 @@ export function parseMt940(text: string): ParsedBankTransaction[] {
       const [, valueDateRaw, , mark, amountRaw, , , reference] = match;
       const valueDate = parseMt940Date(valueDateRaw);
       const millimes = toMillimes(amountRaw.replace(',', '.'));
-      const amount = fromMillimes(
-        mark.endsWith('D') ? -millimes : millimes,
-      );
+      const amount = fromMillimes(mark.endsWith('D') ? -millimes : millimes);
       if (millimes === 0n) throw new Error('montant nul');
       let description = '';
       let j = i + 1;

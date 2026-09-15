@@ -40,7 +40,13 @@ export class AnnualTaxController {
     @Body() dto: AnnualTaxCalculationDto,
     @CurrentUser() user: JwtUser,
   ) {
-    return this.service.calculate(organizationId, dossierId, user.userId, year, dto);
+    return this.service.calculate(
+      organizationId,
+      dossierId,
+      user.userId,
+      year,
+      dto,
+    );
   }
 
   @Get('deficits')
@@ -61,7 +67,13 @@ export class AnnualTaxController {
     @Param('year', ParseIntPipe) year: number,
     @CurrentUser() user: JwtUser,
   ) {
-    return this.service.calculate(organizationId, dossierId, user.userId, year, {});
+    return this.service.calculate(
+      organizationId,
+      dossierId,
+      user.userId,
+      year,
+      {},
+    );
   }
 
   @Get(':year/export')
@@ -81,7 +93,9 @@ export class AnnualTaxController {
       query,
     );
     const isPdf = query.format !== 'csv';
-    const buffer = isPdf ? await this.service.toPdf(report) : await this.service.toCsv(report);
+    const buffer = isPdf
+      ? await this.service.toPdf(report)
+      : await this.service.toCsv(report);
     return new StreamableFile(buffer, {
       type: isPdf ? 'application/pdf' : 'text/csv; charset=utf-8',
       disposition: `attachment; filename="fiscal-annuel-${year}.${isPdf ? 'pdf' : 'csv'}"`,
@@ -98,7 +112,13 @@ export class AnnualTaxController {
     @Body() dto: AnnualTaxCalculationDto,
     @CurrentUser() user: JwtUser,
   ) {
-    return this.service.finalize(organizationId, dossierId, user.userId, year, dto);
+    return this.service.finalize(
+      organizationId,
+      dossierId,
+      user.userId,
+      year,
+      dto,
+    );
   }
 
   @Get(':year/annexes/amortissements')
@@ -109,7 +129,12 @@ export class AnnualTaxController {
     @Param('year', ParseIntPipe) year: number,
     @CurrentUser() user: JwtUser,
   ) {
-    return this.service.depreciationAnnex(organizationId, dossierId, user.userId, year);
+    return this.service.depreciationAnnex(
+      organizationId,
+      dossierId,
+      user.userId,
+      year,
+    );
   }
 
   @Get(':year/annexes/amortissements/export')
@@ -121,7 +146,12 @@ export class AnnualTaxController {
     @Query() query: AnnualTaxAnnexExportQueryDto,
     @CurrentUser() user: JwtUser,
   ) {
-    const annex = await this.service.depreciationAnnex(organizationId, dossierId, user.userId, year);
+    const annex = await this.service.depreciationAnnex(
+      organizationId,
+      dossierId,
+      user.userId,
+      year,
+    );
     const isPdf = query.format !== 'csv';
     const buffer = isPdf
       ? await this.service.depreciationAnnexPdf(annex)
@@ -141,7 +171,12 @@ export class AnnualTaxController {
     @Param('year', ParseIntPipe) year: number,
     @CurrentUser() user: JwtUser,
   ) {
-    return this.service.withholdingAnnex(organizationId, dossierId, user.userId, year);
+    return this.service.withholdingAnnex(
+      organizationId,
+      dossierId,
+      user.userId,
+      year,
+    );
   }
 
   @Get(':year/annexes/retenues-source/export')
@@ -153,7 +188,12 @@ export class AnnualTaxController {
     @Query() query: AnnualTaxAnnexExportQueryDto,
     @CurrentUser() user: JwtUser,
   ) {
-    const annex = await this.service.withholdingAnnex(organizationId, dossierId, user.userId, year);
+    const annex = await this.service.withholdingAnnex(
+      organizationId,
+      dossierId,
+      user.userId,
+      year,
+    );
     const isPdf = query.format !== 'csv';
     const buffer = isPdf
       ? await this.service.withholdingAnnexPdf(annex)

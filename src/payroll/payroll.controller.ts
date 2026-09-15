@@ -18,7 +18,11 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { RequirePermission } from '../common/permission.decorator';
 import { PermissionGuard } from '../common/permission.guard';
 import { PermissionNames } from '../database/permissions';
-import { CreateEmployeeDto, GeneratePayrollDto, UpdateEmployeeDto } from './dto';
+import {
+  CreateEmployeeDto,
+  GeneratePayrollDto,
+  UpdateEmployeeDto,
+} from './dto';
 import { PayrollService } from './payroll.service';
 
 @ApiTags('Paie et CNSS')

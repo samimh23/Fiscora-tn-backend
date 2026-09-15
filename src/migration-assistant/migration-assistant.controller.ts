@@ -23,13 +23,17 @@ import { MigrationAssistantService } from './migration-assistant.service';
 @ApiTags('Assistant de migration')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), PermissionGuard)
-@Controller('api/organizations/:organizationId/dossiers/:dossierId/migration-assistant')
+@Controller(
+  'api/organizations/:organizationId/dossiers/:dossierId/migration-assistant',
+)
 export class MigrationAssistantController {
   constructor(private readonly service: MigrationAssistantService) {}
 
   @Post('preview/:kind')
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10_000_000 } }))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 10_000_000 } }),
+  )
   @RequirePermission(PermissionNames.AccountingView)
   preview(
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
@@ -39,12 +43,20 @@ export class MigrationAssistantController {
     @CurrentUser() user: JwtUser,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.service.preview(organizationId, dossierId, user.userId, kind, file);
+    return this.service.preview(
+      organizationId,
+      dossierId,
+      user.userId,
+      kind,
+      file,
+    );
   }
 
   @Post('import/:kind')
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10_000_000 } }))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 10_000_000 } }),
+  )
   @RequirePermission(PermissionNames.AccountingManage)
   import(
     @Param('organizationId', ParseUUIDPipe) organizationId: string,

@@ -1,15 +1,14 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
   OnModuleInit,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import ExcelJS from 'exceljs';
-import { Client } from 'minio';
 import { IsNull, Repository } from 'typeorm';
 import {
   AccountingDocument,
@@ -36,15 +35,16 @@ import {
   MalwareScannerUnavailableError,
 } from './malware-scanner.service';
 import { InvitationMailerService } from '../email/invitation-mailer.service';
+import {
+  DOCUMENT_OBJECT_STORAGE,
+  type DocumentObjectStorage,
+} from './object-storage/object-storage';
 
 @Injectable()
 export class DocumentsService implements OnModuleInit {
-  private readonly client: Client;
-  private readonly publicClient: Client;
-  private readonly bucket: string;
-
   constructor(
-    config: ConfigService,
+    @Inject(DOCUMENT_OBJECT_STORAGE)
+    private readonly objectStorage: DocumentObjectStorage,
     @InjectRepository(AccountingDocument)
     private readonly documents: Repository<AccountingDocument>,
     @InjectRepository(MissingDocumentExpectation)
@@ -59,40 +59,11 @@ export class DocumentsService implements OnModuleInit {
     private readonly malwareScanner: MalwareScannerService,
     private readonly notifications: NotificationsService,
     private readonly invitationMailer: InvitationMailerService,
-  ) {
-    this.bucket = config.get('MINIO_BUCKET', 'accounting-documents');
-    this.client = new Client({
-      endPoint: config.get('MINIO_ENDPOINT', 'localhost'),
-      port: Number(config.get('MINIO_PORT', 9000)),
-      useSSL: config.get('MINIO_USE_SSL', 'false') === 'true',
-      region: config.get('MINIO_REGION', 'us-east-1'),
-      accessKey: config.get('MINIO_ACCESS_KEY', 'minioadmin'),
-      secretKey: config.get('MINIO_SECRET_KEY', 'minioadmin'),
-    });
-    this.publicClient = new Client({
-      endPoint: config.get(
-        'MINIO_PUBLIC_ENDPOINT',
-        config.get('MINIO_ENDPOINT', 'localhost'),
-      ),
-      port: Number(
-        config.get('MINIO_PUBLIC_PORT', config.get('MINIO_PORT', 9000)),
-      ),
-      useSSL:
-        config.get(
-          'MINIO_PUBLIC_USE_SSL',
-          config.get('MINIO_USE_SSL', 'false'),
-        ) === 'true',
-      region: config.get('MINIO_REGION', 'us-east-1'),
-      accessKey: config.get('MINIO_ACCESS_KEY', 'minioadmin'),
-      secretKey: config.get('MINIO_SECRET_KEY', 'minioadmin'),
-    });
-  }
+  ) {}
 
   async onModuleInit() {
     try {
-      if (!(await this.client.bucketExists(this.bucket))) {
-        await this.client.makeBucket(this.bucket);
-      }
+      await this.objectStorage.ensureReady();
     } catch {
       // The API still starts if object storage is temporarily unavailable.
     }
@@ -227,13 +198,7 @@ export class DocumentsService implements OnModuleInit {
 
     const objectKey = `${organizationId}/${dossierId}/${new Date().getUTCFullYear()}/${crypto.randomUUID()}-${this.safeName(file.originalname)}`;
     try {
-      await this.client.putObject(
-        this.bucket,
-        objectKey,
-        file.buffer,
-        file.size,
-        { 'Content-Type': file.mimetype },
-      );
+      await this.objectStorage.putObject(objectKey, file.buffer, file.mimetype);
     } catch {
       throw new BadRequestException(
         'Le stockage de fichiers est indisponible. Vérifiez MinIO.',
@@ -345,11 +310,7 @@ export class DocumentsService implements OnModuleInit {
     );
     await this.ensureSafeForAccess(item, userId);
     return {
-      url: await this.publicClient.presignedGetObject(
-        this.bucket,
-        item.objectKey,
-        900,
-      ),
+      url: await this.objectStorage.signedReadUrl(item.objectKey, 900),
       expiresInSeconds: 900,
     };
   }
@@ -499,11 +460,17 @@ export class DocumentsService implements OnModuleInit {
         receivedDocumentId: null,
       }),
     );
-    await this.audit(organizationId, userId, 'document_request.created', item.id, {
-      dossierId,
-      label: item.label,
-      dueOn: item.dueOn,
-    });
+    await this.audit(
+      organizationId,
+      userId,
+      'document_request.created',
+      item.id,
+      {
+        dossierId,
+        label: item.label,
+        dueOn: item.dueOn,
+      },
+    );
     await this.notifyClientDocumentRequested(
       organizationId,
       dossierId,
@@ -659,9 +626,10 @@ export class DocumentsService implements OnModuleInit {
       throw new BadRequestException('Cette pièce demandée a déjà été reçue.');
     }
     if (
-      [DocumentRequestStatus.Validated, DocumentRequestStatus.Cancelled].includes(
-        expectation.status,
-      )
+      [
+        DocumentRequestStatus.Validated,
+        DocumentRequestStatus.Cancelled,
+      ].includes(expectation.status)
     ) {
       throw new BadRequestException(
         'Cette demande de pièce est déjà terminée.',
@@ -964,7 +932,7 @@ export class DocumentsService implements OnModuleInit {
         item.malwareSignature = scan.signature;
         await this.documents.save(item);
         try {
-          await this.client.removeObject(this.bucket, item.objectKey);
+          await this.objectStorage.removeObject(item.objectKey);
         } catch {
           // Database status remains the access-control source of truth.
         }
@@ -1014,21 +982,12 @@ export class DocumentsService implements OnModuleInit {
   }
 
   private signedUrl(item: AccountingDocument) {
-    return this.publicClient.presignedGetObject(
-      this.bucket,
-      item.objectKey,
-      900,
-    );
+    return this.objectStorage.signedReadUrl(item.objectKey, 900);
   }
 
   private async readObject(objectKey: string) {
     try {
-      const stream = await this.client.getObject(this.bucket, objectKey);
-      const chunks: Buffer[] = [];
-      for await (const chunk of stream) {
-        chunks.push(Buffer.from(chunk as Uint8Array));
-      }
-      return Buffer.concat(chunks);
+      return await this.objectStorage.readObject(objectKey);
     } catch {
       throw new BadRequestException(
         'Le document ne peut pas être lu depuis le stockage.',

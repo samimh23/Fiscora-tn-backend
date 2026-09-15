@@ -16,7 +16,7 @@ import {
 import { SystemRoleNames } from '../database/permissions';
 import { DossiersService } from '../dossiers/dossiers.service';
 import { fromMillimes, multiplyRate, toMillimes } from '../common/money';
-import { CreateInvoiceDto, RecordPaymentDto } from './dto';
+import { CorrectPaymentDto, CreateInvoiceDto, RecordPaymentDto } from './dto';
 
 @Injectable()
 export class BillingService {
@@ -97,6 +97,39 @@ export class BillingService {
     );
   }
 
+  async update(
+    organizationId: string,
+    dossierId: string,
+    invoiceId: string,
+    userId: string,
+    dto: CreateInvoiceDto,
+  ) {
+    const item = await this.find(organizationId, dossierId, invoiceId, userId);
+    if (item.status !== InvoiceStatus.Draft)
+      throw new ConflictException(
+        'Seule une facture en brouillon peut être modifiée.',
+      );
+    if (dto.dueDate < dto.issueDate)
+      throw new BadRequestException(
+        'L’échéance ne peut pas précéder la date de facture.',
+      );
+    const net = toMillimes(dto.netAmount);
+    const vat = multiplyRate(net, dto.vatRate);
+    const stamp = toMillimes(dto.stampDuty);
+    Object.assign(item, {
+      issueDate: dto.issueDate,
+      dueDate: dto.dueDate,
+      description: dto.description.trim(),
+      netAmount: fromMillimes(net),
+      vatRate: dto.vatRate,
+      vatAmount: fromMillimes(vat),
+      stampDuty: fromMillimes(stamp),
+      totalAmount: fromMillimes(net + vat + stamp),
+      notes: dto.notes?.trim() || null,
+    });
+    return this.invoices.save(item);
+  }
+
   async send(
     organizationId: string,
     dossierId: string,
@@ -110,6 +143,22 @@ export class BillingService {
     return this.invoices.save(item);
   }
 
+  async cancel(
+    organizationId: string,
+    dossierId: string,
+    invoiceId: string,
+    userId: string,
+  ) {
+    const item = await this.find(organizationId, dossierId, invoiceId, userId);
+    if (item.status === InvoiceStatus.Cancelled) return item;
+    if (toMillimes(item.paidAmount) > 0n)
+      throw new ConflictException(
+        'Une facture réglée, même partiellement, doit être corrigée par un avoir ou un remboursement.',
+      );
+    item.status = InvoiceStatus.Cancelled;
+    return this.invoices.save(item);
+  }
+
   async recordPayment(
     organizationId: string,
     dossierId: string,
@@ -117,21 +166,26 @@ export class BillingService {
     userId: string,
     dto: RecordPaymentDto,
   ) {
-    const item = await this.find(organizationId, dossierId, invoiceId, userId);
-    if ([InvoiceStatus.Cancelled, InvoiceStatus.Draft].includes(item.status))
-      throw new ConflictException(
-        'La facture doit être envoyée avant son règlement.',
-      );
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     const amount = toMillimes(dto.amount);
     if (amount <= 0n)
       throw new BadRequestException('Le montant doit être positif.');
-    const total = toMillimes(item.totalAmount);
-    const paid = toMillimes(item.paidAmount);
-    if (paid + amount > total)
-      throw new BadRequestException(
-        'Le règlement dépasse le solde de la facture.',
-      );
     return this.dataSource.transaction(async (manager) => {
+      const item = await manager.findOne(CabinetInvoice, {
+        where: { id: invoiceId, organizationId, dossierId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!item) throw new NotFoundException('La facture est introuvable.');
+      if ([InvoiceStatus.Cancelled, InvoiceStatus.Draft].includes(item.status))
+        throw new ConflictException(
+          'La facture doit être envoyée avant son règlement.',
+        );
+      const total = toMillimes(item.totalAmount);
+      const paid = toMillimes(item.paidAmount);
+      if (paid + amount > total)
+        throw new BadRequestException(
+          'Le règlement dépasse le solde de la facture.',
+        );
       await manager.save(
         manager.create(CabinetPayment, {
           organizationId,
@@ -148,6 +202,81 @@ export class BillingService {
           ? InvoiceStatus.Paid
           : InvoiceStatus.PartiallyPaid;
       return manager.save(item);
+    });
+  }
+
+  async listPayments(
+    organizationId: string,
+    dossierId: string,
+    invoiceId: string,
+    userId: string,
+  ) {
+    await this.find(organizationId, dossierId, invoiceId, userId);
+    return this.payments.find({
+      where: { organizationId, invoiceId },
+      order: { paymentDate: 'DESC', createdAtUtc: 'DESC' },
+    });
+  }
+
+  async correctPayment(
+    organizationId: string,
+    dossierId: string,
+    invoiceId: string,
+    paymentId: string,
+    userId: string,
+    dto: CorrectPaymentDto,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    return this.dataSource.transaction(async (manager) => {
+      const invoice = await manager.findOne(CabinetInvoice, {
+        where: { id: invoiceId, organizationId, dossierId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!invoice) throw new NotFoundException('La facture est introuvable.');
+      const payment = await manager.findOne(CabinetPayment, {
+        where: { id: paymentId, organizationId, invoiceId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!payment)
+        throw new NotFoundException('Le règlement est introuvable.');
+      if (payment.correctionType)
+        throw new ConflictException('Ce règlement a déjà été corrigé.');
+      if (dto.correctionDate < payment.paymentDate)
+        throw new BadRequestException(
+          'La date de correction ne peut pas précéder le règlement.',
+        );
+      const reason = dto.reason.trim();
+      if (reason.length < 3)
+        throw new BadRequestException(
+          'Le motif de correction doit contenir au moins 3 caractères.',
+        );
+
+      const paid = toMillimes(invoice.paidAmount);
+      const amount = toMillimes(payment.amount);
+      if (amount > paid)
+        throw new ConflictException(
+          'Le solde encaissé est incohérent. Contrôlez les règlements avant de continuer.',
+        );
+      const nextPaid = paid - amount;
+      const total = toMillimes(invoice.totalAmount);
+      invoice.paidAmount = fromMillimes(nextPaid);
+      invoice.status =
+        nextPaid === 0n
+          ? invoice.dueDate < new Date().toISOString().slice(0, 10)
+            ? InvoiceStatus.Overdue
+            : InvoiceStatus.Sent
+          : nextPaid === total
+            ? InvoiceStatus.Paid
+            : InvoiceStatus.PartiallyPaid;
+
+      payment.correctionType = dto.correctionType;
+      payment.correctionDate = dto.correctionDate;
+      payment.correctionReason = reason;
+      payment.correctedAtUtc = new Date();
+      payment.correctedByUserId = userId;
+      await manager.save(payment);
+      await manager.save(invoice);
+      return payment;
     });
   }
 

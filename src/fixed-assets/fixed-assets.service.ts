@@ -167,8 +167,7 @@ export class FixedAssetsService {
       dto.assetAccountId ?? category.assetAccountId,
       dto.accumulatedDepreciationAccountId ??
         category.accumulatedDepreciationAccountId,
-      dto.depreciationExpenseAccountId ??
-        category.depreciationExpenseAccountId,
+      dto.depreciationExpenseAccountId ?? category.depreciationExpenseAccountId,
     ];
     if (new Set(accountIds).size !== accountIds.length)
       throw new BadRequestException(

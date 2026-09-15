@@ -233,7 +233,8 @@ export class BankReconciliationService {
       bankAccount.bankId = bank.id;
     }
     bankAccount.name = nextName;
-    bankAccount.iban = dto.iban?.replace(/\s/g, '').toUpperCase() ?? bankAccount.iban;
+    bankAccount.iban =
+      dto.iban?.replace(/\s/g, '').toUpperCase() ?? bankAccount.iban;
     bankAccount.currency = currency;
     return this.bankAccounts.save(bankAccount);
   }
@@ -306,10 +307,7 @@ export class BankReconciliationService {
    * sinon un nouveau. Le repli sur le nom normalisé évite de recréer « BIAT »
    * à côté de « Biat » à chaque saisie.
    */
-  private async resolveBank(
-    organizationId: string,
-    dto: CreateBankAccountDto,
-  ) {
+  private async resolveBank(organizationId: string, dto: CreateBankAccountDto) {
     if (dto.bankId) {
       const bank = await this.banks.findOne({
         where: [
@@ -318,13 +316,17 @@ export class BankReconciliationService {
         ],
       });
       if (!bank)
-        throw new NotFoundException('L’établissement bancaire est introuvable.');
+        throw new NotFoundException(
+          'L’établissement bancaire est introuvable.',
+        );
       return bank;
     }
     const name = dto.bankName?.trim() ?? '';
     const normalizedName = normalizeBankName(name);
     if (!normalizedName)
-      throw new BadRequestException('Sélectionnez ou saisissez un établissement bancaire.');
+      throw new BadRequestException(
+        'Sélectionnez ou saisissez un établissement bancaire.',
+      );
     // Le catalogue national prime : saisir « BIAT » ne doit pas recréer une
     // copie locale à côté de l'établissement déjà référencé.
     const existing = await this.banks.findOne({
@@ -382,7 +384,9 @@ export class BankReconciliationService {
       .andWhere('rule.is_active = true')
       .getExists();
     if (duplicate)
-      throw new ConflictException('Une règle porte déjà ce nom dans ce dossier.');
+      throw new ConflictException(
+        'Une règle porte déjà ce nom dans ce dossier.',
+      );
     return this.rules.save(
       this.rules.create({
         organizationId,
@@ -411,7 +415,8 @@ export class BankReconciliationService {
       where: { id: ruleId, organizationId, dossierId, isActive: true },
       relations: { suggestedAccount: true, suggestedThirdParty: true },
     });
-    if (!rule) throw new NotFoundException('La règle bancaire est introuvable.');
+    if (!rule)
+      throw new NotFoundException('La règle bancaire est introuvable.');
 
     const label = dto.label?.trim() || rule.label;
     const pattern = dto.pattern?.trim() || rule.pattern;
@@ -425,9 +430,12 @@ export class BankReconciliationService {
       .andWhere('UPPER(rule.label) = UPPER(:label)', { label })
       .getExists();
     if (duplicate)
-      throw new ConflictException('Une règle porte déjà ce nom dans ce dossier.');
+      throw new ConflictException(
+        'Une règle porte déjà ce nom dans ce dossier.',
+      );
 
-    const suggestedAccountId = dto.suggestedAccountId ?? rule.suggestedAccountId;
+    const suggestedAccountId =
+      dto.suggestedAccountId ?? rule.suggestedAccountId;
     const account = await this.accounts.findOneBy({
       id: suggestedAccountId,
       organizationId,
@@ -478,7 +486,8 @@ export class BankReconciliationService {
       dossierId,
       isActive: true,
     });
-    if (!rule) throw new NotFoundException('La règle bancaire est introuvable.');
+    if (!rule)
+      throw new NotFoundException('La règle bancaire est introuvable.');
     rule.isActive = false;
     return this.rules.save(rule);
   }
@@ -1068,7 +1077,9 @@ export class BankReconciliationService {
     const transaction = await this.transactions.findOne({
       where: { id: transactionId, organizationId, dossierId },
       relations: {
-        statement: { bankAccount: { ledgerAccount: true, journal: true, bank: true } },
+        statement: {
+          bankAccount: { ledgerAccount: true, journal: true, bank: true },
+        },
         matchedPayment: { thirdParty: true },
         journalEntry: true,
       },
@@ -1168,7 +1179,8 @@ export class BankReconciliationService {
     return transactions.map((transaction) => {
       if (transaction.status !== BankTransactionStatus.Unmatched)
         return { ...transaction, ruleSuggestion: null, paymentSuggestions: [] };
-      const paymentSuggestions = paymentsByTransaction.get(transaction.id) ?? [];
+      const paymentSuggestions =
+        paymentsByTransaction.get(transaction.id) ?? [];
       const suggestion = rules
         .map((rule) => ({
           rule,
@@ -1268,18 +1280,25 @@ export class BankReconciliationService {
     return result;
   }
 
-  private ruleScore(transaction: BankTransaction, rule: BankReconciliationRule) {
+  private ruleScore(
+    transaction: BankTransaction,
+    rule: BankReconciliationRule,
+  ) {
     const amount = toMillimes(transaction.amount);
     if (rule.direction === BankRuleDirection.Debit && amount >= 0n) return 0;
     if (rule.direction === BankRuleDirection.Credit && amount <= 0n) return 0;
-    const text = normalizeText(`${transaction.reference || ''} ${transaction.description}`);
+    const text = normalizeText(
+      `${transaction.reference || ''} ${transaction.description}`,
+    );
     const pattern = normalizeText(rule.pattern);
     if (!pattern) return 0;
     if (rule.matchType === BankRuleMatchType.Exact)
       return text === pattern ? 98 : 0;
     if (rule.matchType === BankRuleMatchType.StartsWith)
       return text.startsWith(pattern) ? 92 : 0;
-    return text.includes(pattern) ? Math.min(96, 70 + Math.min(pattern.length, 26)) : 0;
+    return text.includes(pattern)
+      ? Math.min(96, 70 + Math.min(pattern.length, 26))
+      : 0;
   }
 
   private async createOrTouchRule(

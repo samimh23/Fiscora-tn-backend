@@ -25,7 +25,8 @@ import {
 } from '../database/entities';
 
 const moneyPattern = /^\d{1,12}(\.\d{1,3})?$/;
-const tunisianTaxIdentifierPattern = /^\d{7,8}\s*\/?\s*[A-Z]\s*\/?\s*[A-Z]\s*\/?\s*\d{3}$/i;
+const tunisianTaxIdentifierPattern =
+  /^\d{7,8}\s*\/?\s*[A-Z]\s*\/?\s*[A-Z]\s*\/?\s*\d{3}$/i;
 const rnePattern = /^[A-Z0-9][A-Z0-9\-_/ ]{4,24}$/i;
 
 export class CreateDossierDto {
@@ -52,7 +53,8 @@ export class CreateDossierDto {
   @IsString()
   @MaxLength(100)
   @Matches(rnePattern, {
-    message: 'Le numéro RNE doit contenir uniquement lettres, chiffres et séparateurs simples.',
+    message:
+      'Le numéro RNE doit contenir uniquement lettres, chiffres et séparateurs simples.',
   })
   rneNumber?: string | null;
 

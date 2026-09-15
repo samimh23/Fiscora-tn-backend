@@ -5,6 +5,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
   StreamableFile,
   UseGuards,
 } from '@nestjs/common';
@@ -16,7 +17,7 @@ import { RequirePermission } from '../common/permission.decorator';
 import { PermissionGuard } from '../common/permission.guard';
 import { PermissionNames } from '../database/permissions';
 import { BillingService } from './billing.service';
-import { CreateInvoiceDto, RecordPaymentDto } from './dto';
+import { CorrectPaymentDto, CreateInvoiceDto, RecordPaymentDto } from './dto';
 
 @ApiTags('Honoraires')
 @ApiBearerAuth()
@@ -75,6 +76,24 @@ export class BillingController {
     return this.service.create(organizationId, dossierId, user.userId, dto);
   }
 
+  @Put('dossiers/:dossierId/invoices/:invoiceId')
+  @RequirePermission(PermissionNames.BillingManage)
+  update(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: CreateInvoiceDto,
+  ) {
+    return this.service.update(
+      organizationId,
+      dossierId,
+      invoiceId,
+      user.userId,
+      dto,
+    );
+  }
+
   @Post('dossiers/:dossierId/invoices/:invoiceId/send')
   @RequirePermission(PermissionNames.BillingManage)
   send(
@@ -84,6 +103,22 @@ export class BillingController {
     @CurrentUser() user: JwtUser,
   ) {
     return this.service.send(organizationId, dossierId, invoiceId, user.userId);
+  }
+
+  @Post('dossiers/:dossierId/invoices/:invoiceId/cancel')
+  @RequirePermission(PermissionNames.BillingManage)
+  cancel(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.cancel(
+      organizationId,
+      dossierId,
+      invoiceId,
+      user.userId,
+    );
   }
 
   @Post('dossiers/:dossierId/invoices/:invoiceId/payments')
@@ -99,6 +134,42 @@ export class BillingController {
       organizationId,
       dossierId,
       invoiceId,
+      user.userId,
+      dto,
+    );
+  }
+
+  @Get('dossiers/:dossierId/invoices/:invoiceId/payments')
+  @RequirePermission(PermissionNames.BillingView)
+  payments(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.listPayments(
+      organizationId,
+      dossierId,
+      invoiceId,
+      user.userId,
+    );
+  }
+
+  @Post('dossiers/:dossierId/invoices/:invoiceId/payments/:paymentId/correct')
+  @RequirePermission(PermissionNames.BillingManage)
+  correctPayment(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
+    @Param('paymentId', ParseUUIDPipe) paymentId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: CorrectPaymentDto,
+  ) {
+    return this.service.correctPayment(
+      organizationId,
+      dossierId,
+      invoiceId,
+      paymentId,
       user.userId,
       dto,
     );

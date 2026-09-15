@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class DocumentRequestsWorkflow1784367000000
-  implements MigrationInterface
-{
+export class DocumentRequestsWorkflow1784367000000 implements MigrationInterface {
   name = 'DocumentRequestsWorkflow1784367000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

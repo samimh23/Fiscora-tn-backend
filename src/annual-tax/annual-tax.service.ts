@@ -4,6 +4,7 @@ import PDFDocument from 'pdfkit';
 import { DataSource, Repository } from 'typeorm';
 import {
   AnnualTaxFiling,
+  DossierTaxRegime,
   FiscalParameterCode,
   TaxLossCarryforward,
 } from '../database/entities';
@@ -89,7 +90,14 @@ export class AnnualTaxService {
     year: number,
     input: AnnualTaxCalculationDto = {},
   ): Promise<AnnualTaxReport> {
-    return this.buildReport(organizationId, dossierId, userId, year, input, false);
+    return this.buildReport(
+      organizationId,
+      dossierId,
+      userId,
+      year,
+      input,
+      false,
+    );
   }
 
   async finalize(
@@ -137,7 +145,11 @@ export class AnnualTaxService {
     });
   }
 
-  async listDeficits(organizationId: string, dossierId: string, userId: string) {
+  async listDeficits(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+  ) {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     const rows = await this.carryforwards.find({
       where: { organizationId, dossierId },
@@ -170,8 +182,17 @@ export class AnnualTaxService {
       dossierId,
       userId,
     );
-    const period = this.fiscalPeriod(year, dossier.fiscalYearStartMonth, dossier.fiscalYearStartDay);
-    const totals = await this.ledgerTotals(organizationId, dossierId, period.startsOn, period.endsOn);
+    const period = this.fiscalPeriod(
+      year,
+      dossier.fiscalYearStartMonth,
+      dossier.fiscalYearStartDay,
+    );
+    const totals = await this.ledgerTotals(
+      organizationId,
+      dossierId,
+      period.startsOn,
+      period.endsOn,
+    );
     const revenue = this.toMillimes(totals.revenue);
     const expenses = this.toMillimes(totals.expenses);
     const accountingResult = revenue - expenses;
@@ -179,12 +200,19 @@ export class AnnualTaxService {
     const deductionsTotal = this.adjustmentTotal(input.deductions);
     const fiscalResultBeforeCarryforward =
       accountingResult + reintegrationsTotal - deductionsTotal;
-    const regime = input.regime ?? (dossier.taxRegime === 'FORFAITAIRE' ? 'FORFAITAIRE' : 'IS');
+    const regime =
+      input.regime ??
+      (dossier.taxRegime === DossierTaxRegime.FlatRate ? 'FORFAITAIRE' : 'IS');
 
     const carryforwardRows =
       regime === 'FORFAITAIRE'
         ? []
-        : await this.availableCarryforwards(organizationId, dossierId, year, manager);
+        : await this.availableCarryforwards(
+            organizationId,
+            dossierId,
+            year,
+            manager,
+          );
     const carryforwardAvailable = carryforwardRows.reduce(
       (sum, row) => sum + this.toMillimes(row.remainingAmount),
       0n,
@@ -195,7 +223,8 @@ export class AnnualTaxService {
       for (const row of carryforwardRows) {
         if (remainingToOffset <= 0n) break;
         const available = this.toMillimes(row.remainingAmount);
-        const used = available < remainingToOffset ? available : remainingToOffset;
+        const used =
+          available < remainingToOffset ? available : remainingToOffset;
         carryforwardApplied += used;
         remainingToOffset -= used;
         if (finalizing && used > 0n) {
@@ -224,18 +253,21 @@ export class AnnualTaxService {
       input.corporateTaxRate ??
       (regime === 'FORFAITAIRE'
         ? '0.00000'
-        : (
+        : ((
             await this.fiscalSettings.resolveParameter(
               organizationId,
               this.resolveIsRateCode(dossier),
               period.endsOn,
               false,
             )
-          )?.value ?? '0.15000');
+          )?.value ?? '0.15000'));
     const grossCorporateTax =
       regime === 'FORFAITAIRE'
         ? 0n
-        : this.multiplyRate(fiscalResult > 0n ? fiscalResult : 0n, corporateTaxRate);
+        : this.multiplyRate(
+            fiscalResult > 0n ? fiscalResult : 0n,
+            corporateTaxRate,
+          );
 
     let minimumTax: bigint;
     if (input.minimumTax !== undefined) {
@@ -244,8 +276,18 @@ export class AnnualTaxService {
       minimumTax = 0n;
     } else {
       const [minRate, minFloor] = await Promise.all([
-        this.fiscalSettings.resolveParameter(organizationId, FiscalParameterCode.IsMinimumTaux, period.endsOn, false),
-        this.fiscalSettings.resolveParameter(organizationId, FiscalParameterCode.IsMinimumPlancher, period.endsOn, false),
+        this.fiscalSettings.resolveParameter(
+          organizationId,
+          FiscalParameterCode.IsMinimumTaux,
+          period.endsOn,
+          false,
+        ),
+        this.fiscalSettings.resolveParameter(
+          organizationId,
+          FiscalParameterCode.IsMinimumPlancher,
+          period.endsOn,
+          false,
+        ),
       ]);
       const computed = minRate ? this.multiplyRate(revenue, minRate.value) : 0n;
       const floor = minFloor ? this.toMillimes(minFloor.value) : 0n;
@@ -258,10 +300,30 @@ export class AnnualTaxService {
       forfaitaireTax = this.toMillimes(input.forfaitaireTax);
     } else if (regime === 'FORFAITAIRE') {
       const [seuilBas, montantBas, seuilHaut, montantHaut] = await Promise.all([
-        this.fiscalSettings.resolveParameter(organizationId, FiscalParameterCode.ForfaitaireSeuilBas, period.endsOn, false),
-        this.fiscalSettings.resolveParameter(organizationId, FiscalParameterCode.ForfaitaireMontantBas, period.endsOn, false),
-        this.fiscalSettings.resolveParameter(organizationId, FiscalParameterCode.ForfaitaireSeuilHaut, period.endsOn, false),
-        this.fiscalSettings.resolveParameter(organizationId, FiscalParameterCode.ForfaitaireMontantHaut, period.endsOn, false),
+        this.fiscalSettings.resolveParameter(
+          organizationId,
+          FiscalParameterCode.ForfaitaireSeuilBas,
+          period.endsOn,
+          false,
+        ),
+        this.fiscalSettings.resolveParameter(
+          organizationId,
+          FiscalParameterCode.ForfaitaireMontantBas,
+          period.endsOn,
+          false,
+        ),
+        this.fiscalSettings.resolveParameter(
+          organizationId,
+          FiscalParameterCode.ForfaitaireSeuilHaut,
+          period.endsOn,
+          false,
+        ),
+        this.fiscalSettings.resolveParameter(
+          organizationId,
+          FiscalParameterCode.ForfaitaireMontantHaut,
+          period.endsOn,
+          false,
+        ),
       ]);
       if (seuilBas && montantBas && seuilHaut && montantHaut) {
         const seuilBasM = this.toMillimes(seuilBas.value);
@@ -297,7 +359,9 @@ export class AnnualTaxService {
       period.endsOn,
     );
     const acomptesVerses = this.toMillimes(input.acomptesVerses ?? '0');
-    const excedentsAnterieurs = this.toMillimes(input.excedentsAnterieurs ?? '0');
+    const excedentsAnterieurs = this.toMillimes(
+      input.excedentsAnterieurs ?? '0',
+    );
     const totalDeductible =
       withholdingCreditYear + acomptesVerses + excedentsAnterieurs + taxCredits;
     const regularisationResult = baseTax - totalDeductible;
@@ -331,7 +395,9 @@ export class AnnualTaxService {
         regime,
         reintegrationsTotal: this.fromMillimes(reintegrationsTotal),
         deductionsTotal: this.fromMillimes(deductionsTotal),
-        fiscalResultBeforeCarryforward: this.fromMillimes(fiscalResultBeforeCarryforward),
+        fiscalResultBeforeCarryforward: this.fromMillimes(
+          fiscalResultBeforeCarryforward,
+        ),
         carryforwardApplied: this.fromMillimes(carryforwardApplied),
         carryforwardAvailable: this.fromMillimes(carryforwardAvailable),
         fiscalResult: this.fromMillimes(fiscalResult),
@@ -350,23 +416,41 @@ export class AnnualTaxService {
         excedentsAnterieurs: this.fromMillimes(excedentsAnterieurs),
         autresCredits: this.fromMillimes(taxCredits),
         resultat: this.fromMillimes(
-          regularisationResult < 0n ? -regularisationResult : regularisationResult,
+          regularisationResult < 0n
+            ? -regularisationResult
+            : regularisationResult,
         ),
         sens: regularisationResult < 0n ? 'REPORT' : 'DU',
       },
       installments: this.installments(year + 1, netTaxDue),
       liasseChecklist: [
-        { label: 'Identité fiscale du dossier', status: dossier.taxIdentifier && dossier.rneNumber ? 'OK' : 'A_COMPLETER' },
-        { label: 'Balance comptable de clôture', status: revenue || expenses ? 'OK' : 'A_COMPLETER' },
-        { label: 'Réintégrations et déductions fiscales revues', status: input.reintegrations?.length || input.deductions?.length ? 'OK' : 'A_COMPLETER' },
-        { label: 'Acomptes provisionnels préparés', status: netTaxDue > 0n ? 'OK' : 'A_COMPLETER' },
+        {
+          label: 'Identité fiscale du dossier',
+          status:
+            dossier.taxIdentifier && dossier.rneNumber ? 'OK' : 'A_COMPLETER',
+        },
+        {
+          label: 'Balance comptable de clôture',
+          status: revenue || expenses ? 'OK' : 'A_COMPLETER',
+        },
+        {
+          label: 'Réintégrations et déductions fiscales revues',
+          status:
+            input.reintegrations?.length || input.deductions?.length
+              ? 'OK'
+              : 'A_COMPLETER',
+        },
+        {
+          label: 'Acomptes provisionnels préparés',
+          status: netTaxDue > 0n ? 'OK' : 'A_COMPLETER',
+        },
         { label: 'Pièces et états financiers annexés', status: 'A_COMPLETER' },
       ],
       inputs: input,
     };
   }
 
-  async toCsv(report: AnnualTaxReport) {
+  toCsv(report: AnnualTaxReport) {
     const rows = [
       ['Section', 'Libellé', 'Valeur'],
       ['Dossier', 'Raison sociale', report.dossier.legalName],
@@ -376,23 +460,63 @@ export class AnnualTaxService {
       ['Période', 'Fin', report.period.endsOn],
       ['Comptabilité', 'Produits classe 7', report.accounting.revenue],
       ['Comptabilité', 'Charges classe 6', report.accounting.expenses],
-      ['Comptabilité', 'Résultat comptable', report.accounting.accountingResult],
+      [
+        'Comptabilité',
+        'Résultat comptable',
+        report.accounting.accountingResult,
+      ],
       ['Passage fiscal', 'Réintégrations', report.fiscal.reintegrationsTotal],
       ['Passage fiscal', 'Déductions', report.fiscal.deductionsTotal],
-      ['Passage fiscal', 'Résultat fiscal avant report déficitaire', report.fiscal.fiscalResultBeforeCarryforward],
-      ['Passage fiscal', 'Report déficitaire imputé', report.fiscal.carryforwardApplied],
-      ['Passage fiscal', 'Déficits disponibles (avant imputation)', report.fiscal.carryforwardAvailable],
+      [
+        'Passage fiscal',
+        'Résultat fiscal avant report déficitaire',
+        report.fiscal.fiscalResultBeforeCarryforward,
+      ],
+      [
+        'Passage fiscal',
+        'Report déficitaire imputé',
+        report.fiscal.carryforwardApplied,
+      ],
+      [
+        'Passage fiscal',
+        'Déficits disponibles (avant imputation)',
+        report.fiscal.carryforwardAvailable,
+      ],
       ['Passage fiscal', 'Résultat fiscal', report.fiscal.fiscalResult],
       ['Liquidation', 'Régime', report.fiscal.regime],
       ['Liquidation', 'Taux IS', report.fiscal.corporateTaxRate],
       ['Liquidation', 'IS brut', report.fiscal.grossCorporateTax],
-      ['Liquidation', 'Minimum / forfaitaire', report.fiscal.regime === 'FORFAITAIRE' ? report.fiscal.forfaitaireTax : report.fiscal.minimumTax],
+      [
+        'Liquidation',
+        'Minimum / forfaitaire',
+        report.fiscal.regime === 'FORFAITAIRE'
+          ? report.fiscal.forfaitaireTax
+          : report.fiscal.minimumTax,
+      ],
       ['Liquidation', 'Impôt dû (I)', report.fiscal.baseTax],
-      ['Régularisation', 'Retenue à la source subie', report.regularisation.retenueALaSourceSubie],
-      ['Régularisation', 'Acomptes provisionnels versés', report.regularisation.acomptesVerses],
-      ['Régularisation', 'Excédents antérieurs', report.regularisation.excedentsAnterieurs],
+      [
+        'Régularisation',
+        'Retenue à la source subie',
+        report.regularisation.retenueALaSourceSubie,
+      ],
+      [
+        'Régularisation',
+        'Acomptes provisionnels versés',
+        report.regularisation.acomptesVerses,
+      ],
+      [
+        'Régularisation',
+        'Excédents antérieurs',
+        report.regularisation.excedentsAnterieurs,
+      ],
       ['Régularisation', 'Autres crédits', report.regularisation.autresCredits],
-      ['Régularisation', report.regularisation.sens === 'REPORT' ? 'Report (crédit)' : 'Net à payer (IV)', report.regularisation.resultat],
+      [
+        'Régularisation',
+        report.regularisation.sens === 'REPORT'
+          ? 'Report (crédit)'
+          : 'Net à payer (IV)',
+        report.regularisation.resultat,
+      ],
       ...report.installments.map((item) => [
         'Acompte provisionnel',
         `${item.label} - ${item.dueOn}`,
@@ -400,7 +524,11 @@ export class AnnualTaxService {
       ]),
     ];
     return Buffer.from(
-      rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\r\n'),
+      rows
+        .map((row) =>
+          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';'),
+        )
+        .join('\r\n'),
       'utf8',
     );
   }
@@ -428,7 +556,11 @@ export class AnnualTaxService {
       .text('Pré-liasse fiscale', 42, 48)
       .fontSize(13)
       .font('Helvetica')
-      .text(`Exercice ${report.period.year}${report.finalized ? ' — clôturé' : ''}`, 42, 82);
+      .text(
+        `Exercice ${report.period.year}${report.finalized ? ' — clôturé' : ''}`,
+        42,
+        82,
+      );
     document
       .fillColor('#0F172A')
       .font('Helvetica-Bold')
@@ -437,39 +569,73 @@ export class AnnualTaxService {
       .font('Helvetica')
       .fontSize(10)
       .fillColor('#475569')
-      .text(`MF : ${report.dossier.taxIdentifier ?? 'Non renseigné'}  |  RNE : ${report.dossier.rneNumber ?? 'Non renseigné'}`, 42, 198)
-      .text(`Période : ${report.period.startsOn} au ${report.period.endsOn}`, 42, 216);
+      .text(
+        `MF : ${report.dossier.taxIdentifier ?? 'Non renseigné'}  |  RNE : ${report.dossier.rneNumber ?? 'Non renseigné'}`,
+        42,
+        198,
+      )
+      .text(
+        `Période : ${report.period.startsOn} au ${report.period.endsOn}`,
+        42,
+        216,
+      );
     let y = 255;
     y = this.pdfBlock(document, y, 'Résultat comptable', [
       ['Produits classe 7', report.accounting.revenue],
       ['Charges classe 6', report.accounting.expenses],
       ['Résultat comptable', report.accounting.accountingResult],
     ]);
-    y = this.pdfBlock(document, y + 12, 'Tableau de détermination du résultat fiscal', [
-      ['Réintégrations', report.fiscal.reintegrationsTotal],
-      ['Déductions', report.fiscal.deductionsTotal],
-      ['Résultat fiscal avant report déficitaire', report.fiscal.fiscalResultBeforeCarryforward],
-      ['Report déficitaire imputé', report.fiscal.carryforwardApplied],
-      ['Résultat fiscal', report.fiscal.fiscalResult],
-    ]);
-    y = this.pdfBlock(document, y + 12, 'Liquidation de l\'impôt dû', [
+    y = this.pdfBlock(
+      document,
+      y + 12,
+      'Tableau de détermination du résultat fiscal',
+      [
+        ['Réintégrations', report.fiscal.reintegrationsTotal],
+        ['Déductions', report.fiscal.deductionsTotal],
+        [
+          'Résultat fiscal avant report déficitaire',
+          report.fiscal.fiscalResultBeforeCarryforward,
+        ],
+        ['Report déficitaire imputé', report.fiscal.carryforwardApplied],
+        ['Résultat fiscal', report.fiscal.fiscalResult],
+      ],
+    );
+    y = this.pdfBlock(document, y + 12, "Liquidation de l'impôt dû", [
       ['Régime', report.fiscal.regime],
       ['Taux IS saisi', report.fiscal.corporateTaxRate],
       ['IS brut', report.fiscal.grossCorporateTax],
-      ['Minimum / forfaitaire', report.fiscal.regime === 'FORFAITAIRE' ? report.fiscal.forfaitaireTax : report.fiscal.minimumTax],
+      [
+        'Minimum / forfaitaire',
+        report.fiscal.regime === 'FORFAITAIRE'
+          ? report.fiscal.forfaitaireTax
+          : report.fiscal.minimumTax,
+      ],
       ['Impôt dû (I)', report.fiscal.baseTax],
     ]);
     y = this.pdfBlock(document, y + 12, 'Régularisation', [
-      ['Retenue à la source subie (relevé annexe)', report.regularisation.retenueALaSourceSubie],
+      [
+        'Retenue à la source subie (relevé annexe)',
+        report.regularisation.retenueALaSourceSubie,
+      ],
       ['Acomptes provisionnels versés', report.regularisation.acomptesVerses],
       ['Excédents antérieurs', report.regularisation.excedentsAnterieurs],
       ['Autres crédits imputables', report.regularisation.autresCredits],
-      [report.regularisation.sens === 'REPORT' ? 'Report (crédit)' : 'Résultat : net à payer (IV)', report.regularisation.resultat],
+      [
+        report.regularisation.sens === 'REPORT'
+          ? 'Report (crédit)'
+          : 'Résultat : net à payer (IV)',
+        report.regularisation.resultat,
+      ],
     ]);
-    y = this.pdfBlock(document, y + 12, 'Acomptes provisionnels', report.installments.map((item) => [
-      `${item.label} (${item.dueOn})`,
-      item.amount,
-    ]));
+    y = this.pdfBlock(
+      document,
+      y + 12,
+      'Acomptes provisionnels',
+      report.installments.map((item) => [
+        `${item.label} (${item.dueOn})`,
+        item.amount,
+      ]),
+    );
     document
       .roundedRect(42, Math.min(y + 16, 704), 511, 56, 6)
       .fillAndStroke('#FEF3C7', '#F59E0B')
@@ -527,7 +693,10 @@ export class AnnualTaxService {
     );
     return {
       year,
-      dossier: { legalName: dossier.legalName, taxIdentifier: dossier.taxIdentifier },
+      dossier: {
+        legalName: dossier.legalName,
+        taxIdentifier: dossier.taxIdentifier,
+      },
       rows,
       totals: {
         accounting: this.fromMillimes(totals.accounting),
@@ -537,19 +706,51 @@ export class AnnualTaxService {
     };
   }
 
-  async depreciationAnnexCsv(annex: Awaited<ReturnType<AnnualTaxService['depreciationAnnex']>>) {
+  depreciationAnnexCsv(
+    annex: Awaited<ReturnType<AnnualTaxService['depreciationAnnex']>>,
+  ) {
     const rows = [
-      ['Code', 'Immobilisation', 'Catégorie', 'Coût d\'acquisition', 'Dotation comptable', 'Dotation fiscale', 'Écart temporaire'],
-      ...annex.rows.map((row) => [row.code, row.name, row.category, row.acquisitionCost, row.accounting, row.fiscal, row.difference]),
-      ['', '', '', 'TOTAL', annex.totals.accounting, annex.totals.fiscal, annex.totals.difference],
+      [
+        'Code',
+        'Immobilisation',
+        'Catégorie',
+        "Coût d'acquisition",
+        'Dotation comptable',
+        'Dotation fiscale',
+        'Écart temporaire',
+      ],
+      ...annex.rows.map((row) => [
+        row.code,
+        row.name,
+        row.category,
+        row.acquisitionCost,
+        row.accounting,
+        row.fiscal,
+        row.difference,
+      ]),
+      [
+        '',
+        '',
+        '',
+        'TOTAL',
+        annex.totals.accounting,
+        annex.totals.fiscal,
+        annex.totals.difference,
+      ],
     ];
     return Buffer.from(
-      rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\r\n'),
+      rows
+        .map((row) =>
+          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';'),
+        )
+        .join('\r\n'),
       'utf8',
     );
   }
 
-  async depreciationAnnexPdf(annex: Awaited<ReturnType<AnnualTaxService['depreciationAnnex']>>) {
+  async depreciationAnnexPdf(
+    annex: Awaited<ReturnType<AnnualTaxService['depreciationAnnex']>>,
+  ) {
     return this.tablePdf({
       title: 'État détaillé des amortissements',
       subtitle: `Exercice ${annex.year} — ${annex.dossier.legalName}`,
@@ -561,8 +762,22 @@ export class AnnualTaxService {
         { label: 'Dotation fiscale', width: 90, align: 'right' },
         { label: 'Écart', width: 60, align: 'right' },
       ],
-      rows: annex.rows.map((row) => [row.code, row.name, row.category, row.accounting, row.fiscal, row.difference]),
-      totalsRow: ['', '', 'TOTAL', annex.totals.accounting, annex.totals.fiscal, annex.totals.difference],
+      rows: annex.rows.map((row) => [
+        row.code,
+        row.name,
+        row.category,
+        row.accounting,
+        row.fiscal,
+        row.difference,
+      ]),
+      totalsRow: [
+        '',
+        '',
+        'TOTAL',
+        annex.totals.accounting,
+        annex.totals.fiscal,
+        annex.totals.difference,
+      ],
     });
   }
 
@@ -577,7 +792,11 @@ export class AnnualTaxService {
       dossierId,
       userId,
     );
-    const period = this.fiscalPeriod(year, dossier.fiscalYearStartMonth, dossier.fiscalYearStartDay);
+    const period = this.fiscalPeriod(
+      year,
+      dossier.fiscalYearStartMonth,
+      dossier.fiscalYearStartDay,
+    );
     const rows = await this.dataSource.query<
       Array<{
         thirdPartyTaxIdentifier: string | null;
@@ -604,18 +823,35 @@ export class AnnualTaxService {
        ORDER BY invoice_date, number`,
       [organizationId, dossierId, period.startsOn, period.endsOn],
     );
-    const total = rows.reduce((sum, row) => sum + this.toMillimes(row.withholdingAmount), 0n);
+    const total = rows.reduce(
+      (sum, row) => sum + this.toMillimes(row.withholdingAmount),
+      0n,
+    );
     return {
       year,
-      dossier: { legalName: dossier.legalName, taxIdentifier: dossier.taxIdentifier },
+      dossier: {
+        legalName: dossier.legalName,
+        taxIdentifier: dossier.taxIdentifier,
+      },
       rows,
       total: this.fromMillimes(total),
     };
   }
 
-  async withholdingAnnexCsv(annex: Awaited<ReturnType<AnnualTaxService['withholdingAnnex']>>) {
+  withholdingAnnexCsv(
+    annex: Awaited<ReturnType<AnnualTaxService['withholdingAnnex']>>,
+  ) {
     const rows = [
-      ['Matricule fiscal', 'Débiteur', 'Facture', 'Date', 'Montant brut', 'Taux', 'Retenue', 'Net payé'],
+      [
+        'Matricule fiscal',
+        'Débiteur',
+        'Facture',
+        'Date',
+        'Montant brut',
+        'Taux',
+        'Retenue',
+        'Net payé',
+      ],
       ...annex.rows.map((row) => [
         row.thirdPartyTaxIdentifier ?? '',
         row.thirdPartyName,
@@ -629,12 +865,18 @@ export class AnnualTaxService {
       ['', '', '', '', '', 'TOTAL', annex.total, ''],
     ];
     return Buffer.from(
-      rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';')).join('\r\n'),
+      rows
+        .map((row) =>
+          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';'),
+        )
+        .join('\r\n'),
       'utf8',
     );
   }
 
-  async withholdingAnnexPdf(annex: Awaited<ReturnType<AnnualTaxService['withholdingAnnex']>>) {
+  async withholdingAnnexPdf(
+    annex: Awaited<ReturnType<AnnualTaxService['withholdingAnnex']>>,
+  ) {
     return this.tablePdf({
       title: 'Relevé détaillé des retenues à la source subies',
       subtitle: `Exercice ${annex.year} — ${annex.dossier.legalName}`,
@@ -697,7 +939,9 @@ export class AnnualTaxService {
     startsOn: string,
     endsOn: string,
   ) {
-    const rows = await this.dataSource.query<Array<{ revenue: string; expenses: string }>>(
+    const rows = await this.dataSource.query<
+      Array<{ revenue: string; expenses: string }>
+    >(
       `SELECT
          COALESCE(SUM(CASE WHEN a.code LIKE '7%' THEN l.credit - l.debit ELSE 0 END),0)::numeric(15,3) AS revenue,
          COALESCE(SUM(CASE WHEN a.code LIKE '6%' THEN l.debit - l.credit ELSE 0 END),0)::numeric(15,3) AS expenses
@@ -723,14 +967,41 @@ export class AnnualTaxService {
   private installments(nextYear: number, netTaxDue: bigint) {
     const amount = this.fromMillimes(this.multiplyRate(netTaxDue, '0.30000'));
     return [
-      { label: '1er acompte', dueOn: `${nextYear}-06-25`, baseTax: this.fromMillimes(netTaxDue), rate: '0.30000', amount },
-      { label: '2e acompte', dueOn: `${nextYear}-09-25`, baseTax: this.fromMillimes(netTaxDue), rate: '0.30000', amount },
-      { label: '3e acompte', dueOn: `${nextYear}-12-25`, baseTax: this.fromMillimes(netTaxDue), rate: '0.30000', amount },
+      {
+        label: '1er acompte',
+        dueOn: `${nextYear}-06-25`,
+        baseTax: this.fromMillimes(netTaxDue),
+        rate: '0.30000',
+        amount,
+      },
+      {
+        label: '2e acompte',
+        dueOn: `${nextYear}-09-25`,
+        baseTax: this.fromMillimes(netTaxDue),
+        rate: '0.30000',
+        amount,
+      },
+      {
+        label: '3e acompte',
+        dueOn: `${nextYear}-12-25`,
+        baseTax: this.fromMillimes(netTaxDue),
+        rate: '0.30000',
+        amount,
+      },
     ];
   }
 
-  private pdfBlock(document: PDFKit.PDFDocument, y: number, title: string, rows: Array<[string, string]>) {
-    document.fillColor('#14532D').font('Helvetica-Bold').fontSize(13).text(title, 42, y);
+  private pdfBlock(
+    document: PDFKit.PDFDocument,
+    y: number,
+    title: string,
+    rows: Array<[string, string]>,
+  ) {
+    document
+      .fillColor('#14532D')
+      .font('Helvetica-Bold')
+      .fontSize(13)
+      .text(title, 42, y);
     y += 24;
     for (const [label, value] of rows) {
       document.rect(42, y, 511, 24).fill('#F8FAFC');
@@ -778,21 +1049,31 @@ export class AnnualTaxService {
     document.fillColor('#14532D').font('Helvetica-Bold').fontSize(9);
     let x = 36;
     for (const column of spec.columns) {
-      document.text(column.label, x, y, { width: column.width, align: column.align ?? 'left' });
+      document.text(column.label, x, y, {
+        width: column.width,
+        align: column.align ?? 'left',
+      });
       x += column.width;
     }
     y += 18;
     document.font('Helvetica').fontSize(8.5).fillColor('#0F172A');
     for (const row of spec.rows) {
       if (y > 520) {
-        document.addPage({ size: 'A4', layout: 'landscape', margins: { top: 36, right: 36, bottom: 36, left: 36 } });
+        document.addPage({
+          size: 'A4',
+          layout: 'landscape',
+          margins: { top: 36, right: 36, bottom: 36, left: 36 },
+        });
         y = 36;
       }
       document.rect(36, y - 4, 770, 20).fill('#F8FAFC');
       document.fillColor('#0F172A');
       x = 36;
       for (let index = 0; index < spec.columns.length; index++) {
-        document.text(row[index] ?? '', x, y, { width: spec.columns[index].width, align: spec.columns[index].align ?? 'left' });
+        document.text(row[index] ?? '', x, y, {
+          width: spec.columns[index].width,
+          align: spec.columns[index].align ?? 'left',
+        });
         x += spec.columns[index].width;
       }
       y += 20;
@@ -802,7 +1083,10 @@ export class AnnualTaxService {
     document.fillColor('#14532D').font('Helvetica-Bold').fontSize(9);
     x = 36;
     for (let index = 0; index < spec.columns.length; index++) {
-      document.text(spec.totalsRow[index] ?? '', x, y, { width: spec.columns[index].width, align: spec.columns[index].align ?? 'left' });
+      document.text(spec.totalsRow[index] ?? '', x, y, {
+        width: spec.columns[index].width,
+        align: spec.columns[index].align ?? 'left',
+      });
       x += spec.columns[index].width;
     }
     document.end();
@@ -824,19 +1108,27 @@ export class AnnualTaxService {
     ];
     if (majoreKeywords.some((keyword) => sector.includes(keyword)))
       return FiscalParameterCode.IsTauxMajore;
-    if (dossier.isTotallyExporting) return FiscalParameterCode.IsTauxExportateur;
+    if (dossier.isTotallyExporting)
+      return FiscalParameterCode.IsTauxExportateur;
     return FiscalParameterCode.IsTauxStandard;
   }
 
   private adjustmentTotal(items: AnnualTaxCalculationDto['reintegrations']) {
-    return (items ?? []).reduce((total, item) => total + this.toMillimes(item.amount), 0n);
+    return (items ?? []).reduce(
+      (total, item) => total + this.toMillimes(item.amount),
+      0n,
+    );
   }
 
   private toMillimes(value: MoneySource | null | undefined) {
     const [whole, decimals = ''] = String(value ?? '0').split('.');
     const sign = whole.startsWith('-') ? -1n : 1n;
     const cleanWhole = whole.replace('-', '') || '0';
-    return sign * (BigInt(cleanWhole) * 1000n + BigInt(decimals.padEnd(3, '0').slice(0, 3) || '0'));
+    return (
+      sign *
+      (BigInt(cleanWhole) * 1000n +
+        BigInt(decimals.padEnd(3, '0').slice(0, 3) || '0'))
+    );
   }
 
   private fromMillimes(value: bigint) {
@@ -848,7 +1140,8 @@ export class AnnualTaxService {
   private multiplyRate(amount: bigint, rate: string) {
     const [, decimals = ''] = rate.split('.');
     const whole = BigInt(rate.split('.')[0] || '0');
-    const scaledRate = whole * 100000n + BigInt(decimals.padEnd(5, '0').slice(0, 5) || '0');
+    const scaledRate =
+      whole * 100000n + BigInt(decimals.padEnd(5, '0').slice(0, 5) || '0');
     return (amount * scaledRate + 50000n) / 100000n;
   }
 }

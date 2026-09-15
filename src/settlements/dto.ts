@@ -10,9 +10,14 @@ import {
   IsUUID,
   Matches,
   MaxLength,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
-import { PaymentDirection, ThirdPartyType } from '../database/entities';
+import {
+  PaymentDirection,
+  ThirdPartyPaymentCorrectionType,
+  ThirdPartyType,
+} from '../database/entities';
 
 const money = /^\d+(\.\d{1,3})?$/;
 
@@ -114,4 +119,17 @@ export class CreateThirdPartyPaymentDto {
   @IsOptional()
   @IsDateString()
   instrumentDueDate?: string;
+}
+
+export class CorrectThirdPartyPaymentDto {
+  @IsEnum(ThirdPartyPaymentCorrectionType)
+  correctionType!: ThirdPartyPaymentCorrectionType;
+
+  @IsDateString()
+  correctionDate!: string;
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(300)
+  reason!: string;
 }

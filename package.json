@@ -27,12 +27,16 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@nestjs/common": "^11.0.1",
+    "@aws-sdk/client-s3": "^3.1132.0",
+    "@aws-sdk/s3-request-presigner": "^3.1132.0",
+    "@azure/identity": "^4.13.3",
+    "@azure/storage-blob": "^12.33.0",
+    "@nestjs/common": "11.1.28",
     "@nestjs/config": "^4.0.4",
-    "@nestjs/core": "^11.0.1",
+    "@nestjs/core": "11.1.28",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
-    "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/platform-express": "11.1.28",
     "@nestjs/schedule": "^6.1.3",
     "@nestjs/serve-static": "^5.0.5",
     "@nestjs/swagger": "^11.4.5",
@@ -43,8 +47,7 @@
     "class-validator": "^0.15.1",
     "exceljs": "^4.4.0",
     "helmet": "^8.3.0",
-    "minio": "^8.0.7",
-    "multer": "^2.2.0",
+    "multer": "^2.4.0",
     "nodemailer": "^9.0.3",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
@@ -59,6 +62,7 @@
   "overrides": {
     "brace-expansion": "$brace-expansion",
     "fast-uri": "3.1.4",
+    "multer": "$multer",
     "uuid": "11.1.1"
   },
   "devDependencies": {
@@ -66,7 +70,7 @@
     "@eslint/js": "^9.18.0",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
-    "@nestjs/testing": "^11.0.1",
+    "@nestjs/testing": "11.1.28",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/multer": "^2.2.0",

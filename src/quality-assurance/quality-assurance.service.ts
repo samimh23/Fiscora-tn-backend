@@ -87,11 +87,7 @@ export class QualityAssuranceService {
     private readonly payrollRuns: Repository<PayrollRun>,
   ) {}
 
-  async getSummary(
-    organizationId: string,
-    userId: string,
-    dossierId?: string,
-  ) {
+  async getSummary(organizationId: string, userId: string, dossierId?: string) {
     if (dossierId) {
       const report = await this.getDossierReport(
         organizationId,
@@ -250,7 +246,10 @@ export class QualityAssuranceService {
         where: {
           organizationId,
           dossierId: dossier.id,
-          status: In([BusinessInvoiceStatus.Draft, BusinessInvoiceStatus.Validated]),
+          status: In([
+            BusinessInvoiceStatus.Draft,
+            BusinessInvoiceStatus.Validated,
+          ]),
           journalEntryId: IsNull(),
         },
       }),
@@ -346,7 +345,10 @@ export class QualityAssuranceService {
         actionPath: dossierPath,
       });
     }
-    if ((fullDossier?.employeeCount ?? 0) > 0 && !fullDossier?.cnssEmployerNumber) {
+    if (
+      (fullDossier?.employeeCount ?? 0) > 0 &&
+      !fullDossier?.cnssEmployerNumber
+    ) {
       findings.push({
         code: 'DOSSIER_CNSS_MISSING',
         severity: 'BLOCKER',
@@ -442,8 +444,7 @@ export class QualityAssuranceService {
         severity: 'BLOCKER',
         category: 'ACCOUNTING',
         title: 'Écritures non équilibrées',
-        details:
-          'Des écritures ont un total débit différent du total crédit.',
+        details: 'Des écritures ont un total débit différent du total crédit.',
         count: imbalancedEntries,
         actionLabel: 'Corriger les écritures',
         actionPath: '/comptabilite',
@@ -481,8 +482,7 @@ export class QualityAssuranceService {
         severity: 'INFO',
         category: 'ACCOUNTING',
         title: 'Écritures brouillon',
-        details:
-          'Des écritures sont encore en brouillon.',
+        details: 'Des écritures sont encore en brouillon.',
         count: draftEntries,
         actionLabel: 'Finaliser les écritures',
         actionPath: '/comptabilite',
@@ -507,8 +507,7 @@ export class QualityAssuranceService {
         severity: 'WARNING',
         category: 'INVOICES',
         title: 'Factures non comptabilisées',
-        details:
-          'Des factures existent sans écriture comptable rattachée.',
+        details: 'Des factures existent sans écriture comptable rattachée.',
         count: unpostedInvoices,
         actionLabel: 'Comptabiliser les factures',
         actionPath: '/factures',
@@ -557,8 +556,7 @@ export class QualityAssuranceService {
         severity: 'WARNING',
         category: 'PAYROLL',
         title: 'Paie du mois précédent non validée',
-        details:
-          `Aucun traitement de paie validé trouvé pour ${String(previousMonthNumber).padStart(2, '0')}/${previousMonthYear}.`,
+        details: `Aucun traitement de paie validé trouvé pour ${String(previousMonthNumber).padStart(2, '0')}/${previousMonthYear}.`,
         actionLabel: 'Valider la paie',
         actionPath: '/paie',
       });
@@ -577,7 +575,9 @@ export class QualityAssuranceService {
     };
   }
 
-  private aggregate(reports: Array<{ score: number; counts: Record<QualitySeverity, number> }>) {
+  private aggregate(
+    reports: Array<{ score: number; counts: Record<QualitySeverity, number> }>,
+  ) {
     const counts = reports.reduce(
       (acc, report) => ({
         BLOCKER: acc.BLOCKER + report.counts.BLOCKER,
@@ -611,6 +611,9 @@ export class QualityAssuranceService {
   }
 
   private score(counts: Record<QualitySeverity, number>) {
-    return Math.max(0, 100 - counts.BLOCKER * 18 - counts.WARNING * 8 - counts.INFO * 2);
+    return Math.max(
+      0,
+      100 - counts.BLOCKER * 18 - counts.WARNING * 8 - counts.INFO * 2,
+    );
   }
 }

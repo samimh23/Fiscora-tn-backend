@@ -16,7 +16,11 @@ import {
 } from '../database/entities';
 import { DossiersService } from '../dossiers/dossiers.service';
 import { MigrationImportKind, MigrationImportOptionsDto } from './dto';
-import { MigrationRow, parseMigrationFile, pick } from './migration-file.parser';
+import {
+  MigrationRow,
+  parseMigrationFile,
+  pick,
+} from './migration-file.parser';
 
 export interface ImportResult {
   kind: MigrationImportKind;
@@ -91,7 +95,16 @@ export class MigrationAssistantService {
         if (kind === MigrationImportKind.Accounts) {
           if (!pick(row, ['code', 'compte', 'numero', 'numéro']))
             return `ligne ${row.rowNumber}: code compte manquant`;
-          if (!pick(row, ['name', 'nom', 'libelle', 'libellé', 'intitule', 'intitulé']))
+          if (
+            !pick(row, [
+              'name',
+              'nom',
+              'libelle',
+              'libellé',
+              'intitule',
+              'intitulé',
+            ])
+          )
             return `ligne ${row.rowNumber}: libellé compte manquant`;
         }
         if (kind === MigrationImportKind.Journals) {
@@ -122,10 +135,22 @@ export class MigrationAssistantService {
     let updated = 0;
     const warnings: string[] = [];
     for (const row of rows) {
-      const code = pick(row, ['code', 'compte', 'numero', 'numéro']).slice(0, 30);
-      const name = pick(row, ['name', 'nom', 'libelle', 'libellé', 'intitule', 'intitulé']).slice(0, 200);
+      const code = pick(row, ['code', 'compte', 'numero', 'numéro']).slice(
+        0,
+        30,
+      );
+      const name = pick(row, [
+        'name',
+        'nom',
+        'libelle',
+        'libellé',
+        'intitule',
+        'intitulé',
+      ]).slice(0, 200);
       if (!code || !name) {
-        warnings.push(`ligne ${row.rowNumber}: compte ignoré, code ou libellé manquant`);
+        warnings.push(
+          `ligne ${row.rowNumber}: compte ignoré, code ou libellé manquant`,
+        );
         continue;
       }
       const normalizedCode = normalizeCode(code);
@@ -140,7 +165,8 @@ export class MigrationAssistantService {
         existing.name = name;
         existing.type = type;
         existing.normalBalance = normalBalance;
-        existing.description = pick(row, ['description', 'note']) || existing.description;
+        existing.description =
+          pick(row, ['description', 'note']) || existing.description;
         existing.allowsPosting = true;
         existing.isActive = true;
         await this.accounts.save(existing);
@@ -164,7 +190,13 @@ export class MigrationAssistantService {
         created += 1;
       }
     }
-    return result(MigrationImportKind.Accounts, rows, created, updated, warnings);
+    return result(
+      MigrationImportKind.Accounts,
+      rows,
+      created,
+      updated,
+      warnings,
+    );
   }
 
   private async importJournals(
@@ -176,14 +208,22 @@ export class MigrationAssistantService {
     let updated = 0;
     const warnings: string[] = [];
     for (const row of rows) {
-      const code = pick(row, ['code', 'journal', 'codejournal']).slice(0, 20).toUpperCase();
-      const name = (pick(row, ['name', 'nom', 'libelle', 'libellé']) || code).slice(0, 150);
+      const code = pick(row, ['code', 'journal', 'codejournal'])
+        .slice(0, 20)
+        .toUpperCase();
+      const name = (
+        pick(row, ['name', 'nom', 'libelle', 'libellé']) || code
+      ).slice(0, 150);
       if (!code) {
         warnings.push(`ligne ${row.rowNumber}: journal ignoré, code manquant`);
         continue;
       }
       const type = journalType(pick(row, ['type', 'nature']) || code);
-      const existing = await this.journals.findOneBy({ organizationId, dossierId, code });
+      const existing = await this.journals.findOneBy({
+        organizationId,
+        dossierId,
+        code,
+      });
       if (existing) {
         existing.name = name;
         existing.type = type;
@@ -204,7 +244,13 @@ export class MigrationAssistantService {
         created += 1;
       }
     }
-    return result(MigrationImportKind.Journals, rows, created, updated, warnings);
+    return result(
+      MigrationImportKind.Journals,
+      rows,
+      created,
+      updated,
+      warnings,
+    );
   }
 
   private async importThirdParties(
@@ -216,15 +262,33 @@ export class MigrationAssistantService {
     let updated = 0;
     const warnings: string[] = [];
     for (const row of rows) {
-      const name = pick(row, ['name', 'nom', 'raison sociale', 'raisonsociale']).slice(0, 200);
+      const name = pick(row, [
+        'name',
+        'nom',
+        'raison sociale',
+        'raisonsociale',
+      ]).slice(0, 200);
       if (!name) {
         warnings.push(`ligne ${row.rowNumber}: tiers ignoré, nom manquant`);
         continue;
       }
-      const type = thirdPartyType(pick(row, ['type', 'nature', 'categorie', 'catégorie']));
-      const existing = await this.thirdParties.findOneBy({ organizationId, dossierId, type, name });
+      const type = thirdPartyType(
+        pick(row, ['type', 'nature', 'categorie', 'catégorie']),
+      );
+      const existing = await this.thirdParties.findOneBy({
+        organizationId,
+        dossierId,
+        type,
+        name,
+      });
       const payload = {
-        taxIdentifier: pick(row, ['matricule fiscal', 'matriculefiscal', 'mf', 'taxidentifier']) || null,
+        taxIdentifier:
+          pick(row, [
+            'matricule fiscal',
+            'matriculefiscal',
+            'mf',
+            'taxidentifier',
+          ]) || null,
         rneNumber: pick(row, ['rne', 'rnenumber']) || null,
         email: pick(row, ['email', 'e-mail', 'mail']) || null,
         phone: pick(row, ['phone', 'telephone', 'téléphone', 'tel']) || null,
@@ -250,7 +314,13 @@ export class MigrationAssistantService {
         created += 1;
       }
     }
-    return result(MigrationImportKind.ThirdParties, rows, created, updated, warnings);
+    return result(
+      MigrationImportKind.ThirdParties,
+      rows,
+      created,
+      updated,
+      warnings,
+    );
   }
 
   private async importOpeningBalances(
@@ -261,7 +331,12 @@ export class MigrationAssistantService {
     openingDate: string,
   ): Promise<ImportResult> {
     const warnings: string[] = [];
-    const lines: Array<{ account: LedgerAccount; debit: string; credit: string; label: string }> = [];
+    const lines: Array<{
+      account: LedgerAccount;
+      debit: string;
+      credit: string;
+      label: string;
+    }> = [];
     for (const row of rows) {
       const code = pick(row, ['code', 'compte', 'accountcode']);
       const account = await this.accounts.findOneBy({
@@ -272,7 +347,9 @@ export class MigrationAssistantService {
         allowsPosting: true,
       });
       if (!account) {
-        warnings.push(`ligne ${row.rowNumber}: compte ${code || '?'} introuvable`);
+        warnings.push(
+          `ligne ${row.rowNumber}: compte ${code || '?'} introuvable`,
+        );
         continue;
       }
       const debit = moneyValue(pick(row, ['debit', 'débit']));
@@ -285,11 +362,19 @@ export class MigrationAssistantService {
         account,
         debit: fromMillimes(finalDebit),
         credit: fromMillimes(finalCredit),
-        label: (pick(row, ['libelle', 'libellé', 'label']) || 'À-nouveau importé').slice(0, 300),
+        label: (
+          pick(row, ['libelle', 'libellé', 'label']) || 'À-nouveau importé'
+        ).slice(0, 300),
       });
     }
-    const totalDebit = lines.reduce((sum, line) => sum + toMillimes(line.debit), 0n);
-    const totalCredit = lines.reduce((sum, line) => sum + toMillimes(line.credit), 0n);
+    const totalDebit = lines.reduce(
+      (sum, line) => sum + toMillimes(line.debit),
+      0n,
+    );
+    const totalCredit = lines.reduce(
+      (sum, line) => sum + toMillimes(line.credit),
+      0n,
+    );
     if (!lines.length)
       throw new BadRequestException('Aucune balance d’ouverture exploitable.');
     if (totalDebit !== totalCredit)
@@ -373,7 +458,10 @@ function result(
 }
 
 function normalizeCode(code: string) {
-  return code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 30);
+  return code
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 30);
 }
 
 function accountType(code: string) {
@@ -381,7 +469,8 @@ function accountType(code: string) {
   if (first === '6') return LedgerAccountType.Expense;
   if (first === '7') return LedgerAccountType.Revenue;
   if (first === '1') return LedgerAccountType.Equity;
-  if (first === '2' || first === '3' || first === '5') return LedgerAccountType.Asset;
+  if (first === '2' || first === '3' || first === '5')
+    return LedgerAccountType.Asset;
   if (first === '4') return LedgerAccountType.Asset;
   return LedgerAccountType.Asset;
 }
@@ -395,27 +484,33 @@ function normalBalanceFor(type: LedgerAccountType) {
 }
 
 function journalType(value: string) {
-  const text = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  const text = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
   if (text.includes('ACH') || text === 'AC') return JournalType.Purchases;
   if (text.includes('VEN') || text === 'VT') return JournalType.Sales;
-  if (text.includes('BAN') || text === 'BQ' || text === 'B') return JournalType.Bank;
+  if (text.includes('BAN') || text === 'BQ' || text === 'B')
+    return JournalType.Bank;
   if (text.includes('CAIS') || text === 'CA') return JournalType.Cash;
   if (text.includes('PAIE')) return JournalType.Payroll;
   return JournalType.Miscellaneous;
 }
 
 function thirdPartyType(value: string) {
-  const text = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
-  if (text.includes('FOURN') && text.includes('CLIENT')) return ThirdPartyType.Both;
+  const text = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+  if (text.includes('FOURN') && text.includes('CLIENT'))
+    return ThirdPartyType.Both;
   if (text.includes('FOURN')) return ThirdPartyType.Supplier;
   return ThirdPartyType.Customer;
 }
 
 function moneyValue(value: string) {
   if (!value) return 0n;
-  const raw = value
-    .replace(/[\s\u00a0']/g, '')
-    .replace(/[^0-9.,()\-+]/g, '');
+  const raw = value.replace(/[\s\u00a0']/g, '').replace(/[^0-9.,()\-+]/g, '');
   if (!raw) return 0n;
   const parenthesized = raw.startsWith('(') && raw.endsWith(')');
   const cleaned = raw.replace(/[()]/g, '');
@@ -424,7 +519,9 @@ function moneyValue(value: string) {
   let normalized = cleaned;
   if (comma >= 0 && dot >= 0) {
     const decimal = comma > dot ? ',' : '.';
-    normalized = cleaned.replace(decimal === ',' ? /\./g : /,/g, '').replace(decimal, '.');
+    normalized = cleaned
+      .replace(decimal === ',' ? /\./g : /,/g, '')
+      .replace(decimal, '.');
   } else if (comma >= 0) normalized = cleaned.replace(',', '.');
   if (parenthesized) normalized = `-${normalized}`;
   return toMillimes(normalized);

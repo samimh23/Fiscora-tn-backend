@@ -151,11 +151,7 @@ export class ProductivityController {
     @Param('sessionId', ParseUUIDPipe) sessionId: string,
     @CurrentUser() user: JwtUser,
   ) {
-    return this.service.stopWorkSession(
-      organizationId,
-      sessionId,
-      user.userId,
-    );
+    return this.service.stopWorkSession(organizationId, sessionId, user.userId);
   }
 
   @Post('dossiers/:dossierId/time-entries/:entryId/submit')

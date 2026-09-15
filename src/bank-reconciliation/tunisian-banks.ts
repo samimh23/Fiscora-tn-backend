@@ -22,8 +22,7 @@ export const TUNISIAN_BANKS: Array<{ name: string; legalName: string }> = [
   { name: 'Bank ABC Tunisie', legalName: 'Arab Banking Corporation Tunis' },
   {
     name: 'BFPME',
-    legalName:
-      'Banque de Financement des Petites et Moyennes Entreprises',
+    legalName: 'Banque de Financement des Petites et Moyennes Entreprises',
   },
   { name: 'BH Bank', legalName: 'BH Bank' },
   { name: 'BIAT', legalName: 'Banque Internationale Arabe de Tunisie' },

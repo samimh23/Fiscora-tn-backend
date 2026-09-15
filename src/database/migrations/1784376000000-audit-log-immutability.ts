@@ -13,9 +13,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 // kept for a minimum retention period - if/when a purge policy is
 // introduced, it must go through a superuser/migration path, never
 // through the application role.
-export class AuditLogImmutability1784376000000
-  implements MigrationInterface
-{
+export class AuditLogImmutability1784376000000 implements MigrationInterface {
   name = 'AuditLogImmutability1784376000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

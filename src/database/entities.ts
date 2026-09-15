@@ -499,7 +499,12 @@ export class EmailDeliveryLog extends AuditableEntity {
   @Column({ type: 'varchar', length: 20 })
   status!: 'ENVOYE' | 'ECHEC';
 
-  @Column({ name: 'provider_message_id', type: 'varchar', length: 500, nullable: true })
+  @Column({
+    name: 'provider_message_id',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
   providerMessageId!: string | null;
 
   @Column({ name: 'smtp_response', type: 'text', nullable: true })
@@ -1434,7 +1439,11 @@ export class TimeEntry extends AuditableEntity {
   @Column({ name: 'stopped_at_utc', type: 'timestamptz', nullable: true })
   stoppedAtUtc!: Date | null;
 
-  @Column({ name: 'original_duration_minutes', type: 'integer', nullable: true })
+  @Column({
+    name: 'original_duration_minutes',
+    type: 'integer',
+    nullable: true,
+  })
   originalDurationMinutes!: number | null;
 
   @Column({ name: 'correction_reason', type: 'text', nullable: true })
@@ -2400,6 +2409,31 @@ export class CabinetPayment extends AuditableEntity {
 
   @Column({ name: 'recorded_by_user_id', type: 'uuid' })
   recordedByUserId!: string;
+
+  @Column({
+    name: 'correction_type',
+    type: 'varchar',
+    length: 30,
+    nullable: true,
+  })
+  correctionType!: 'ANNULATION_SAISIE' | 'REMBOURSEMENT' | null;
+
+  @Column({ name: 'correction_date', type: 'date', nullable: true })
+  correctionDate!: string | null;
+
+  @Column({
+    name: 'correction_reason',
+    type: 'varchar',
+    length: 300,
+    nullable: true,
+  })
+  correctionReason!: string | null;
+
+  @Column({ name: 'corrected_at_utc', type: 'timestamptz', nullable: true })
+  correctedAtUtc!: Date | null;
+
+  @Column({ name: 'corrected_by_user_id', type: 'uuid', nullable: true })
+  correctedByUserId!: string | null;
 }
 
 @Entity({ schema: 'accounting', name: 'employees' })
@@ -3411,6 +3445,11 @@ export enum ThirdPartyPaymentStatus {
   Cancelled = 'ANNULE',
 }
 
+export enum ThirdPartyPaymentCorrectionType {
+  EntryReversal = 'ANNULATION_SAISIE',
+  Refund = 'REMBOURSEMENT',
+}
+
 export enum PaymentInstrumentStatus {
   Received = 'RECU',
   Deposited = 'DEPOSE',
@@ -3517,6 +3556,34 @@ export class ThirdPartyPayment extends AuditableEntity {
     nullable: true,
   })
   instrumentClearedAtUtc!: Date | null;
+
+  @Column({
+    name: 'correction_type',
+    type: 'varchar',
+    length: 30,
+    nullable: true,
+  })
+  correctionType!: ThirdPartyPaymentCorrectionType | null;
+
+  @Column({ name: 'correction_date', type: 'date', nullable: true })
+  correctionDate!: string | null;
+
+  @Column({
+    name: 'correction_reason',
+    type: 'varchar',
+    length: 300,
+    nullable: true,
+  })
+  correctionReason!: string | null;
+
+  @Column({ name: 'corrected_by_user_id', type: 'uuid', nullable: true })
+  correctedByUserId!: string | null;
+
+  @Column({ name: 'corrected_at_utc', type: 'timestamptz', nullable: true })
+  correctedAtUtc!: Date | null;
+
+  @Column({ name: 'reversal_journal_entry_id', type: 'uuid', nullable: true })
+  reversalJournalEntryId!: string | null;
 
   @OneToMany(() => PaymentAllocation, (allocation) => allocation.payment)
   allocations!: PaymentAllocation[];

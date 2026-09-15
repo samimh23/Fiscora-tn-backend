@@ -85,6 +85,8 @@ import { AuditLogImmutability1784376000000 } from './database/migrations/1784376
 import { InvoiceMultiCurrency1784377000000 } from './database/migrations/1784377000000-invoice-multi-currency';
 import { BankReference1784378000000 } from './database/migrations/1784378000000-bank-reference';
 import { TunisianBanksCatalog1784379000000 } from './database/migrations/1784379000000-tunisian-banks-catalog';
+import { CabinetPaymentCorrections1784380000000 } from './database/migrations/1784380000000-cabinet-payment-corrections';
+import { ThirdPartyPaymentCorrections1784381000000 } from './database/migrations/1784381000000-third-party-payment-corrections';
 
 @Module({
   imports: [
@@ -98,6 +100,10 @@ import { TunisianBanksCatalog1784379000000 } from './database/migrations/1784379
         username: config.get('DB_USER', 'accounting'),
         password: config.get('DB_PASSWORD', 'accounting_dev'),
         database: config.get('DB_NAME', 'accounting_nest'),
+        ssl:
+          config.get('DB_SSL', 'false') === 'true'
+            ? { rejectUnauthorized: true }
+            : false,
         schema: 'public',
         entities: ENTITIES,
         migrations: [
@@ -148,6 +154,8 @@ import { TunisianBanksCatalog1784379000000 } from './database/migrations/1784379
           InvoiceMultiCurrency1784377000000,
           BankReference1784378000000,
           TunisianBanksCatalog1784379000000,
+          CabinetPaymentCorrections1784380000000,
+          ThirdPartyPaymentCorrections1784381000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,

@@ -189,8 +189,7 @@ export class ForeignTradeService {
         operationId,
       })
       .getExists();
-    if (duplicate)
-      throw new ConflictException('Cette référence existe déjà.');
+    if (duplicate) throw new ConflictException('Cette référence existe déjà.');
 
     const currencyCode = normalizeCurrency(dto.currencyCode);
     const exchangeRate = await this.resolveRate(
@@ -531,9 +530,7 @@ export class ForeignTradeService {
             organizationId,
             entryId: entry.id,
             accountId: gain ? dto.fxGainAccountId : dto.fxLossAccountId,
-            label: gain
-              ? 'Gain de change réalisé'
-              : 'Perte de change réalisée',
+            label: gain ? 'Gain de change réalisé' : 'Perte de change réalisée',
             debit: gain ? '0.000' : fromMillimes(amount),
             credit: gain ? fromMillimes(amount) : '0.000',
             thirdPartyName: null,
@@ -639,8 +636,7 @@ export class ForeignTradeService {
       where: { id: operationId, organizationId, dossierId },
       relations: { journal: true, vatSuspensionCertificate: true },
     });
-    if (!operation)
-      throw new NotFoundException('L’opération est introuvable.');
+    if (!operation) throw new NotFoundException('L’opération est introuvable.');
     return operation;
   }
 }

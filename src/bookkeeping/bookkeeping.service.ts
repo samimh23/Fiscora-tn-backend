@@ -92,6 +92,57 @@ export class BookkeepingService {
     return journal;
   }
 
+  async updateJournal(
+    organizationId: string,
+    dossierId: string,
+    journalId: string,
+    userId: string,
+    dto: CreateJournalDto,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const journal = await this.journals.findOneBy({
+      id: journalId,
+      organizationId,
+      dossierId,
+      isActive: true,
+    });
+    if (!journal) throw new NotFoundException('Le journal est introuvable.');
+
+    const nextCode = dto.code.trim().toUpperCase();
+    const hasEntries = await this.entries.existsBy({
+      organizationId,
+      dossierId,
+      journalId,
+    });
+    if (hasEntries && (journal.code !== nextCode || journal.type !== dto.type))
+      throw new ConflictException(
+        'Ce journal contient des écritures : son code et son type sont verrouillés. Son nom peut encore être corrigé.',
+      );
+
+    const previous = {
+      code: journal.code,
+      name: journal.name,
+      type: journal.type,
+    };
+    journal.code = nextCode;
+    journal.name = dto.name.trim();
+    journal.type = dto.type;
+    const saved = await this.journals.save(journal);
+    await this.addAudit(
+      organizationId,
+      userId,
+      'accounting_journal.updated',
+      'AccountingJournal',
+      journal.id,
+      {
+        dossierId,
+        previous,
+        next: { code: saved.code, name: saved.name, type: saved.type },
+      },
+    );
+    return saved;
+  }
+
   async listEntries(organizationId: string, dossierId: string, userId: string) {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     return this.entries.find({
@@ -661,17 +712,45 @@ export class BookkeepingService {
       query,
     );
     const header = [
-      'JournalCode', 'JournalLib', 'EcritureNum', 'EcritureDate', 'CompteNum',
-      'CompteLib', 'CompAuxNum', 'CompAuxLib', 'PieceRef', 'PieceDate',
-      'EcritureLib', 'Debit', 'Credit', 'EcritureLet', 'DateLet', 'ValidDate',
-      'Montantdevise', 'Idevise',
+      'JournalCode',
+      'JournalLib',
+      'EcritureNum',
+      'EcritureDate',
+      'CompteNum',
+      'CompteLib',
+      'CompAuxNum',
+      'CompAuxLib',
+      'PieceRef',
+      'PieceDate',
+      'EcritureLib',
+      'Debit',
+      'Credit',
+      'EcritureLet',
+      'DateLet',
+      'ValidDate',
+      'Montantdevise',
+      'Idevise',
     ].join('|');
     const lines = rows.map((row) =>
       [
-        row.journalCode, row.journalLib, row.ecritureNum, row.ecritureDate,
-        row.compteNum, row.compteLib, '', row.compAuxLib ?? '', row.pieceRef,
-        row.pieceDate, row.ecritureLib, row.debit, row.credit,
-        row.ecritureLet ?? '', row.dateLet ?? '', row.validDate ?? '', '', '',
+        row.journalCode,
+        row.journalLib,
+        row.ecritureNum,
+        row.ecritureDate,
+        row.compteNum,
+        row.compteLib,
+        '',
+        row.compAuxLib ?? '',
+        row.pieceRef,
+        row.pieceDate,
+        row.ecritureLib,
+        row.debit,
+        row.credit,
+        row.ecritureLet ?? '',
+        row.dateLet ?? '',
+        row.validDate ?? '',
+        '',
+        '',
       ].join('|'),
     );
     return Buffer.from([header, ...lines].join('\r\n'), 'utf8');
@@ -694,8 +773,17 @@ export class BookkeepingService {
       query,
     );
     const header = [
-      'JournalCode', 'JournalLib', 'Date', 'NumCompte', 'LibCompte',
-      'NumCompteAux', 'LibCompteAux', 'NumPiece', 'Libelle', 'Debit', 'Credit',
+      'JournalCode',
+      'JournalLib',
+      'Date',
+      'NumCompte',
+      'LibCompte',
+      'NumCompteAux',
+      'LibCompteAux',
+      'NumPiece',
+      'Libelle',
+      'Debit',
+      'Credit',
     ].join(';');
     const escape = (value: string) =>
       value.includes(';') || value.includes('"')
@@ -703,10 +791,16 @@ export class BookkeepingService {
         : value;
     const lines = rows.map((row) =>
       [
-        row.journalCode, row.journalLib,
+        row.journalCode,
+        row.journalLib,
         `${row.ecritureDate.slice(6, 8)}/${row.ecritureDate.slice(4, 6)}/${row.ecritureDate.slice(0, 4)}`,
-        row.compteNum, escape(row.compteLib), '', escape(row.compAuxLib ?? ''),
-        row.pieceRef, escape(row.ecritureLib), row.debit.replace('.', ','),
+        row.compteNum,
+        escape(row.compteLib),
+        '',
+        escape(row.compAuxLib ?? ''),
+        row.pieceRef,
+        escape(row.ecritureLib),
+        row.debit.replace('.', ','),
         row.credit.replace('.', ','),
       ].join(';'),
     );
@@ -729,17 +823,30 @@ export class BookkeepingService {
       query,
     );
     const header = [
-      'date', 'journal_code', 'account_code', 'account_name', 'partner_name',
-      'ref', 'name', 'debit', 'credit', 'matching_number',
+      'date',
+      'journal_code',
+      'account_code',
+      'account_name',
+      'partner_name',
+      'ref',
+      'name',
+      'debit',
+      'credit',
+      'matching_number',
     ].join(',');
-    const escape = (value: string) =>
-      `"${value.replace(/"/g, '""')}"`;
+    const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
     const lines = rows.map((row) =>
       [
         `${row.ecritureDate.slice(0, 4)}-${row.ecritureDate.slice(4, 6)}-${row.ecritureDate.slice(6, 8)}`,
-        row.journalCode, row.compteNum, escape(row.compteLib),
-        escape(row.compAuxLib ?? ''), row.pieceRef, escape(row.ecritureLib),
-        row.debit, row.credit, row.ecritureLet ?? '',
+        row.journalCode,
+        row.compteNum,
+        escape(row.compteLib),
+        escape(row.compAuxLib ?? ''),
+        row.pieceRef,
+        escape(row.ecritureLib),
+        row.debit,
+        row.credit,
+        row.ecritureLet ?? '',
       ].join(','),
     );
     return Buffer.from([header, ...lines].join('\r\n'), 'utf8');

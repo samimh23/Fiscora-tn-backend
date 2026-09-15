@@ -1,14 +1,13 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class IsAndForfaitaireParameters1784369000000
-  implements MigrationInterface
-{
+export class IsAndForfaitaireParameters1784369000000 implements MigrationInterface {
   name = 'IsAndForfaitaireParameters1784369000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const isSource =
       "Code de l'IRPP et de l'IS, tel que modifié par la loi de finances 2021 (réforme du taux de l'IS) — taux et minimum à confirmer par le cabinet selon le secteur exact et la loi de finances en vigueur";
-    const isSourceUrl = 'https://www.finances.gov.tn/fr/code-de-lirpp-et-de-lis';
+    const isSourceUrl =
+      'https://www.finances.gov.tn/fr/code-de-lirpp-et-de-lis';
     await queryRunner.query(
       `
       INSERT INTO "accounting"."fiscal_parameters"

@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class WithholdingRateCatalog1784368000000
-  implements MigrationInterface
-{
+export class WithholdingRateCatalog1784368000000 implements MigrationInterface {
   name = 'WithholdingRateCatalog1784368000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

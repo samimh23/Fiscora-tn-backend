@@ -602,9 +602,7 @@ export class AccountingService {
       actorUserId,
     );
     const normalizedCode = this.normalizeCode(dto.code);
-    if (
-      await this.costCenters.existsBy({ dossierId, normalizedCode })
-    )
+    if (await this.costCenters.existsBy({ dossierId, normalizedCode }))
       throw new ConflictException(
         'Un centre de coût porte déjà ce code dans ce dossier.',
       );

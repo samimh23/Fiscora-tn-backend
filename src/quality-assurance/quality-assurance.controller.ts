@@ -39,6 +39,10 @@ export class QualityAssuranceController {
     @Param('dossierId', ParseUUIDPipe) dossierId: string,
     @CurrentUser() user: JwtUser,
   ) {
-    return this.service.getDossierReport(organizationId, dossierId, user.userId);
+    return this.service.getDossierReport(
+      organizationId,
+      dossierId,
+      user.userId,
+    );
   }
 }

@@ -86,7 +86,7 @@ export class InvitationMailerService {
       timeStyle: 'short',
       timeZone: 'Africa/Tunis',
     });
-    const from = this.config.get(
+    const from = this.config.get<string>(
       'SMTP_FROM',
       'Fiscora <invitations@fiscora.local>',
     );
@@ -170,7 +170,7 @@ export class InvitationMailerService {
       timeStyle: 'short',
       timeZone: 'Africa/Tunis',
     });
-    const from = this.config.get(
+    const from = this.config.get<string>(
       'SMTP_FROM',
       'Fiscora <invitations@fiscora.local>',
     );
@@ -233,7 +233,10 @@ export class InvitationMailerService {
 
   async sendTestEmail(recipient: string, actorUserId: string) {
     const transport = this.createTransport();
-    const from = this.config.get('SMTP_FROM', 'Fiscora <invitations@fiscora.me>');
+    const from = this.config.get<string>(
+      'SMTP_FROM',
+      'Fiscora <invitations@fiscora.me>',
+    );
     const subject = 'Test Fiscora — envoi transactionnel';
     try {
       const result = await transport.sendMail({
@@ -295,7 +298,7 @@ export class InvitationMailerService {
           timeZone: 'Africa/Tunis',
         }).format(new Date(`${input.dueOn}T00:00:00`))
       : null;
-    const from = this.config.get(
+    const from = this.config.get<string>(
       'SMTP_FROM',
       'Fiscora <invitations@fiscora.me>',
     );

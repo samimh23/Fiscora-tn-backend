@@ -1,6 +1,4 @@
-import {
-  PartialType,
-} from '@nestjs/swagger';
+import { PartialType } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsDateString,

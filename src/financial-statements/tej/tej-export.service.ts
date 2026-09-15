@@ -59,8 +59,18 @@ export class TejExportService {
     const current = this.fiscalRange(dossier, year);
     const previous = this.fiscalRange(dossier, year - 1);
     const [currentBalances, previousBalances] = await Promise.all([
-      this.accountBalances(organizationId, dossierId, current.startsOn, current.endsOn),
-      this.accountBalances(organizationId, dossierId, previous.startsOn, previous.endsOn),
+      this.accountBalances(
+        organizationId,
+        dossierId,
+        current.startsOn,
+        current.endsOn,
+      ),
+      this.accountBalances(
+        organizationId,
+        dossierId,
+        previous.startsOn,
+        previous.endsOn,
+      ),
     ]);
 
     const leaves = new Map<string, bigint>();
@@ -74,14 +84,36 @@ export class TejExportService {
 
     // --- F6001 (Bilan Actif) ---
     const claimedAsset = new Set<string>();
-    for (const [suffix, { brut, amort }] of Object.entries(F6001_LEAF_MAPPING)) {
-      const brutValue = this.sumDebitPositive(currentBalances, brut, claimedAsset);
-      const amortValue = this.sumDebitPositive(currentBalances, amort, claimedAsset);
-      const brutValueN1 = this.sumDebitPositive(previousBalances, brut, new Set());
-      const amortValueN1 = this.sumDebitPositive(previousBalances, amort, new Set());
+    for (const [suffix, { brut, amort }] of Object.entries(
+      F6001_LEAF_MAPPING,
+    )) {
+      const brutValue = this.sumDebitPositive(
+        currentBalances,
+        brut,
+        claimedAsset,
+      );
+      const amortValue = this.sumDebitPositive(
+        currentBalances,
+        amort,
+        claimedAsset,
+      );
+      const brutValueN1 = this.sumDebitPositive(
+        previousBalances,
+        brut,
+        new Set(),
+      );
+      const amortValueN1 = this.sumDebitPositive(
+        previousBalances,
+        amort,
+        new Set(),
+      );
       track(`F6001-0-${suffix}`, brutValue, brut.length + amort.length > 0);
       track(`F6001-1-${suffix}`, amortValue, brut.length + amort.length > 0);
-      track(`F6001-2-${suffix}`, brutValue - amortValue, brut.length + amort.length > 0);
+      track(
+        `F6001-2-${suffix}`,
+        brutValue - amortValue,
+        brut.length + amort.length > 0,
+      );
       track(
         `F6001-3-${suffix}`,
         brutValueN1 - amortValueN1,
@@ -89,8 +121,16 @@ export class TejExportService {
       );
     }
     for (const category of NETTED_TIERS_CATEGORIES) {
-      const net = this.sumNetBalance(currentBalances, category.prefixes, claimedAsset);
-      const netN1 = this.sumNetBalance(previousBalances, category.prefixes, new Set());
+      const net = this.sumNetBalance(
+        currentBalances,
+        category.prefixes,
+        claimedAsset,
+      );
+      const netN1 = this.sumNetBalance(
+        previousBalances,
+        category.prefixes,
+        new Set(),
+      );
       const assetValue = net > 0n ? net : 0n;
       const assetValueN1 = netN1 > 0n ? netN1 : 0n;
       track(`F6001-0-${category.f6001Suffix}`, assetValue, true);
@@ -100,8 +140,16 @@ export class TejExportService {
     }
     // Residual catch-all (0067): every asset-type account not already
     // claimed by a specific leaf above.
-    const residualAsset = this.sumResidual(currentBalances, 'asset', claimedAsset);
-    const residualAssetN1 = this.sumResidual(previousBalances, 'asset', new Set());
+    const residualAsset = this.sumResidual(
+      currentBalances,
+      'asset',
+      claimedAsset,
+    );
+    const residualAssetN1 = this.sumResidual(
+      previousBalances,
+      'asset',
+      new Set(),
+    );
     track('F6001-0-0067', residualAsset, true);
     track('F6001-1-0067', 0n, true);
     track('F6001-2-0067', residualAsset, true);
@@ -110,29 +158,59 @@ export class TejExportService {
     // --- F6002 (Bilan Passif) ---
     const claimedLiability = new Set<string>();
     for (const [code, prefixes] of Object.entries(F6002_LEAF_MAPPING)) {
-      const value = this.sumCreditPositive(currentBalances, prefixes, claimedLiability);
-      const valueN1 = this.sumCreditPositive(previousBalances, prefixes, new Set());
+      const value = this.sumCreditPositive(
+        currentBalances,
+        prefixes,
+        claimedLiability,
+      );
+      const valueN1 = this.sumCreditPositive(
+        previousBalances,
+        prefixes,
+        new Set(),
+      );
       const n1Code = this.offsetCode(code, F6002_N1_OFFSET);
       track(code, value, prefixes.length > 0);
       track(n1Code, valueN1, prefixes.length > 0);
     }
     for (const category of NETTED_TIERS_CATEGORIES) {
       if (!category.f6002Code) continue;
-      const net = this.sumNetBalance(currentBalances, category.prefixes, claimedLiability);
-      const netN1 = this.sumNetBalance(previousBalances, category.prefixes, new Set());
+      const net = this.sumNetBalance(
+        currentBalances,
+        category.prefixes,
+        claimedLiability,
+      );
+      const netN1 = this.sumNetBalance(
+        previousBalances,
+        category.prefixes,
+        new Set(),
+      );
       const liabilityValue = net < 0n ? -net : 0n;
       const liabilityValueN1 = netN1 < 0n ? -netN1 : 0n;
       track(category.f6002Code, liabilityValue, true);
-      track(this.offsetCode(category.f6002Code, F6002_N1_OFFSET), liabilityValueN1, true);
+      track(
+        this.offsetCode(category.f6002Code, F6002_N1_OFFSET),
+        liabilityValueN1,
+        true,
+      );
     }
-    const residualLiability = this.sumResidual(currentBalances, 'liability', claimedLiability);
-    const residualLiabilityN1 = this.sumResidual(previousBalances, 'liability', new Set());
+    const residualLiability = this.sumResidual(
+      currentBalances,
+      'liability',
+      claimedLiability,
+    );
+    const residualLiabilityN1 = this.sumResidual(
+      previousBalances,
+      'liability',
+      new Set(),
+    );
     track('F60020052', residualLiability, true);
     track('F60020105', residualLiabilityN1, true);
 
     // --- F6003 (État de résultats) ---
     const claimedResult = new Set<string>();
-    for (const [code, { prefixes, sign }] of Object.entries(F6003_LEAF_MAPPING)) {
+    for (const [code, { prefixes, sign }] of Object.entries(
+      F6003_LEAF_MAPPING,
+    )) {
       const value =
         sign === 1
           ? this.sumCreditPositive(currentBalances, prefixes, claimedResult)
@@ -145,17 +223,36 @@ export class TejExportService {
       track(code, value, prefixes.length > 0);
       track(n1Code, valueN1, prefixes.length > 0);
     }
-    const residualRevenue = this.sumResidual(currentBalances, 'revenue', claimedResult);
-    const residualExpense = this.sumResidual(currentBalances, 'expense', claimedResult);
+    const residualRevenue = this.sumResidual(
+      currentBalances,
+      'revenue',
+      claimedResult,
+    );
+    const residualExpense = this.sumResidual(
+      currentBalances,
+      'expense',
+      claimedResult,
+    );
     const residualResult = residualRevenue - residualExpense;
-    const residualRevenueN1 = this.sumResidual(previousBalances, 'revenue', new Set());
-    const residualExpenseN1 = this.sumResidual(previousBalances, 'expense', new Set());
+    const residualRevenueN1 = this.sumResidual(
+      previousBalances,
+      'revenue',
+      new Set(),
+    );
+    const residualExpenseN1 = this.sumResidual(
+      previousBalances,
+      'expense',
+      new Set(),
+    );
     track('F60030088', residualResult, true);
     track('F60030177', residualRevenueN1 - residualExpenseN1, true);
 
     const entete = this.buildEntete(dossier, year, current);
     const files = [
-      { name: 'F6001.xml', xml: this.serialize('F6001', entete, leaves, 'F6001-') },
+      {
+        name: 'F6001.xml',
+        xml: this.serialize('F6001', entete, leaves, 'F6001-'),
+      },
       { name: 'F6002.xml', xml: this.serialize('F6002', entete, leaves, '') },
       { name: 'F6003.xml', xml: this.serialize('F6003', entete, leaves, '') },
     ];
@@ -259,7 +356,10 @@ export class TejExportService {
     for (const [code, balance] of balances) {
       if (claimed.has(code)) continue;
       const cls = code[0];
-      if (kind === 'asset' && (cls === '2' || cls === '3' || cls === '4' || cls === '5')) {
+      if (
+        kind === 'asset' &&
+        (cls === '2' || cls === '3' || cls === '4' || cls === '5')
+      ) {
         if (balance < 0n) total += -balance;
       } else if (
         kind === 'liability' &&
@@ -305,7 +405,10 @@ export class TejExportService {
       return `${d}/${m}/${y}`;
     };
     return {
-      MatriculeFiscalDeclarant: (dossier.taxIdentifier ?? '').replace(/[^0-9A-Z]/gi, ''),
+      MatriculeFiscalDeclarant: (dossier.taxIdentifier ?? '').replace(
+        /[^0-9A-Z]/gi,
+        '',
+      ),
       NometPrenomouRaisonSociale: this.xmlEscape(dossier.legalName),
       Activite: this.xmlEscape(dossier.activitySector ?? 'Non précisé'),
       // ClientDossier doesn't currently store a postal address - the
@@ -359,7 +462,9 @@ export class TejExportService {
 
     const lines: string[] = [];
     lines.push('<?xml version="1.0" encoding="UTF-8"?>');
-    lines.push(`<lf:${form} xmlns:lf="http://www.impots.finances.gov.tn/liasse">`);
+    lines.push(
+      `<lf:${form} xmlns:lf="http://www.impots.finances.gov.tn/liasse">`,
+    );
     lines.push('  <lf:VersionDocument>1.0</lf:VersionDocument>');
     lines.push('  <lf:Entete>');
     for (const [key, value] of Object.entries(entete)) {
@@ -369,7 +474,9 @@ export class TejExportService {
     lines.push('  <lf:Details>');
     for (const field of fields) {
       const value = resolve(field.code);
-      lines.push(`    <lf:${field.code}>${fromMillimesInt(value)}</lf:${field.code}>`);
+      lines.push(
+        `    <lf:${field.code}>${fromMillimesInt(value)}</lf:${field.code}>`,
+      );
     }
     lines.push('  </lf:Details>');
     lines.push(`</lf:${form}>`);
@@ -394,6 +501,11 @@ function fromMillimesInt(value: bigint) {
   const millimes = value;
   const dinars = millimes / 1000n;
   const remainder = millimes % 1000n;
-  const rounded = remainder * 2n >= 1000n ? dinars + 1n : remainder * -2n >= 1000n ? dinars - 1n : dinars;
+  const rounded =
+    remainder * 2n >= 1000n
+      ? dinars + 1n
+      : remainder * -2n >= 1000n
+        ? dinars - 1n
+        : dinars;
   return rounded.toString();
 }

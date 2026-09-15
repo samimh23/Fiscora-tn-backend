@@ -16,7 +16,11 @@ import {
 import { DossiersService } from '../dossiers/dossiers.service';
 import { fromMillimes, multiplyRate, toMillimes } from '../common/money';
 import { FiscalSettingsService } from '../fiscal-settings/fiscal-settings.service';
-import { CreateEmployeeDto, GeneratePayrollDto, UpdateEmployeeDto } from './dto';
+import {
+  CreateEmployeeDto,
+  GeneratePayrollDto,
+  UpdateEmployeeDto,
+} from './dto';
 
 @Injectable()
 export class PayrollService {
@@ -83,8 +87,7 @@ export class PayrollService {
       dossierId,
       isActive: true,
     });
-    if (!employee)
-      throw new NotFoundException('Le salarié est introuvable.');
+    if (!employee) throw new NotFoundException('Le salarié est introuvable.');
 
     if (dto.fullName !== undefined) employee.fullName = dto.fullName.trim();
     if (dto.cin !== undefined) employee.cin = dto.cin?.trim() || null;
@@ -372,7 +375,16 @@ export class PayrollService {
       quarter,
     );
     const rows = [
-      ['Annee', 'Trimestre', 'Salarie', 'Numero CNSS', 'Assiette brute', 'Part salarie', 'Part employeur', 'Total'],
+      [
+        'Annee',
+        'Trimestre',
+        'Salarie',
+        'Numero CNSS',
+        'Assiette brute',
+        'Part salarie',
+        'Part employeur',
+        'Total',
+      ],
       ...report.employees.map((employee) => [
         String(year),
         `T${quarter}`,
@@ -447,7 +459,8 @@ export class PayrollService {
         grossAnnual: acc.grossAnnual + this.toMillimesLocal(row.grossAnnual),
         employeeCnssAnnual:
           acc.employeeCnssAnnual + this.toMillimesLocal(row.employeeCnssAnnual),
-        taxableAnnual: acc.taxableAnnual + this.toMillimesLocal(row.taxableAnnual),
+        taxableAnnual:
+          acc.taxableAnnual + this.toMillimesLocal(row.taxableAnnual),
         incomeTaxAnnual:
           acc.incomeTaxAnnual + this.toMillimesLocal(row.incomeTaxAnnual),
         netAnnual: acc.netAnnual + this.toMillimesLocal(row.netAnnual),
@@ -571,7 +584,11 @@ export class PayrollService {
       .fillColor('#FFFFFF')
       .font('Helvetica-Bold')
       .fontSize(21)
-      .text("Déclaration annuelle de l'employeur — état des salaires et retenues", 36, 34)
+      .text(
+        "Déclaration annuelle de l'employeur — état des salaires et retenues",
+        36,
+        34,
+      )
       .font('Helvetica')
       .fontSize(11)
       .text(`Exercice ${year} — ${report.employer.legalName}`, 36, 66)
@@ -582,7 +599,11 @@ export class PayrollService {
       );
 
     let y = 132;
-    const columns: Array<{ label: string; width: number; align?: 'left' | 'right' }> = [
+    const columns: Array<{
+      label: string;
+      width: number;
+      align?: 'left' | 'right';
+    }> = [
       { label: 'Salarié', width: 190 },
       { label: 'CIN', width: 80 },
       { label: 'CNSS', width: 90 },
@@ -595,14 +616,21 @@ export class PayrollService {
     document.fillColor('#14532D').font('Helvetica-Bold').fontSize(9);
     let x = 36;
     for (const column of columns) {
-      document.text(column.label, x, y, { width: column.width, align: column.align ?? 'left' });
+      document.text(column.label, x, y, {
+        width: column.width,
+        align: column.align ?? 'left',
+      });
       x += column.width;
     }
     y += 18;
     document.font('Helvetica').fontSize(8.5).fillColor('#0F172A');
     for (const employee of report.employees) {
       if (y > 520) {
-        document.addPage({ size: 'A4', layout: 'landscape', margins: { top: 36, right: 36, bottom: 36, left: 36 } });
+        document.addPage({
+          size: 'A4',
+          layout: 'landscape',
+          margins: { top: 36, right: 36, bottom: 36, left: 36 },
+        });
         y = 36;
       }
       document.rect(36, y - 4, 770, 20).fill('#F8FAFC');
@@ -619,7 +647,10 @@ export class PayrollService {
         `${employee.netAnnual} TND`,
       ];
       for (let index = 0; index < columns.length; index++) {
-        document.text(values[index], x, y, { width: columns[index].width, align: columns[index].align ?? 'left' });
+        document.text(values[index], x, y, {
+          width: columns[index].width,
+          align: columns[index].align ?? 'left',
+        });
         x += columns[index].width;
       }
       y += 20;
@@ -639,7 +670,10 @@ export class PayrollService {
       `${report.totals.netAnnual} TND`,
     ];
     for (let index = 0; index < columns.length; index++) {
-      document.text(totalValues[index], x, y, { width: columns[index].width, align: columns[index].align ?? 'left' });
+      document.text(totalValues[index], x, y, {
+        width: columns[index].width,
+        align: columns[index].align ?? 'left',
+      });
       x += columns[index].width;
     }
     document
@@ -696,7 +730,11 @@ export class PayrollService {
       .text('Bulletin de paie', 42, 44)
       .font('Helvetica')
       .fontSize(12)
-      .text(`${String(run.periodMonth).padStart(2, '0')}/${run.periodYear}`, 42, 78);
+      .text(
+        `${String(run.periodMonth).padStart(2, '0')}/${run.periodYear}`,
+        42,
+        78,
+      );
     document
       .fillColor('#0F172A')
       .font('Helvetica-Bold')
@@ -706,8 +744,16 @@ export class PayrollService {
       .fontSize(10)
       .fillColor('#475569')
       .text(`Dossier : ${dossier.legalName}`, 42, 190)
-      .text(`CIN : ${line.employee.cin ?? '—'}   CNSS : ${line.employee.cnssNumber ?? '—'}`, 42, 208)
-      .text(`Contrat : ${line.employee.contractType}   Embauche : ${line.employee.hireDate}`, 42, 226);
+      .text(
+        `CIN : ${line.employee.cin ?? '—'}   CNSS : ${line.employee.cnssNumber ?? '—'}`,
+        42,
+        208,
+      )
+      .text(
+        `Contrat : ${line.employee.contractType}   Embauche : ${line.employee.hireDate}`,
+        42,
+        226,
+      );
 
     let y = 270;
     const rows: Array<[string, string, string]> = [
@@ -800,7 +846,10 @@ export class PayrollService {
 
   private toMillimesLocal(value: string) {
     const [whole, decimals = ''] = String(value ?? '0').split('.');
-    return BigInt(whole || '0') * 1000n + BigInt(decimals.padEnd(3, '0').slice(0, 3) || '0');
+    return (
+      BigInt(whole || '0') * 1000n +
+      BigInt(decimals.padEnd(3, '0').slice(0, 3) || '0')
+    );
   }
 
   private formatMillimes(value: bigint) {

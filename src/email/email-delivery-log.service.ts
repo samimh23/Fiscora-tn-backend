@@ -4,10 +4,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
 export type EmailLogCategory =
-  | 'INVITATION'
-  | 'ADMIN_TEST'
-  | 'SYSTEM'
-  | 'DOCUMENT_REQUEST';
+  'INVITATION' | 'ADMIN_TEST' | 'SYSTEM' | 'DOCUMENT_REQUEST';
 export type EmailLogStatus = 'ENVOYE' | 'ECHEC';
 
 interface WriteEmailLogInput {

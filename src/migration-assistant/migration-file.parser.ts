@@ -9,26 +9,37 @@ export interface MigrationRow {
 export async function parseMigrationFile(
   file?: Express.Multer.File,
 ): Promise<MigrationRow[]> {
-  if (!file) throw new BadRequestException('Le fichier de migration est requis.');
+  if (!file)
+    throw new BadRequestException('Le fichier de migration est requis.');
   const extension = file.originalname.toLowerCase().split('.').pop();
   let rows: unknown[][];
   if (extension === 'xlsx') rows = await readSheet(file.buffer);
   else if (extension === 'csv') rows = parseCsv(file.buffer.toString('utf8'));
-  else throw new BadRequestException('Utilisez un fichier CSV ou XLSX exporté depuis Sage/Ciel.');
+  else
+    throw new BadRequestException(
+      'Utilisez un fichier CSV ou XLSX exporté depuis Sage/Ciel.',
+    );
   if (rows.length < 2)
-    throw new BadRequestException('Le fichier ne contient aucune ligne à importer.');
+    throw new BadRequestException(
+      'Le fichier ne contient aucune ligne à importer.',
+    );
   const headers = rows[0].map((cell) => normalizeHeader(stringValue(cell)));
   const parsed = rows
     .slice(1)
     .map((row, index) => ({
       rowNumber: index + 2,
       values: Object.fromEntries(
-        headers.map((header, cellIndex) => [header, stringValue(row[cellIndex])]),
+        headers.map((header, cellIndex) => [
+          header,
+          stringValue(row[cellIndex]),
+        ]),
       ),
     }))
     .filter((row) => Object.values(row.values).some(Boolean));
   if (!parsed.length)
-    throw new BadRequestException('Le fichier ne contient aucune ligne à importer.');
+    throw new BadRequestException(
+      'Le fichier ne contient aucune ligne à importer.',
+    );
   return parsed;
 }
 

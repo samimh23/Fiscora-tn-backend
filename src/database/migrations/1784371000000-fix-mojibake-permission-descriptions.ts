@@ -4,9 +4,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 // later saved with double-UTF-8-encoded French text (Ã© instead of é).
 // That corrupted the description strings it inserted into the
 // permissions table. This migration repairs the affected rows.
-export class FixMojibakePermissionDescriptions1784371000000
-  implements MigrationInterface
-{
+export class FixMojibakePermissionDescriptions1784371000000 implements MigrationInterface {
   name = 'FixMojibakePermissionDescriptions1784371000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

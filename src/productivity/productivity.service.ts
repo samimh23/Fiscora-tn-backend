@@ -103,6 +103,87 @@ interface CockpitLane {
   items: CockpitItem[];
 }
 
+interface CockpitRow {
+  total: string | number;
+}
+
+interface TaskCockpitRow extends CockpitRow {
+  id: string;
+  dossierId: string;
+  dossierName: string;
+  title: string;
+  dueOn: string | null;
+  priority: string;
+  status: string;
+}
+
+interface DocumentCockpitRow extends CockpitRow {
+  id: string;
+  dossierId: string;
+  dossierName: string;
+  title: string;
+  category: string;
+  extractionStatus: string;
+  malwareScanStatus: string;
+  processingStatus: string;
+}
+
+interface InvoiceValidationCockpitRow extends CockpitRow {
+  id: string;
+  dossierId: string;
+  dossierName: string;
+  number: string;
+  thirdPartyName: string;
+  type: string;
+  kind: string;
+  invoiceDate: string;
+  status: string;
+  amount: string;
+}
+
+interface UnpaidInvoiceCockpitRow extends CockpitRow {
+  id: string;
+  dossierId: string;
+  dossierName: string;
+  number: string;
+  thirdPartyName: string;
+  type: string;
+  dueOn: string;
+  status: string;
+  amount: string;
+}
+
+interface BankCockpitRow extends CockpitRow {
+  id: string;
+  dossierId: string;
+  dossierName: string;
+  title: string;
+  sourceFileName: string;
+  dueOn: string;
+  status: string;
+  amount: string;
+}
+
+interface ObligationCockpitRow extends CockpitRow {
+  id: string;
+  dossierId: string;
+  dossierName: string;
+  title: string;
+  dueOn: string;
+  status: string;
+  amount: string;
+}
+
+interface PayrollCockpitRow extends CockpitRow {
+  id: string;
+  dossierId: string;
+  dossierName: string;
+  periodMonth: number | string;
+  periodYear: number | string;
+  status: string;
+  amount: string;
+}
+
 @Injectable()
 export class ProductivityService {
   constructor(
@@ -162,7 +243,7 @@ export class ProductivityService {
       obligations,
       payrollRuns,
     ] = await Promise.all([
-      this.dataSource.query(
+      this.dataSource.query<TaskCockpitRow[]>(
         `
         SELECT t.id, t.dossier_id AS "dossierId", d.legal_name AS "dossierName",
                t.title, t.due_on AS "dueOn", t.priority, t.status,
@@ -179,7 +260,7 @@ export class ProductivityService {
         `,
         params,
       ),
-      this.dataSource.query(
+      this.dataSource.query<TaskCockpitRow[]>(
         `
         SELECT t.id, t.dossier_id AS "dossierId", d.legal_name AS "dossierName",
                t.title, t.due_on AS "dueOn", t.priority, t.status,
@@ -193,7 +274,7 @@ export class ProductivityService {
         `,
         params,
       ),
-      this.dataSource.query(
+      this.dataSource.query<DocumentCockpitRow[]>(
         `
         SELECT doc.id, doc.dossier_id AS "dossierId", d.legal_name AS "dossierName",
                doc.original_name AS title, doc.category, doc.period_year AS "periodYear",
@@ -220,7 +301,7 @@ export class ProductivityService {
         `,
         params,
       ),
-      this.dataSource.query(
+      this.dataSource.query<InvoiceValidationCockpitRow[]>(
         `
         SELECT inv.id, inv.dossier_id AS "dossierId", d.legal_name AS "dossierName",
                inv.number, inv.type, inv.kind, inv.third_party_name AS "thirdPartyName",
@@ -238,7 +319,7 @@ export class ProductivityService {
         `,
         params,
       ),
-      this.dataSource.query(
+      this.dataSource.query<UnpaidInvoiceCockpitRow[]>(
         `
         SELECT inv.id, inv.dossier_id AS "dossierId", d.legal_name AS "dossierName",
                inv.number, inv.type, inv.third_party_name AS "thirdPartyName",
@@ -256,7 +337,7 @@ export class ProductivityService {
         `,
         params,
       ),
-      this.dataSource.query(
+      this.dataSource.query<BankCockpitRow[]>(
         `
         SELECT tx.id, tx.dossier_id AS "dossierId", d.legal_name AS "dossierName",
                tx.description AS title, tx.transaction_date AS "dueOn",
@@ -272,7 +353,7 @@ export class ProductivityService {
         `,
         params,
       ),
-      this.dataSource.query(
+      this.dataSource.query<ObligationCockpitRow[]>(
         `
         SELECT obl.id, obl.dossier_id AS "dossierId", d.legal_name AS "dossierName",
                tpl.name AS title, obl.due_on AS "dueOn", obl.status,
@@ -288,7 +369,7 @@ export class ProductivityService {
         `,
         params,
       ),
-      this.dataSource.query(
+      this.dataSource.query<PayrollCockpitRow[]>(
         `
         SELECT pr.id, pr.dossier_id AS "dossierId", d.legal_name AS "dossierName",
                pr.period_year AS "periodYear", pr.period_month AS "periodMonth",
@@ -407,7 +488,8 @@ export class ProductivityService {
           dossierId: row.dossierId,
           dossierName: row.dossierName,
           title: `${row.number} · ${row.thirdPartyName}`,
-          subtitle: row.type === 'VENTE' ? 'Client à relancer' : 'Fournisseur à régler',
+          subtitle:
+            row.type === 'VENTE' ? 'Client à relancer' : 'Fournisseur à régler',
           dueOn: row.dueOn,
           status: row.status,
           amount: row.amount,
@@ -491,7 +573,8 @@ export class ProductivityService {
         criticalActions: lanes
           .filter((lane) => lane.severity === 'error')
           .reduce((sum, lane) => sum + lane.count, 0),
-        validationActions: this.count(reviewTasks) + this.count(invoiceValidation),
+        validationActions:
+          this.count(reviewTasks) + this.count(invoiceValidation),
         collectionActions: this.count(documents) + this.count(bankTransactions),
       },
       lanes,
@@ -1245,15 +1328,15 @@ export class ProductivityService {
     };
   }
 
-  private lane(
+  private lane<TRow extends CockpitRow>(
     key: string,
     title: string,
     description: string,
     severity: CockpitSeverity,
     actionLabel: string,
     actionPath: string,
-    rows: any[],
-    map: (row: any) => CockpitItem,
+    rows: TRow[],
+    map: (row: TRow) => CockpitItem,
   ): CockpitLane {
     return {
       key,
@@ -1267,7 +1350,7 @@ export class ProductivityService {
     };
   }
 
-  private count(rows: any[]) {
+  private count(rows: CockpitRow[]) {
     return Number(rows[0]?.total ?? 0);
   }
 
@@ -1303,10 +1386,7 @@ export class ProductivityService {
     return entry;
   }
 
-  private async findOpenSession(
-    organizationId: string,
-    membershipId: string,
-  ) {
+  private async findOpenSession(organizationId: string, membershipId: string) {
     return this.workSessions.findOne({
       where: {
         organizationId,

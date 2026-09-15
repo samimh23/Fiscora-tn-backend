@@ -1,9 +1,11 @@
 import {
   IsDateString,
+  IsIn,
   IsOptional,
   IsString,
   Matches,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 
 const money = /^\d+(\.\d{1,3})?$/;
@@ -45,4 +47,17 @@ export class RecordPaymentDto {
   @IsString()
   @MaxLength(100)
   reference?: string;
+}
+
+export class CorrectPaymentDto {
+  @IsIn(['ANNULATION_SAISIE', 'REMBOURSEMENT'])
+  correctionType!: 'ANNULATION_SAISIE' | 'REMBOURSEMENT';
+
+  @IsDateString()
+  correctionDate!: string;
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(300)
+  reason!: string;
 }

@@ -6,7 +6,6 @@ import {
   Organization,
   OrganizationMembership,
   Role,
-  RolePermission,
   User,
 } from '../database/entities';
 import {
