@@ -95,7 +95,7 @@ export class AnnualTaxController {
     const isPdf = query.format !== 'csv';
     const buffer = isPdf
       ? await this.service.toPdf(report)
-      : await this.service.toCsv(report);
+      : this.service.toCsv(report);
     return new StreamableFile(buffer, {
       type: isPdf ? 'application/pdf' : 'text/csv; charset=utf-8',
       disposition: `attachment; filename="fiscal-annuel-${year}.${isPdf ? 'pdf' : 'csv'}"`,
@@ -155,7 +155,7 @@ export class AnnualTaxController {
     const isPdf = query.format !== 'csv';
     const buffer = isPdf
       ? await this.service.depreciationAnnexPdf(annex)
-      : await this.service.depreciationAnnexCsv(annex);
+      : this.service.depreciationAnnexCsv(annex);
     return new StreamableFile(buffer, {
       type: isPdf ? 'application/pdf' : 'text/csv; charset=utf-8',
       disposition: `attachment; filename="amortissements-${year}.${isPdf ? 'pdf' : 'csv'}"`,
@@ -197,7 +197,7 @@ export class AnnualTaxController {
     const isPdf = query.format !== 'csv';
     const buffer = isPdf
       ? await this.service.withholdingAnnexPdf(annex)
-      : await this.service.withholdingAnnexCsv(annex);
+      : this.service.withholdingAnnexCsv(annex);
     return new StreamableFile(buffer, {
       type: isPdf ? 'application/pdf' : 'text/csv; charset=utf-8',
       disposition: `attachment; filename="retenues-source-${year}.${isPdf ? 'pdf' : 'csv'}"`,
