@@ -72,14 +72,16 @@ export class InvoiceExtractionValidator {
     );
     const total = this.amount(input.total_incl_tax);
     const due = this.amount(input.amount_due);
-    for (const [field, value] of [
+    const financialFields = [
       ['subtotal_excl_tax', subtotal],
       ['tax_amount', tax],
       ['fodec_amount', this.amount(input.fodec_amount)],
       ['stamp_tax', this.amount(input.stamp_tax)],
       ['total_incl_tax', total],
       ['amount_due', due],
-    ] as const) {
+    ] as const;
+    for (const [field, value] of financialFields) {
+      if (value != null) normalizedData[field] = value;
       if (value != null && value < 0) {
         issues.push(
           this.error(
@@ -102,6 +104,10 @@ export class InvoiceExtractionValidator {
         );
       }
     });
+    normalizedData.other_taxes = otherTaxes.map((item) => ({
+      ...item,
+      amount: this.amount(item.amount),
+    }));
     if (subtotal != null && tax != null && total != null) {
       const difference = Math.abs(
         subtotal + tax + fodec + stamp + otherTaxTotal - total,
@@ -127,7 +133,19 @@ export class InvoiceExtractionValidator {
     }
 
     const lines = Array.isArray(input.line_items) ? input.line_items : [];
-    lines.forEach((line, index) => {
+    const normalizedLines = lines.map((line) => {
+      const item = this.record(line);
+      if (!item) return {};
+      return {
+        ...item,
+        quantity: this.amount(item.quantity),
+        unit_price: this.amount(item.unit_price),
+        tax_rate: this.amount(item.tax_rate),
+        line_total: this.amount(item.line_total),
+      };
+    });
+    normalizedData.line_items = normalizedLines;
+    normalizedLines.forEach((line, index) => {
       const item = this.record(line);
       if (!item) return;
       const quantity = this.amount(item.quantity);
@@ -163,11 +181,14 @@ export class InvoiceExtractionValidator {
   private amount(value: unknown): number | null {
     if (typeof value === 'number') return Number.isFinite(value) ? value : null;
     if (typeof value !== 'string' || !value.trim()) return null;
-    const compact = value.replace(/\s/g, '').replace(/[^0-9,.-]/g, '');
+    const compact = value.replace(/[\s\u00a0]/g, '').replace(/[^0-9,.-]/g, '');
+    const comma = compact.lastIndexOf(',');
+    const dot = compact.lastIndexOf('.');
+    const separator = Math.max(comma, dot);
     const decimal =
-      compact.includes(',') && !compact.includes('.')
-        ? compact.replace(',', '.')
-        : compact.replace(/,/g, '');
+      separator < 0
+        ? compact
+        : `${compact.slice(0, separator).replace(/[,.]/g, '')}.${compact.slice(separator + 1).replace(/[,.]/g, '')}`;
     const parsed = Number(decimal);
     return Number.isFinite(parsed) ? parsed : null;
   }

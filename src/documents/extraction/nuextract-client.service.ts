@@ -107,31 +107,31 @@ export class NuExtractClientService {
       document_number: 'verbatim-string',
       issue_date: 'date-time',
       currency: 'currency',
-      subtotal_excl_tax: 'number',
-      tax_amount: 'number',
-      fodec_amount: 'number',
-      stamp_tax: 'number',
+      subtotal_excl_tax: 'verbatim-string',
+      tax_amount: 'verbatim-string',
+      fodec_amount: 'verbatim-string',
+      stamp_tax: 'verbatim-string',
       other_taxes: [
         {
           label: 'verbatim-string',
-          amount: 'number',
+          amount: 'verbatim-string',
         },
       ],
-      total_incl_tax: 'number',
-      amount_due: 'number',
+      total_incl_tax: 'verbatim-string',
+      amount_due: 'verbatim-string',
       line_items: [
         {
           description: 'verbatim-string',
           quantity: 'number',
-          unit_price: 'number',
+          unit_price: 'verbatim-string',
           tax_rate: 'number',
-          line_total: 'number',
+          line_total: 'verbatim-string',
         },
       ],
     };
   }
 
   private instructions() {
-    return 'Classify document_type from visible evidence, then extract all applicable fields. Use null for unreadable or absent information and never infer hidden identifiers. Preserve printed identifiers exactly. Use ISO-8601 dates and ISO-4217 currencies. For Tunisian documents, DT means TND and a comma followed by three digits is a millime decimal separator. Extract FODEC only into fodec_amount. Keep fiscal stamp separate in stamp_tax. Put other visible surcharges, duties, or levies into other_taxes, excluding TVA, FODEC, and fiscal stamp to avoid double counting. subtotal_excl_tax is the printed net HT amount after any discount. Financial values must be validated by the application before acceptance.';
+    return 'Classify document_type from visible evidence, then extract all applicable fields. Use null for unreadable or absent information and never infer hidden identifiers. Preserve printed identifiers exactly. Use ISO-8601 dates and ISO-4217 currencies. Return every monetary field as the exact printed string, including spaces and decimal separators; never remove punctuation or multiply by 1000. For Tunisian documents, DT means TND and a comma followed by three digits is a millime decimal separator: for example 3 782,353 must remain "3 782,353" and 1.459,000 must remain "1.459,000". Extract FODEC only into fodec_amount. Keep fiscal stamp separate in stamp_tax. Put other visible surcharges, duties, or levies into other_taxes, excluding TVA, FODEC, and fiscal stamp to avoid double counting. subtotal_excl_tax is the printed net HT amount after any discount. Financial values must be normalized and validated by the application before acceptance.';
   }
 }

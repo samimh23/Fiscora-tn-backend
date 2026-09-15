@@ -78,6 +78,65 @@ describe('InvoiceExtractionValidator', () => {
     );
   });
 
+  it('normalizes Tunisian monetary strings without multiplying them by 1000', () => {
+    const result = validator.validate({
+      document_type: 'invoice',
+      supplier: { name: 'STE MYTEK INFORMATIQUE' },
+      document_number: 'FAC-24M04LIV-123987',
+      issue_date: '2024-04-29',
+      subtotal_excl_tax: '3 782,353',
+      tax_amount: '718,647',
+      stamp_tax: '1,000',
+      total_incl_tax: '4 502,000 TND',
+      amount_due: '4 502,000',
+      line_items: [
+        {
+          description: 'HP 250 G9',
+          quantity: 2,
+          unit_price: '1.459,000',
+          line_total: '2 918,000',
+        },
+      ],
+    });
+
+    expect(result.issues.filter((issue) => issue.severity === 'ERROR')).toEqual(
+      [],
+    );
+    expect(result.normalizedData).toMatchObject({
+      subtotal_excl_tax: 3782.353,
+      tax_amount: 718.647,
+      stamp_tax: 1,
+      total_incl_tax: 4502,
+      amount_due: 4502,
+      line_items: [
+        expect.objectContaining({
+          quantity: 2,
+          unit_price: 1459,
+          line_total: 2918,
+        }),
+      ],
+    });
+  });
+
+  it('reports the real one-dinar mismatch in a contradictory printed invoice', () => {
+    const result = validator.validate({
+      document_type: 'invoice',
+      supplier: { name: 'STE MYTEK INFORMATIQUE' },
+      document_number: 'FAC-24M04LIV-123987',
+      issue_date: '2024-04-29',
+      subtotal_excl_tax: '3 782,353',
+      tax_amount: '718,647',
+      stamp_tax: '1,000',
+      total_incl_tax: '4 501,000',
+    });
+
+    const mismatch = result.issues.find(
+      (issue) => issue.code === 'TOTAL_MISMATCH',
+    );
+    expect(mismatch).toMatchObject({ severity: 'ERROR' });
+    expect(mismatch?.message).toContain('1.000');
+  });
+
   it('warns when identity fields are missing', () => {
     const result = validator.validate({});
     expect(result.issues.map((issue) => issue.code)).toEqual(
