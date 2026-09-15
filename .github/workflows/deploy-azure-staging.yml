@@ -1,0 +1,70 @@
+name: Deploy backend to Azure staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      update_container_app:
+        description: Update the existing Container App after pushing the image
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-backend-azure-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and optionally deploy immutable backend image
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign in to Azure Container Registry
+        run: az acr login --name "${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}"
+
+      - name: Build and push backend image
+        env:
+          IMAGE: ${{ vars.AZURE_CONTAINER_REGISTRY_LOGIN_SERVER }}/fiscora-backend:${{ github.sha }}
+        run: |
+          docker build --platform linux/amd64 --tag "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Resolve immutable image digest
+        id: image
+        shell: bash
+        run: |
+          digest="$(az acr repository show \
+            --name "${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}" \
+            --image "fiscora-backend:${{ github.sha }}" \
+            --query digest --output tsv)"
+          image="${{ vars.AZURE_CONTAINER_REGISTRY_LOGIN_SERVER }}/fiscora-backend@$digest"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "Use this immutable value for Terraform's backend_image:" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "$image" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy the exact image revision
+        if: inputs.update_container_app
+        run: >-
+          az containerapp update
+          --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}"
+          --name "${{ vars.AZURE_CONTAINER_APP_NAME }}"
+          --image "${{ steps.image.outputs.image }}"
+          --output none
