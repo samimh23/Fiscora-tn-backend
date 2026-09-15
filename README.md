@@ -338,3 +338,19 @@ Dans Brevo, utilisez une **clé SMTP**, pas une clé API. Le domaine
 `invitations@fiscora.me` doit être déclaré avant l'envoi réel. Le sous-domaine
 `app.fiscora.me` sera relié à l'hébergement du frontend ; il ne doit pas pointer
 vers GitHub Pages.
+
+## Extraction IA et revue humaine
+
+L'API de documents possède un workflow NuExtract durable et sans clé cloud :
+
+- `POST .../documents/:documentId/extraction` met en file une image JPEG/PNG saine ;
+- `GET .../documents/:documentId/extraction` retourne l'état et les contrôles ;
+- `GET .../documents/extraction/review-queue` liste les extractions à revoir ;
+- `PATCH .../documents/:documentId/extraction/review` approuve les données corrigées ou rejette le résultat.
+
+Les tâches sont persistées dans PostgreSQL, louées avec `SKIP LOCKED`, reprises
+après expiration du bail et limitées à quatre tentatives. L'API Azure appelle le
+service Cloud Run privé avec Workload Identity Federation : aucune clé de compte
+de service Google n'est conservée. Les totaux sont contrôlés, mais chaque résultat
+passe tout de même par une revue humaine. Le rendu des pages PDF reste à ajouter ;
+un PDF est donc refusé explicitement au lieu de produire un faux succès.

@@ -5,6 +5,7 @@ import { PermissionGuard } from '../common/permission.guard';
 import {
   AccountingDocument,
   AuditLog,
+  DocumentExtractionJob,
   DossierAssignment,
   MissingDocumentExpectation,
   OrganizationMembership,
@@ -16,6 +17,9 @@ import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
 import { MalwareScannerService } from './malware-scanner.service';
 import { documentObjectStorageProvider } from './object-storage/object-storage.provider';
+import { DocumentExtractionService } from './extraction/document-extraction.service';
+import { GoogleWifTokenService } from './extraction/google-wif-token.service';
+import { NuExtractClientService } from './extraction/nuextract-client.service';
 
 @Module({
   imports: [
@@ -25,6 +29,7 @@ import { documentObjectStorageProvider } from './object-storage/object-storage.p
     NotificationsModule,
     TypeOrmModule.forFeature([
       AccountingDocument,
+      DocumentExtractionJob,
       MissingDocumentExpectation,
       AuditLog,
       OrganizationMembership,
@@ -37,6 +42,9 @@ import { documentObjectStorageProvider } from './object-storage/object-storage.p
     MalwareScannerService,
     PermissionGuard,
     documentObjectStorageProvider,
+    GoogleWifTokenService,
+    NuExtractClientService,
+    DocumentExtractionService,
   ],
   exports: [DocumentsService],
 })

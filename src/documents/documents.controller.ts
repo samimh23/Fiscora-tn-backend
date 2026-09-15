@@ -30,13 +30,78 @@ import {
   UploadDocumentDto,
 } from './dto';
 import { DocumentsService } from './documents.service';
+import { DocumentExtractionService } from './extraction/document-extraction.service';
+import { ReviewExtractionDto } from './extraction/extraction.dto';
 
 @ApiTags('Documents')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), PermissionGuard)
 @Controller('api/organizations/:organizationId/dossiers/:dossierId/documents')
 export class DocumentsController {
-  constructor(private readonly service: DocumentsService) {}
+  constructor(
+    private readonly service: DocumentsService,
+    private readonly extraction: DocumentExtractionService,
+  ) {}
+
+  @Get('extraction/review-queue')
+  @RequirePermission(PermissionNames.DocumentsValidate)
+  reviewQueue(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.extraction.reviewQueue(organizationId, dossierId, user.userId);
+  }
+
+  @Post(':documentId/extraction')
+  @RequirePermission(PermissionNames.DocumentsValidate)
+  requestExtraction(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.extraction.request(
+      organizationId,
+      dossierId,
+      documentId,
+      user.userId,
+    );
+  }
+
+  @Get(':documentId/extraction')
+  @RequirePermission(PermissionNames.DocumentsValidate)
+  extractionStatus(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.extraction.get(
+      organizationId,
+      dossierId,
+      documentId,
+      user.userId,
+    );
+  }
+
+  @Patch(':documentId/extraction/review')
+  @RequirePermission(PermissionNames.DocumentsValidate)
+  reviewExtraction(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: ReviewExtractionDto,
+  ) {
+    return this.extraction.review(
+      organizationId,
+      dossierId,
+      documentId,
+      user.userId,
+      dto,
+    );
+  }
 
   @Get()
   @RequirePermission(PermissionNames.DocumentsView)

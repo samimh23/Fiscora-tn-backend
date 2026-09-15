@@ -1648,7 +1648,18 @@ export enum ExtractionStatus {
   Processing = 'EN_COURS',
   Completed = 'TERMINEE',
   Failed = 'ECHEC',
+  ReviewRequired = 'A_REVOIR',
   Validated = 'VALIDEE',
+  Rejected = 'REJETEE',
+}
+
+export enum DocumentExtractionJobStatus {
+  Queued = 'EN_ATTENTE',
+  Processing = 'EN_COURS',
+  ReviewRequired = 'A_REVOIR',
+  Approved = 'VALIDEE',
+  Rejected = 'REJETEE',
+  Failed = 'ECHEC',
 }
 
 export enum MalwareScanStatus {
@@ -1775,6 +1786,71 @@ export class AccountingDocument extends AuditableEntity {
 
   @Column({ name: 'deleted_at_utc', type: 'timestamptz', nullable: true })
   deletedAtUtc!: Date | null;
+}
+
+@Entity({ schema: 'accounting', name: 'document_extraction_jobs' })
+@Unique(['documentId'])
+@Index(['status', 'availableAtUtc'])
+@Index(['organizationId', 'dossierId', 'status'])
+export class DocumentExtractionJob extends AuditableEntity {
+  @Column({ name: 'organization_id', type: 'uuid' })
+  organizationId!: string;
+
+  @Column({ name: 'dossier_id', type: 'uuid' })
+  dossierId!: string;
+
+  @Column({ name: 'document_id', type: 'uuid' })
+  documentId!: string;
+
+  @OneToOne(() => AccountingDocument, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'document_id' })
+  document!: AccountingDocument;
+
+  @Column({ type: 'varchar', length: 20 })
+  status!: DocumentExtractionJobStatus;
+
+  @Column({ name: 'attempt_count', type: 'integer', default: 0 })
+  attemptCount!: number;
+
+  @Column({ name: 'available_at_utc', type: 'timestamptz' })
+  availableAtUtc!: Date;
+
+  @Column({ name: 'lease_expires_at_utc', type: 'timestamptz', nullable: true })
+  leaseExpiresAtUtc!: Date | null;
+
+  @Column({ name: 'worker_id', type: 'varchar', length: 160, nullable: true })
+  workerId!: string | null;
+
+  @Column({ name: 'model_name', type: 'varchar', length: 160, nullable: true })
+  modelName!: string | null;
+
+  @Column({ name: 'raw_response', type: 'jsonb', nullable: true })
+  rawResponse!: Record<string, unknown> | null;
+
+  @Column({ name: 'normalized_data', type: 'jsonb', nullable: true })
+  normalizedData!: Record<string, unknown> | null;
+
+  @Column({
+    name: 'validation_issues',
+    type: 'jsonb',
+    default: () => "'[]'::jsonb",
+  })
+  validationIssues!: Array<Record<string, unknown>>;
+
+  @Column({ name: 'last_error', type: 'text', nullable: true })
+  lastError!: string | null;
+
+  @Column({ name: 'processed_at_utc', type: 'timestamptz', nullable: true })
+  processedAtUtc!: Date | null;
+
+  @Column({ name: 'reviewed_at_utc', type: 'timestamptz', nullable: true })
+  reviewedAtUtc!: Date | null;
+
+  @Column({ name: 'reviewed_by_user_id', type: 'uuid', nullable: true })
+  reviewedByUserId!: string | null;
+
+  @Column({ name: 'review_comment', type: 'text', nullable: true })
+  reviewComment!: string | null;
 }
 
 @Entity({ schema: 'accounting', name: 'missing_document_expectations' })
@@ -5471,6 +5547,7 @@ export const ENTITIES = [
   LedgerAccount,
   CostCenter,
   AccountingDocument,
+  DocumentExtractionJob,
   MissingDocumentExpectation,
   Notification,
   MonthlyTaxDeclaration,

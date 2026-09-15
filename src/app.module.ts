@@ -87,6 +87,7 @@ import { BankReference1784378000000 } from './database/migrations/1784378000000-
 import { TunisianBanksCatalog1784379000000 } from './database/migrations/1784379000000-tunisian-banks-catalog';
 import { CabinetPaymentCorrections1784380000000 } from './database/migrations/1784380000000-cabinet-payment-corrections';
 import { ThirdPartyPaymentCorrections1784381000000 } from './database/migrations/1784381000000-third-party-payment-corrections';
+import { DocumentExtractionWorkflow1784382000000 } from './database/migrations/1784382000000-document-extraction-workflow';
 
 @Module({
   imports: [
@@ -156,6 +157,7 @@ import { ThirdPartyPaymentCorrections1784381000000 } from './database/migrations
           TunisianBanksCatalog1784379000000,
           CabinetPaymentCorrections1784380000000,
           ThirdPartyPaymentCorrections1784381000000,
+          DocumentExtractionWorkflow1784382000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,
