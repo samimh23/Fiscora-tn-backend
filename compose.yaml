@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    # The RAG knowledge index uses the pgvector extension.
+    image: pgvector/pgvector:pg17
     environment:
       POSTGRES_DB: accounting_nest
       POSTGRES_USER: accounting

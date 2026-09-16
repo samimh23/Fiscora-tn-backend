@@ -84,6 +84,14 @@ export class Organization extends AuditableEntity {
   @Column({ name: 'is_active', default: true })
   isActive!: boolean;
 
+  @Index({ unique: true })
+  @Column({
+    name: 'email_ingestion_key',
+    length: 32,
+    default: () => "replace(uuid_generate_v4()::text, '-', '')",
+  })
+  emailIngestionKey!: string;
+
   @Column({ name: 'suspended_at_utc', type: 'timestamptz', nullable: true })
   suspendedAtUtc!: Date | null;
 
@@ -792,6 +800,14 @@ export class ClientDossier extends AuditableEntity {
 
   @Column({ name: 'created_by_user_id', type: 'uuid' })
   createdByUserId!: string;
+
+  @Index({ unique: true })
+  @Column({
+    name: 'email_ingestion_key',
+    length: 32,
+    default: () => "replace(uuid_generate_v4()::text, '-', '')",
+  })
+  emailIngestionKey!: string;
 
   @OneToMany(() => DossierContact, (contact) => contact.dossier)
   contacts!: DossierContact[];
@@ -1677,6 +1693,152 @@ export enum DocumentRequestStatus {
   Cancelled = 'ANNULEE',
 }
 
+export enum DocumentIngestionSource {
+  Upload = 'UPLOAD',
+  Email = 'EMAIL',
+}
+
+export enum InboundEmailStatus {
+  Received = 'RECUE',
+  Unmatched = 'A_CLASSER',
+  Imported = 'IMPORTEE',
+  Partial = 'PARTIELLE',
+  Rejected = 'REJETEE',
+}
+
+export enum InboundEmailAttachmentStatus {
+  Clean = 'SAIN',
+  NotScanned = 'NON_ANALYSE',
+  Infected = 'INFECTE',
+  Failed = 'ERREUR',
+  Unsupported = 'NON_SUPPORTE',
+  Imported = 'IMPORTE',
+}
+
+@Entity({ schema: 'accounting', name: 'inbound_email_messages' })
+@Index(['organizationId', 'status', 'receivedAtUtc'])
+export class InboundEmailMessage extends AuditableEntity {
+  @Index({ unique: true })
+  @Column({ name: 'provider_event_id', length: 200 })
+  providerEventId!: string;
+
+  @Column({
+    name: 'provider_message_id',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
+  providerMessageId!: string | null;
+
+  @Column({ name: 'organization_id', type: 'uuid', nullable: true })
+  organizationId!: string | null;
+
+  @ManyToOne(() => Organization, { onDelete: 'CASCADE', nullable: true })
+  @JoinColumn({ name: 'organization_id' })
+  organization!: Organization | null;
+
+  @Column({ name: 'dossier_id', type: 'uuid', nullable: true })
+  dossierId!: string | null;
+
+  @ManyToOne(() => ClientDossier, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'dossier_id' })
+  dossier!: ClientDossier | null;
+
+  @Column({ name: 'sender_email', length: 320 })
+  senderEmail!: string;
+
+  @Column({
+    name: 'sender_name',
+    type: 'varchar',
+    length: 200,
+    nullable: true,
+  })
+  senderName!: string | null;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  subject!: string | null;
+
+  @Column({ name: 'recipient_addresses', type: 'text', array: true })
+  recipientAddresses!: string[];
+
+  @Column({ name: 'received_at_utc', type: 'timestamptz' })
+  receivedAtUtc!: Date;
+
+  @Column({ type: 'varchar', length: 20 })
+  status!: InboundEmailStatus;
+
+  @Column({
+    name: 'routing_reason',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
+  routingReason!: string | null;
+
+  @Column({ name: 'failure_reason', type: 'text', nullable: true })
+  failureReason!: string | null;
+
+  @Column({ name: 'attachment_count', type: 'integer', default: 0 })
+  attachmentCount!: number;
+
+  @Column({ name: 'imported_count', type: 'integer', default: 0 })
+  importedCount!: number;
+
+  @OneToMany(() => InboundEmailAttachment, (attachment) => attachment.message)
+  attachments!: InboundEmailAttachment[];
+}
+
+@Entity({ schema: 'accounting', name: 'inbound_email_attachments' })
+@Index(['messageId', 'status'])
+export class InboundEmailAttachment extends AuditableEntity {
+  @Column({ name: 'message_id', type: 'uuid' })
+  messageId!: string;
+
+  @ManyToOne(() => InboundEmailMessage, (message) => message.attachments, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'message_id' })
+  message!: InboundEmailMessage;
+
+  @Column({ name: 'original_name', length: 300 })
+  originalName!: string;
+
+  @Column({ name: 'mime_type', length: 150 })
+  mimeType!: string;
+
+  @Column({ name: 'size_bytes', type: 'bigint' })
+  sizeBytes!: string;
+
+  @Column({
+    name: 'object_key',
+    type: 'varchar',
+    length: 1000,
+    nullable: true,
+  })
+  objectKey!: string | null;
+
+  @Column({ type: 'varchar', length: 20 })
+  status!: InboundEmailAttachmentStatus;
+
+  @Column({
+    name: 'malware_signature',
+    type: 'varchar',
+    length: 300,
+    nullable: true,
+  })
+  malwareSignature!: string | null;
+
+  @Column({ name: 'failure_reason', type: 'text', nullable: true })
+  failureReason!: string | null;
+
+  @Column({ name: 'document_id', type: 'uuid', nullable: true })
+  documentId!: string | null;
+
+  @ManyToOne(() => AccountingDocument, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'document_id' })
+  document!: AccountingDocument | null;
+}
+
 @Entity({ schema: 'accounting', name: 'accounting_documents' })
 @Index(['organizationId', 'dossierId', 'periodYear', 'periodMonth'])
 @Index(['organizationId', 'category', 'processingStatus'])
@@ -1778,8 +1940,58 @@ export class AccountingDocument extends AuditableEntity {
   @JoinColumn({ name: 'replaces_document_id' })
   replacesDocument!: AccountingDocument | null;
 
-  @Column({ name: 'uploaded_by_user_id', type: 'uuid' })
-  uploadedByUserId!: string;
+  @Column({ name: 'uploaded_by_user_id', type: 'uuid', nullable: true })
+  uploadedByUserId!: string | null;
+
+  @Column({
+    name: 'ingestion_source',
+    type: 'varchar',
+    length: 20,
+    default: DocumentIngestionSource.Upload,
+  })
+  ingestionSource!: DocumentIngestionSource;
+
+  @Column({
+    name: 'source_sender_email',
+    type: 'varchar',
+    length: 320,
+    nullable: true,
+  })
+  sourceSenderEmail!: string | null;
+
+  @Column({
+    name: 'source_sender_name',
+    type: 'varchar',
+    length: 200,
+    nullable: true,
+  })
+  sourceSenderName!: string | null;
+
+  @Column({
+    name: 'source_subject',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
+  sourceSubject!: string | null;
+
+  @Column({
+    name: 'source_message_id',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
+  sourceMessageId!: string | null;
+
+  @Column({ name: 'inbound_email_id', type: 'uuid', nullable: true })
+  inboundEmailId!: string | null;
+
+  @ManyToOne(() => InboundEmailMessage, {
+    onDelete: 'SET NULL',
+    nullable: true,
+  })
+  @JoinColumn({ name: 'inbound_email_id' })
+  inboundEmail!: InboundEmailMessage | null;
 
   @Column({ name: 'is_client_visible', default: false })
   isClientVisible!: boolean;
@@ -5547,6 +5759,8 @@ export const ENTITIES = [
   LedgerAccount,
   CostCenter,
   AccountingDocument,
+  InboundEmailMessage,
+  InboundEmailAttachment,
   DocumentExtractionJob,
   MissingDocumentExpectation,
   Notification,

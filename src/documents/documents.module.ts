@@ -17,6 +17,7 @@ import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
 import { MalwareScannerService } from './malware-scanner.service';
 import { documentObjectStorageProvider } from './object-storage/object-storage.provider';
+import { DOCUMENT_OBJECT_STORAGE } from './object-storage/object-storage';
 import { DocumentExtractionService } from './extraction/document-extraction.service';
 import { GoogleWifTokenService } from './extraction/google-wif-token.service';
 import { NuExtractClientService } from './extraction/nuextract-client.service';
@@ -46,6 +47,11 @@ import { NuExtractClientService } from './extraction/nuextract-client.service';
     NuExtractClientService,
     DocumentExtractionService,
   ],
-  exports: [DocumentsService, GoogleWifTokenService],
+  exports: [
+    DocumentsService,
+    MalwareScannerService,
+    DOCUMENT_OBJECT_STORAGE,
+    GoogleWifTokenService,
+  ],
 })
 export class DocumentsModule {}

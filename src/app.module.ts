@@ -90,6 +90,8 @@ import { ThirdPartyPaymentCorrections1784381000000 } from './database/migrations
 import { DocumentExtractionWorkflow1784382000000 } from './database/migrations/1784382000000-document-extraction-workflow';
 import { AiAssistantRag1784383000000 } from './database/migrations/1784383000000-ai-assistant-rag';
 import { AssistantModule } from './assistant/assistant.module';
+import { EmailIngestion1784384000000 } from './database/migrations/1784384000000-email-ingestion';
+import { EmailIngestionModule } from './email-ingestion/email-ingestion.module';
 
 @Module({
   imports: [
@@ -161,6 +163,7 @@ import { AssistantModule } from './assistant/assistant.module';
           ThirdPartyPaymentCorrections1784381000000,
           DocumentExtractionWorkflow1784382000000,
           AiAssistantRag1784383000000,
+          EmailIngestion1784384000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,
@@ -202,6 +205,7 @@ import { AssistantModule } from './assistant/assistant.module';
     QualityAssuranceModule,
     MigrationAssistantModule,
     AssistantModule,
+    EmailIngestionModule,
   ],
   controllers: [HealthController],
   providers: [

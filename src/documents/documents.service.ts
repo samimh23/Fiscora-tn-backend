@@ -14,6 +14,8 @@ import {
   AccountingDocument,
   AuditLog,
   DossierAssignment,
+  DocumentCategory,
+  DocumentIngestionSource,
   DocumentProcessingStatus,
   DocumentRequestStatus,
   MalwareScanStatus,
@@ -100,7 +102,11 @@ export class DocumentsService implements OnModuleInit {
       .orderBy('document.created_at_utc', 'DESC')
       .getMany();
     const uploaderIds = [
-      ...new Set(items.map((item) => item.uploadedByUserId)),
+      ...new Set(
+        items
+          .map((item) => item.uploadedByUserId)
+          .filter((id): id is string => Boolean(id)),
+      ),
     ];
     const uploaders = uploaderIds.length
       ? await this.memberships.find({
@@ -116,7 +122,12 @@ export class DocumentsService implements OnModuleInit {
       uploaders.map((membership) => [membership.userId, membership]),
     );
     return items.map((item) =>
-      this.toResponse(item, uploaderByUserId.get(item.uploadedByUserId)),
+      this.toResponse(
+        item,
+        item.uploadedByUserId
+          ? uploaderByUserId.get(item.uploadedByUserId)
+          : undefined,
+      ),
     );
   }
 
@@ -130,19 +141,7 @@ export class DocumentsService implements OnModuleInit {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     const client = await this.isClient(organizationId, userId);
     if (!file) throw new BadRequestException('Sélectionnez un fichier.');
-    const allowed = new Set([
-      'application/pdf',
-      'image/jpeg',
-      'image/png',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/xml',
-      'text/xml',
-      'text/csv',
-    ]);
-    if (!allowed.has(file.mimetype))
-      throw new BadRequestException('Ce type de fichier n’est pas accepté.');
-    this.validateFileContent(file);
+    this.validateIncomingFile(file);
 
     let malwareScanStatus = MalwareScanStatus.NotScanned;
     let malwareScannedAtUtc: Date | null = null;
@@ -240,6 +239,12 @@ export class DocumentsService implements OnModuleInit {
         version,
         replacesDocumentId: dto.replacesDocumentId ?? null,
         uploadedByUserId: userId,
+        ingestionSource: DocumentIngestionSource.Upload,
+        sourceSenderEmail: null,
+        sourceSenderName: null,
+        sourceSubject: null,
+        sourceMessageId: null,
+        inboundEmailId: null,
         isClientVisible: client ? true : (dto.isClientVisible ?? false),
         malwareScanStatus,
         malwareSignature: null,
@@ -285,6 +290,92 @@ export class DocumentsService implements OnModuleInit {
       );
     }
     return this.toResponse(item, undefined, client ? 'CLIENT' : 'CABINET');
+  }
+
+  validateIncomingFile(file: {
+    buffer: Buffer;
+    originalname: string;
+    mimetype: string;
+    size: number;
+  }) {
+    const allowed = new Set([
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/xml',
+      'text/xml',
+      'text/csv',
+    ]);
+    if (!allowed.has(file.mimetype))
+      throw new BadRequestException('Ce type de fichier n’est pas accepté.');
+    this.validateFileContent(file);
+  }
+
+  async createFromInboundEmail(input: {
+    organizationId: string;
+    dossierId: string;
+    inboundEmailId: string;
+    objectKey: string;
+    originalName: string;
+    mimeType: string;
+    sizeBytes: number;
+    malwareScanStatus: MalwareScanStatus;
+    receivedAtUtc: Date;
+    senderEmail: string;
+    senderName: string | null;
+    subject: string | null;
+    providerMessageId: string | null;
+    actorUserId?: string | null;
+  }) {
+    const item = await this.documents.save(
+      this.documents.create({
+        organizationId: input.organizationId,
+        dossierId: input.dossierId,
+        taskId: null,
+        obligationId: null,
+        originalName: input.originalName,
+        objectKey: input.objectKey,
+        mimeType: input.mimeType,
+        sizeBytes: String(input.sizeBytes),
+        category: DocumentCategory.Inbox,
+        periodYear: input.receivedAtUtc.getUTCFullYear(),
+        periodMonth: input.receivedAtUtc.getUTCMonth() + 1,
+        processingStatus: DocumentProcessingStatus.ToProcess,
+        version: 1,
+        replacesDocumentId: null,
+        uploadedByUserId: null,
+        ingestionSource: DocumentIngestionSource.Email,
+        sourceSenderEmail: input.senderEmail,
+        sourceSenderName: input.senderName,
+        sourceSubject: input.subject,
+        sourceMessageId: input.providerMessageId,
+        inboundEmailId: input.inboundEmailId,
+        isClientVisible: false,
+        malwareScanStatus: input.malwareScanStatus,
+        malwareSignature: null,
+        malwareScannedAtUtc:
+          input.malwareScanStatus === MalwareScanStatus.Clean
+            ? new Date()
+            : null,
+        deletedAtUtc: null,
+      }),
+    );
+    await this.audit(
+      input.organizationId,
+      input.actorUserId ?? null,
+      'document.received_by_email',
+      item.id,
+      {
+        dossierId: input.dossierId,
+        inboundEmailId: input.inboundEmailId,
+        senderEmail: input.senderEmail,
+        subject: input.subject,
+        name: input.originalName,
+      },
+    );
+    return item;
   }
 
   async update(
@@ -678,13 +769,15 @@ export class DocumentsService implements OnModuleInit {
     knownUploaderType?: 'CLIENT' | 'CABINET',
   ) {
     const uploaderType =
-      knownUploaderType ??
-      (uploader
-        ? uploader.role.normalizedName ===
-          SystemRoleNames.ClientPortal.toUpperCase()
-          ? 'CLIENT'
-          : 'CABINET'
-        : 'UNKNOWN');
+      item.ingestionSource === DocumentIngestionSource.Email
+        ? 'EMAIL'
+        : (knownUploaderType ??
+          (uploader
+            ? uploader.role.normalizedName ===
+              SystemRoleNames.ClientPortal.toUpperCase()
+              ? 'CLIENT'
+              : 'CABINET'
+            : 'UNKNOWN'));
     return {
       id: item.id,
       dossierId: item.dossierId,
@@ -706,10 +799,16 @@ export class DocumentsService implements OnModuleInit {
       malwareScanStatus: item.malwareScanStatus,
       malwareSignature: item.malwareSignature,
       malwareScannedAtUtc: item.malwareScannedAtUtc,
+      ingestionSource: item.ingestionSource,
+      sourceEmail: item.sourceSenderEmail,
+      sourceSubject: item.sourceSubject,
+      sourceMessageId: item.sourceMessageId,
       uploadedBy: {
         type: uploaderType,
         name:
-          uploader?.user.fullName ??
+          (uploaderType === 'EMAIL'
+            ? item.sourceSenderName || item.sourceSenderEmail || 'E-mail'
+            : uploader?.user.fullName) ??
           (uploaderType === 'CLIENT'
             ? 'Client'
             : uploaderType === 'CABINET'
@@ -896,7 +995,12 @@ export class DocumentsService implements OnModuleInit {
     return value.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-180);
   }
 
-  private validateFileContent(file: Express.Multer.File) {
+  private validateFileContent(file: {
+    buffer: Buffer;
+    originalname: string;
+    mimetype: string;
+    size: number;
+  }) {
     if (!file.buffer.length || file.size <= 0) {
       throw new BadRequestException('Le fichier est vide.');
     }
@@ -1066,7 +1170,7 @@ export class DocumentsService implements OnModuleInit {
 
   private audit(
     organizationId: string,
-    actorUserId: string,
+    actorUserId: string | null,
     action: string,
     entityId: string,
     detailsJson: Record<string, unknown>,

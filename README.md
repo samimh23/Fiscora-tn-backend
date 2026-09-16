@@ -339,6 +339,46 @@ Dans Brevo, utilisez une **clé SMTP**, pas une clé API. Le domaine
 `app.fiscora.me` sera relié à l'hébergement du frontend ; il ne doit pas pointer
 vers GitHub Pages.
 
+## Réception des factures par e-mail
+
+La collecte entrante utilise **Brevo Inbound Parse** sur un sous-domaine séparé
+du domaine d'envoi. Le backend génère deux adresses non devinables :
+
+- `o-<clé>@inbox.fiscora.me` pour le Gmail du cabinet ; l'expéditeur est comparé
+  aux contacts et comptes portail afin de retrouver un dossier unique ;
+- `d-<clé>@inbox.fiscora.me` pour un dossier précis, sans déduction par
+  expéditeur.
+
+Les pièces jointes passent par la validation de format, ClamAV et le stockage
+Azure existants. Un message ambigu reste dans la file **E-mails à classer** et
+n'est jamais affecté silencieusement au mauvais client. Les images intégrées à
+la signature ou au corps du message ne deviennent pas des pièces comptables.
+
+Variables runtime (les deux secrets restent dans Azure Key Vault) :
+
+```text
+EMAIL_INGESTION_DOMAIN=inbox.fiscora.me
+EMAIL_INGESTION_MAX_ATTACHMENT_BYTES=20971520
+BREVO_API_KEY=<clé API REST xkeysib, différente de la clé SMTP>
+INBOUND_EMAIL_WEBHOOK_SECRET=<valeur aléatoire d'au moins 32 caractères>
+```
+
+DNS Namecheap pour `inbox.fiscora.me` :
+
+```text
+MX  inbox  priorité 10  inbound1.sendinblue.com
+MX  inbox  priorité 20  inbound2.sendinblue.com
+```
+
+Le webhook Brevo est de type `inbound`, écoute l'événement
+`inboundEmailProcessed`, utilise le domaine `inbox.fiscora.me` et appelle
+`https://<api>/api/email-ingestion/brevo` avec l'en-tête
+`x-fiscora-webhook-secret`. Le script infrastructure
+`azure/scripts/configure-email-ingestion.ps1` crée ou met à jour cette
+configuration sans écrire les secrets dans Git. Enfin, activez dans Gmail le
+transfert automatique vers l'adresse `o-...` affichée par Fiscora ; Gmail garde
+le message original et transmet une copie à l'application.
+
 ## Extraction IA et revue humaine
 
 L'API de documents possède un workflow NuExtract durable et sans clé cloud :

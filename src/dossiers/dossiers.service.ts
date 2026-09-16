@@ -31,6 +31,7 @@ import {
   UpdateDossierDto,
   UpsertDossierAssignmentDto,
 } from './dto';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class DossiersService {
@@ -53,6 +54,7 @@ export class DossiersService {
     private readonly ledgerAccounts: Repository<LedgerAccount>,
     @InjectRepository(ThirdParty)
     private readonly thirdParties: Repository<ThirdParty>,
+    private readonly config: ConfigService,
   ) {}
 
   async list(organizationId: string, userId: string, query: DossierQueryDto) {
@@ -685,6 +687,7 @@ export class DossiersService {
       archivedAtUtc: item.archivedAtUtc,
       createdAtUtc: item.createdAtUtc,
       updatedAtUtc: item.updatedAtUtc,
+      emailIngestionAddress: this.ingestionAddress(item.emailIngestionKey),
     };
   }
 
@@ -726,6 +729,14 @@ export class DossiersService {
 
   private clean(value?: string | null) {
     return value?.trim() || null;
+  }
+
+  private ingestionAddress(key: string) {
+    const domain = this.config
+      .get<string>('EMAIL_INGESTION_DOMAIN', 'inbox.fiscora.me')
+      .trim()
+      .toLowerCase();
+    return `d-${key}@${domain}`;
   }
 
   private async addAudit(
