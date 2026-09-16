@@ -97,6 +97,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
       }
       Object.assign(item, {
         status: DocumentExtractionJobStatus.Queued,
+        attemptCount: 0,
         availableAtUtc: new Date(),
         leaseExpiresAtUtc: null,
         workerId: null,
@@ -435,7 +436,8 @@ export class DocumentExtractionService implements OnModuleDestroy {
            ON job.document_id = document.id
          WHERE document.deleted_at_utc IS NULL
            AND document.malware_scan_status = $1
-           AND document.extraction_status = $2
+            AND document.extraction_status = $2
+            AND document.extracted_data IS NULL
            AND document.mime_type IN ('image/jpeg', 'image/png')
            AND job.id IS NULL
          ORDER BY document.created_at_utc

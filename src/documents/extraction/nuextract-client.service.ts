@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { GoogleWifTokenService } from './google-wif-token.service';
 
 interface ChatCompletionResponse {
-  choices?: Array<{ message?: { content?: string } }>;
+  choices?: Array<{
+    message?: { content?: string };
+    finish_reason?: string | null;
+  }>;
   usage?: Record<string, unknown>;
 }
 
@@ -31,8 +34,14 @@ export class NuExtractClientService {
       },
       body: JSON.stringify({
         model: this.modelName,
-        temperature: 0.2,
-        max_tokens: 2400,
+        temperature: 0,
+        max_tokens: Math.min(
+          6_000,
+          Math.max(
+            2_400,
+            Number(this.config.get('NUEXTRACT_MAX_TOKENS', 6_000)),
+          ),
+        ),
         messages: [
           {
             role: 'user',
@@ -62,23 +71,11 @@ export class NuExtractClientService {
       );
     }
     const body = (await response.json()) as ChatCompletionResponse;
-    const contentText = body.choices?.[0]?.message?.content;
+    const choice = body.choices?.[0];
+    const contentText = choice?.message?.content;
     if (!contentText)
       throw new Error('NuExtract returned no extraction content.');
-    const candidate = contentText
-      .replace(/^\s*<answer>\s*/i, '')
-      .replace(/\s*<\/answer>\s*$/i, '')
-      .replace(/^\s*```(?:json)?\s*/i, '')
-      .replace(/\s*```\s*$/i, '');
-    let data: Record<string, unknown>;
-    try {
-      const parsed = JSON.parse(candidate) as unknown;
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
-        throw new Error();
-      data = parsed as Record<string, unknown>;
-    } catch {
-      throw new Error('NuExtract returned invalid structured JSON.');
-    }
+    const data = parseNuExtractJson(contentText, choice?.finish_reason);
     return {
       data,
       rawResponse: { content: contentText, usage: body.usage ?? null },
@@ -154,5 +151,33 @@ export class NuExtractClientService {
 
   private instructions() {
     return 'Classify document_type from visible evidence, then extract only the matching section. Use null for unreadable or absent information and never infer hidden identifiers. Preserve printed identifiers exactly. Use ISO-8601 dates and ISO-4217 currencies. Return every monetary field as the exact printed string, including spaces and decimal separators; never remove punctuation or multiply by 1000. For Tunisian documents, DT means TND and a comma followed by three digits is a millime decimal separator: for example 3 782,353 must remain "3 782,353" and 1.459,000 must remain "1.459,000". For invoices, extract FODEC only into fodec_amount, keep fiscal stamp separate in stamp_tax, and put other visible surcharges into other_taxes. For bank statements, fill bank_statement and return every visible transaction in printed order; use debit or credit when printed, otherwise amount; never invent a missing page or balance. Financial values must be normalized and validated by the application before acceptance.';
+  }
+}
+
+export function parseNuExtractJson(
+  contentText: string,
+  finishReason?: string | null,
+): Record<string, unknown> {
+  let candidate = contentText
+    .replace(/^\s*<answer>\s*/i, '')
+    .replace(/\s*<\/answer>\s*$/i, '')
+    .replace(/^\s*```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim();
+  const firstBrace = candidate.indexOf('{');
+  const lastBrace = candidate.lastIndexOf('}');
+  if (firstBrace >= 0 && lastBrace > firstBrace)
+    candidate = candidate.slice(firstBrace, lastBrace + 1);
+  try {
+    const parsed = JSON.parse(candidate) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+      throw new Error();
+    return parsed as Record<string, unknown>;
+  } catch {
+    if (finishReason === 'length')
+      throw new Error(
+        'NuExtract response was truncated before completing the structured JSON.',
+      );
+    throw new Error('NuExtract returned invalid structured JSON.');
   }
 }
