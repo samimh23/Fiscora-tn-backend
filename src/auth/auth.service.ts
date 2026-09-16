@@ -34,6 +34,7 @@ import {
   AcceptInvitationDto,
   ChangePasswordDto,
   GoogleLoginDto,
+  GoogleRegisterDto,
   LoginDto,
   RefreshDto,
   RegisterDto,
@@ -159,9 +160,13 @@ export class AuthService {
           normalizedEmail: google.normalizedEmail,
         });
         if (!user) {
-          throw new UnauthorizedException(
-            'Aucun compte Fiscora n’existe avec cette adresse Google. Créez votre cabinet ou utilisez une invitation avant la première connexion.',
-          );
+          return {
+            registrationRequired: true as const,
+            profile: {
+              email: google.email,
+              fullName: google.fullName,
+            },
+          };
         }
 
         const otherGoogleIdentity = await manager.findOneBy(
@@ -213,6 +218,120 @@ export class AuthService {
       user.emailVerified = true;
       user.lastLoginAtUtc = new Date();
       await manager.save(user);
+      return this.issueTokens(manager, user);
+    });
+  }
+
+  async googleRegister(dto: GoogleRegisterDto) {
+    const google = await this.googleIdentity.verify(dto.credential);
+
+    return this.dataSource.transaction(async (manager) => {
+      const linkedIdentity = await manager.findOne(UserExternalIdentity, {
+        where: {
+          provider: ExternalIdentityProvider.Google,
+          providerSubject: google.subject,
+        },
+        relations: { user: true },
+      });
+      if (linkedIdentity?.user) {
+        if (!linkedIdentity.user.isActive) {
+          throw new UnauthorizedException('Ce compte Fiscora est désactivé.');
+        }
+        linkedIdentity.lastAuthenticatedAtUtc = new Date();
+        await manager.save(linkedIdentity);
+        linkedIdentity.user.lastLoginAtUtc = new Date();
+        await manager.save(linkedIdentity.user);
+        return this.issueTokens(manager, linkedIdentity.user);
+      }
+
+      if (
+        await manager.existsBy(User, {
+          normalizedEmail: google.normalizedEmail,
+        })
+      ) {
+        throw new ConflictException(
+          'Un compte Fiscora existe déjà avec cette adresse. Recommencez la connexion Google pour l’associer.',
+        );
+      }
+
+      const user = manager.create(User, {
+        email: google.email,
+        normalizedEmail: google.normalizedEmail,
+        fullName: dto.fullName.trim(),
+        // A Google-only account has no usable local password. The random hash
+        // keeps the existing non-null schema and password-reset flow intact.
+        passwordHash: await hash(randomBytes(64).toString('base64url'), 12),
+        emailVerified: true,
+        lastLoginAtUtc: new Date(),
+      });
+      await manager.save(user);
+
+      await manager.save(
+        manager.create(UserExternalIdentity, {
+          userId: user.id,
+          provider: ExternalIdentityProvider.Google,
+          providerSubject: google.subject,
+          providerEmail: google.email,
+          hostedDomain: google.hostedDomain,
+          lastAuthenticatedAtUtc: new Date(),
+        }),
+      );
+
+      const organization = manager.create(Organization, {
+        name: dto.organizationName.trim(),
+        slug: await this.createUniqueSlug(manager, dto.organizationName),
+      });
+      await manager.save(organization);
+
+      const owner = await this.createSystemRole(
+        manager,
+        organization.id,
+        SystemRoleNames.Owner,
+        ownerPermissions,
+      );
+      await this.createSystemRole(
+        manager,
+        organization.id,
+        SystemRoleNames.Collaborator,
+        collaboratorPermissions,
+      );
+      await this.createSystemRole(
+        manager,
+        organization.id,
+        SystemRoleNames.ClientPortal,
+        clientPortalPermissions,
+      );
+      await manager.save(
+        manager.create(OrganizationMembership, {
+          organizationId: organization.id,
+          userId: user.id,
+          roleId: owner.id,
+        }),
+      );
+      await manager.save(
+        manager.create(AuditLog, {
+          organizationId: organization.id,
+          actorUserId: user.id,
+          action: 'organization.created',
+          entityType: 'Organization',
+          entityId: organization.id,
+          detailsJson: {
+            creationMethod: 'GOOGLE',
+            termsVersion: '2026-09-16',
+          },
+        }),
+      );
+      await manager.save(
+        manager.create(AuditLog, {
+          organizationId: organization.id,
+          actorUserId: user.id,
+          action: 'auth.google_registered',
+          entityType: 'User',
+          entityId: user.id,
+          detailsJson: { providerEmail: google.email },
+        }),
+      );
+
       return this.issueTokens(manager, user);
     });
   }

@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  Equals,
+  IsBoolean,
   IsEmail,
   IsNotEmpty,
   IsString,
@@ -53,6 +55,27 @@ export class GoogleLoginDto {
   @IsNotEmpty()
   @MaxLength(10000)
   credential!: string;
+}
+
+export class GoogleRegisterDto extends GoogleLoginDto {
+  @ApiProperty({ example: 'Sami Mahjoub' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(160)
+  fullName!: string;
+
+  @ApiProperty({ example: 'Cabinet Mahjoub' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  organizationName!: string;
+
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  @Equals(true, {
+    message: 'Vous devez accepter les conditions d’utilisation.',
+  })
+  acceptedTerms!: boolean;
 }
 
 export class RefreshDto {

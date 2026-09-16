@@ -13,7 +13,7 @@ describe('validatedGoogleIdentity', () => {
     ).toEqual({
       subject: 'google-subject',
       email: 'SamiMahjoub090@gmail.com',
-      normalizedEmail: 'samimahjoub090@gmail.com',
+      normalizedEmail: 'SAMIMAHJOUB090@GMAIL.COM',
       fullName: 'Sami Mahjoub',
       hostedDomain: null,
     });
@@ -28,7 +28,7 @@ describe('validatedGoogleIdentity', () => {
         hd: 'university.tn',
       }),
     ).toMatchObject({
-      normalizedEmail: 'student@university.tn',
+      normalizedEmail: 'STUDENT@UNIVERSITY.TN',
       hostedDomain: 'university.tn',
     });
   });

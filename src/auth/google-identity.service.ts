@@ -25,10 +25,12 @@ export function validatedGoogleIdentity(
     );
   }
 
-  const normalizedEmail = email.toLowerCase();
+  // Keep the same canonical form as AuthService and the users table so a
+  // Google-created account can later use password reset/local authentication.
+  const normalizedEmail = email.toUpperCase();
   const hostedDomain = payload.hd?.trim().toLowerCase() || null;
   const isAuthoritativeGoogleAddress =
-    normalizedEmail.endsWith('@gmail.com') || Boolean(hostedDomain);
+    normalizedEmail.endsWith('@GMAIL.COM') || Boolean(hostedDomain);
   if (!isAuthoritativeGoogleAddress) {
     throw new UnauthorizedException(
       'Utilisez une adresse Gmail ou Google Workspace pour la première association.',

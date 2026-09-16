@@ -20,6 +20,7 @@ import {
   AcceptInvitationDto,
   ChangePasswordDto,
   GoogleLoginDto,
+  GoogleRegisterDto,
   LoginDto,
   RefreshDto,
   RegisterDto,
@@ -49,6 +50,12 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   googleLogin(@Body() dto: GoogleLoginDto) {
     return this.authService.googleLogin(dto);
+  }
+
+  @Post('google/register')
+  @HttpCode(HttpStatus.OK)
+  googleRegister(@Body() dto: GoogleRegisterDto) {
+    return this.authService.googleRegister(dto);
   }
 
   @Post('refresh')
