@@ -58,6 +58,7 @@ jobs:
           az containerapp update
           --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}"
           --name "${{ vars.AZURE_CONTAINER_APP_NAME }}"
+          --container-name api
           --image "${{ steps.image.outputs.image }}"
           --output none
 
