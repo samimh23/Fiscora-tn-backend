@@ -267,7 +267,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
       5,
       Number(this.config.get('DOCUMENT_EXTRACTION_LEASE_MINUTES', 15)),
     );
-    const rows: Array<{ id: string }> = await this.jobs.query(
+    const result: unknown = await this.jobs.query(
       `WITH candidate AS (
          SELECT id FROM accounting.document_extraction_jobs
          WHERE ((status = $1 AND available_at_utc <= now())
@@ -290,6 +290,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
         leaseMinutes,
       ],
     );
+    const rows = postgresUpdateRows<{ id: string }>(result);
     return rows[0] ? this.jobs.findOneBy({ id: rows[0].id }) : null;
   }
 
@@ -426,7 +427,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
   private async autoQueueEligibleDocuments() {
     if (this.config.get('DOCUMENT_EXTRACTION_AUTO_QUEUE', 'true') !== 'true')
       return;
-    const rows: Array<{ documentId: string }> = await this.jobs.query(
+    const result: unknown = await this.jobs.query(
       `WITH candidates AS (
          SELECT document.id, document.organization_id, document.dossier_id
          FROM accounting.accounting_documents document
@@ -459,6 +460,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
         ExtractionStatus.Pending,
       ],
     );
+    const rows = postgresUpdateRows<{ documentId: string }>(result);
     if (rows.length)
       this.logger.log(
         `${rows.length} document(s) automatiquement ajouté(s) à la file d’extraction.`,
@@ -491,4 +493,15 @@ export class DocumentExtractionService implements OnModuleDestroy {
       }),
     );
   }
+}
+
+export function postgresUpdateRows<T>(result: unknown): T[] {
+  if (!Array.isArray(result)) return [];
+  if (
+    result.length === 2 &&
+    Array.isArray(result[0]) &&
+    typeof result[1] === 'number'
+  )
+    return result[0] as T[];
+  return result as T[];
 }
