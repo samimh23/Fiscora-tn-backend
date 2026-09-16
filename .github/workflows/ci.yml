@@ -5,6 +5,7 @@ on:
     branches:
       - main
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -46,3 +47,12 @@ jobs:
 
       - name: Build production container
         run: docker build --tag fiscora-backend:${{ github.sha }} .
+
+  deploy-staging:
+    name: Deploy validated backend to staging
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deploy-azure-staging.yml
