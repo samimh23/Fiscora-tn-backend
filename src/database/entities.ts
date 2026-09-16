@@ -70,6 +70,48 @@ export class User extends AuditableEntity {
 
   @OneToMany(() => RefreshToken, (token) => token.user)
   refreshTokens!: RefreshToken[];
+
+  @OneToMany(() => UserExternalIdentity, (identity) => identity.user)
+  externalIdentities!: UserExternalIdentity[];
+}
+
+export enum ExternalIdentityProvider {
+  Google = 'GOOGLE',
+}
+
+@Entity({ schema: 'accounting', name: 'user_external_identities' })
+@Unique(['provider', 'providerSubject'])
+@Unique(['provider', 'userId'])
+@Index(['userId'])
+export class UserExternalIdentity extends AuditableEntity {
+  @Column({ name: 'user_id', type: 'uuid' })
+  userId!: string;
+
+  @ManyToOne(() => User, (user) => user.externalIdentities, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'user_id' })
+  user!: User;
+
+  @Column({ type: 'varchar', length: 40 })
+  provider!: ExternalIdentityProvider;
+
+  @Column({ name: 'provider_subject', type: 'varchar', length: 255 })
+  providerSubject!: string;
+
+  @Column({ name: 'provider_email', type: 'varchar', length: 320 })
+  providerEmail!: string;
+
+  @Column({
+    name: 'hosted_domain',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  hostedDomain!: string | null;
+
+  @Column({ name: 'last_authenticated_at_utc', type: 'timestamptz' })
+  lastAuthenticatedAtUtc!: Date;
 }
 
 @Entity({ schema: 'accounting', name: 'organizations' })
@@ -5730,6 +5772,7 @@ export class AnnualTaxFiling extends AuditableEntity {
 
 export const ENTITIES = [
   User,
+  UserExternalIdentity,
   Organization,
   SaasPlan,
   OrganizationSubscription,

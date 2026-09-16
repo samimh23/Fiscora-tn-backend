@@ -92,6 +92,7 @@ import { AiAssistantRag1784383000000 } from './database/migrations/1784383000000
 import { AssistantModule } from './assistant/assistant.module';
 import { EmailIngestion1784384000000 } from './database/migrations/1784384000000-email-ingestion';
 import { EmailIngestionModule } from './email-ingestion/email-ingestion.module';
+import { GoogleIdentities1784385000000 } from './database/migrations/1784385000000-google-identities';
 
 @Module({
   imports: [
@@ -164,6 +165,7 @@ import { EmailIngestionModule } from './email-ingestion/email-ingestion.module';
           DocumentExtractionWorkflow1784382000000,
           AiAssistantRag1784383000000,
           EmailIngestion1784384000000,
+          GoogleIdentities1784385000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,

@@ -20,6 +20,8 @@ import {
   Role,
   RolePermission,
   User,
+  ExternalIdentityProvider,
+  UserExternalIdentity,
 } from '../database/entities';
 import { InvitationMailerService } from '../email/invitation-mailer.service';
 import {
@@ -31,6 +33,7 @@ import {
 import {
   AcceptInvitationDto,
   ChangePasswordDto,
+  GoogleLoginDto,
   LoginDto,
   RefreshDto,
   RegisterDto,
@@ -39,6 +42,7 @@ import {
   ResetPasswordDto,
   UpdateProfileDto,
 } from './dto';
+import { GoogleIdentityService } from './google-identity.service';
 
 @Injectable()
 export class AuthService {
@@ -54,6 +58,7 @@ export class AuthService {
     @InjectRepository(PasswordResetToken)
     private readonly passwordResetTokens: Repository<PasswordResetToken>,
     private readonly mailer: InvitationMailerService,
+    private readonly googleIdentity: GoogleIdentityService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -134,6 +139,82 @@ export class AuthService {
     user.lastLoginAtUtc = new Date();
     await this.users.save(user);
     return this.issueTokens(this.dataSource.manager, user);
+  }
+
+  async googleLogin(dto: GoogleLoginDto) {
+    const google = await this.googleIdentity.verify(dto.credential);
+
+    return this.dataSource.transaction(async (manager) => {
+      const linkedIdentity = await manager.findOne(UserExternalIdentity, {
+        where: {
+          provider: ExternalIdentityProvider.Google,
+          providerSubject: google.subject,
+        },
+        relations: { user: true },
+      });
+
+      let user = linkedIdentity?.user ?? null;
+      if (!user) {
+        user = await manager.findOneBy(User, {
+          normalizedEmail: google.normalizedEmail,
+        });
+        if (!user) {
+          throw new UnauthorizedException(
+            'Aucun compte Fiscora n’existe avec cette adresse Google. Créez votre cabinet ou utilisez une invitation avant la première connexion.',
+          );
+        }
+
+        const otherGoogleIdentity = await manager.findOneBy(
+          UserExternalIdentity,
+          {
+            provider: ExternalIdentityProvider.Google,
+            userId: user.id,
+          },
+        );
+        if (otherGoogleIdentity) {
+          throw new ConflictException(
+            'Ce compte Fiscora est déjà associé à un autre compte Google.',
+          );
+        }
+
+        await manager.save(
+          manager.create(UserExternalIdentity, {
+            userId: user.id,
+            provider: ExternalIdentityProvider.Google,
+            providerSubject: google.subject,
+            providerEmail: google.email,
+            hostedDomain: google.hostedDomain,
+            lastAuthenticatedAtUtc: new Date(),
+          }),
+        );
+        await manager.save(
+          manager.create(AuditLog, {
+            organizationId: null,
+            actorUserId: user.id,
+            action: 'auth.google_linked',
+            entityType: 'User',
+            entityId: user.id,
+            detailsJson: {
+              provider: ExternalIdentityProvider.Google,
+              providerEmail: google.email,
+            },
+          }),
+        );
+      } else if (linkedIdentity) {
+        linkedIdentity.providerEmail = google.email;
+        linkedIdentity.hostedDomain = google.hostedDomain;
+        linkedIdentity.lastAuthenticatedAtUtc = new Date();
+        await manager.save(linkedIdentity);
+      }
+
+      if (!user.isActive) {
+        throw new UnauthorizedException('Ce compte Fiscora est désactivé.');
+      }
+      user.emailVerified = true;
+      user.lastLoginAtUtc = new Date();
+      await manager.save(user);
+      return this.issueTokens(manager, user);
+    });
   }
 
   async refresh(dto: RefreshDto) {

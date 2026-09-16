@@ -12,6 +12,7 @@ import {
 import { EmailModule } from '../email/email.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { GoogleIdentityService } from './google-identity.service';
 import { JwtStrategy } from './jwt.strategy';
 
 @Module({
@@ -33,7 +34,7 @@ import { JwtStrategy } from './jwt.strategy';
     ]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, GoogleIdentityService, JwtStrategy],
   exports: [JwtStrategy, PassportModule],
 })
 export class AuthModule {}

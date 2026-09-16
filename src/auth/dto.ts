@@ -44,6 +44,17 @@ export class LoginDto {
   password!: string;
 }
 
+export class GoogleLoginDto {
+  @ApiProperty({
+    description:
+      'Jeton d’identité signé retourné par Google Identity Services.',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(10000)
+  credential!: string;
+}
+
 export class RefreshDto {
   @IsString()
   @IsNotEmpty()
