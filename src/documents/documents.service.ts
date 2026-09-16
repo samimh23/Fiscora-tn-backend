@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import ExcelJS from 'exceljs';
-import { IsNull, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import {
   AccountingDocument,
   AuditLog,
@@ -96,9 +96,28 @@ export class DocumentsService implements OnModuleInit {
       builder.andWhere('document.period_year = :periodYear', query);
     if (query.periodMonth)
       builder.andWhere('document.period_month = :periodMonth', query);
-    return (
-      await builder.orderBy('document.created_at_utc', 'DESC').getMany()
-    ).map((item) => this.toResponse(item));
+    const items = await builder
+      .orderBy('document.created_at_utc', 'DESC')
+      .getMany();
+    const uploaderIds = [
+      ...new Set(items.map((item) => item.uploadedByUserId)),
+    ];
+    const uploaders = uploaderIds.length
+      ? await this.memberships.find({
+          where: {
+            organizationId,
+            userId: In(uploaderIds),
+            isActive: true,
+          },
+          relations: { user: true, role: true },
+        })
+      : [];
+    const uploaderByUserId = new Map(
+      uploaders.map((membership) => [membership.userId, membership]),
+    );
+    return items.map((item) =>
+      this.toResponse(item, uploaderByUserId.get(item.uploadedByUserId)),
+    );
   }
 
   async upload(
@@ -265,7 +284,7 @@ export class DocumentsService implements OnModuleInit {
         { dossierId, name: file.originalname },
       );
     }
-    return this.toResponse(item);
+    return this.toResponse(item, undefined, client ? 'CLIENT' : 'CABINET');
   }
 
   async update(
@@ -653,7 +672,19 @@ export class DocumentsService implements OnModuleInit {
     return expectation;
   }
 
-  private toResponse(item: AccountingDocument) {
+  private toResponse(
+    item: AccountingDocument,
+    uploader?: OrganizationMembership,
+    knownUploaderType?: 'CLIENT' | 'CABINET',
+  ) {
+    const uploaderType =
+      knownUploaderType ??
+      (uploader
+        ? uploader.role.normalizedName ===
+          SystemRoleNames.ClientPortal.toUpperCase()
+          ? 'CLIENT'
+          : 'CABINET'
+        : 'UNKNOWN');
     return {
       id: item.id,
       dossierId: item.dossierId,
@@ -675,6 +706,16 @@ export class DocumentsService implements OnModuleInit {
       malwareScanStatus: item.malwareScanStatus,
       malwareSignature: item.malwareSignature,
       malwareScannedAtUtc: item.malwareScannedAtUtc,
+      uploadedBy: {
+        type: uploaderType,
+        name:
+          uploader?.user.fullName ??
+          (uploaderType === 'CLIENT'
+            ? 'Client'
+            : uploaderType === 'CABINET'
+              ? 'Cabinet'
+              : 'Utilisateur inconnu'),
+      },
     };
   }
 
