@@ -48,3 +48,27 @@ export class AssistantController {
     );
   }
 }
+
+@ApiTags('Assistant Fiscora')
+@ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'), PermissionGuard)
+@RequirePermission(PermissionNames.OrganizationView)
+@Controller('api/organizations/:organizationId/assistant')
+export class ContextualAssistantController {
+  constructor(private readonly service: AssistantService) {}
+
+  @Post('ask')
+  ask(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: AskAssistantDto,
+  ) {
+    return this.service.askContextual(
+      organizationId,
+      user.userId,
+      dto.question,
+      dto.currentPath,
+      dto.dossierId,
+    );
+  }
+}

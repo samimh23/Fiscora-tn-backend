@@ -5,7 +5,10 @@ import { PermissionGuard } from '../common/permission.guard';
 import { OrganizationMembership } from '../database/entities';
 import { DossiersModule } from '../dossiers/dossiers.module';
 import { DocumentsModule } from '../documents/documents.module';
-import { AssistantController } from './assistant.controller';
+import {
+  AssistantController,
+  ContextualAssistantController,
+} from './assistant.controller';
 import { AssistantService } from './assistant.service';
 import { VertexAiClient } from './vertex-ai.client';
 
@@ -16,7 +19,7 @@ import { VertexAiClient } from './vertex-ai.client';
     DocumentsModule,
     TypeOrmModule.forFeature([OrganizationMembership]),
   ],
-  controllers: [AssistantController],
+  controllers: [AssistantController, ContextualAssistantController],
   providers: [AssistantService, VertexAiClient, PermissionGuard],
 })
 export class AssistantModule {}

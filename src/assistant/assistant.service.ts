@@ -4,8 +4,10 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHash } from 'node:crypto';
-import { DataSource, QueryRunner } from 'typeorm';
+import { createHash, randomUUID } from 'node:crypto';
+import { DataSource, QueryRunner, Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { OrganizationMembership } from '../database/entities';
 import { DossiersService } from '../dossiers/dossiers.service';
 import {
   type AccountingKnowledgeChunk,
@@ -17,6 +19,12 @@ import {
   detectFinancialQuestion,
 } from './financial-question';
 import { VertexAiClient } from './vertex-ai.client';
+import {
+  buildProductHelpContext,
+  findProductHelp,
+  isProductHelpQuestion,
+  type ProductHelpMatch,
+} from './product-help';
 
 interface KnowledgeChunkRow {
   id: string;
@@ -42,6 +50,13 @@ export interface Citation {
   sourceId: string;
   sourceName: string;
   pageNumber: number | null;
+  kind?: 'DOCUMENT' | 'PRODUCT_HELP';
+  path?: string;
+}
+
+export interface AssistantAction {
+  label: string;
+  path: string;
 }
 
 @Injectable()
@@ -53,9 +68,56 @@ export class AssistantService {
     private readonly dataSource: DataSource,
     private readonly dossiers: DossiersService,
     private readonly vertex: VertexAiClient,
+    @InjectRepository(OrganizationMembership)
+    private readonly memberships: Repository<OrganizationMembership>,
   ) {
     this.embeddingDimensions = Number(
       this.config.get<string>('VERTEX_AI_EMBEDDING_DIMENSIONS') ?? '768',
+    );
+  }
+
+  async askContextual(
+    organizationId: string,
+    userId: string,
+    question: string,
+    currentPath?: string,
+    dossierId?: string,
+  ) {
+    this.ensureEnabled();
+    const membership = await this.memberships.findOne({
+      where: { organizationId, userId, isActive: true },
+      relations: { organization: true, role: { rolePermissions: true } },
+    });
+    if (!membership?.organization.isActive) {
+      throw new BadRequestException(
+        'Votre accès à cette organisation n’est pas actif.',
+      );
+    }
+    const permissions = new Set(
+      membership.role.rolePermissions.map((item) => item.permissionName),
+    );
+    const helpMatches = findProductHelp(question, currentPath, permissions);
+    if (isProductHelpQuestion(question, helpMatches)) {
+      return this.answerProductHelp(
+        question,
+        currentPath,
+        dossierId,
+        helpMatches,
+      );
+    }
+    if (dossierId) {
+      return this.ask(organizationId, dossierId, userId, question);
+    }
+    if (helpMatches.length) {
+      return this.answerProductHelp(
+        question,
+        currentPath,
+        dossierId,
+        helpMatches,
+      );
+    }
+    throw new BadRequestException(
+      'Je n’ai pas trouvé de guide correspondant. Précisez la page ou choisissez un dossier pour interroger ses données validées.',
     );
   }
 
@@ -294,6 +356,56 @@ export class AssistantService {
       citations,
       model: result.model,
     };
+  }
+
+  private async answerProductHelp(
+    question: string,
+    currentPath: string | undefined,
+    dossierId: string | undefined,
+    matches: ProductHelpMatch[],
+  ) {
+    const citations: Citation[] = matches.map(({ entry }, index) => ({
+      label: `S${index + 1}`,
+      chunkId: `product-help:${entry.id}`,
+      sourceId: entry.id,
+      sourceName: entry.title,
+      pageNumber: null,
+      kind: 'PRODUCT_HELP',
+      path: this.resolveHelpPath(entry.path, currentPath, dossierId),
+    }));
+    const actions: AssistantAction[] = citations
+      .slice(0, 2)
+      .map((citation) => ({
+        label: `Ouvrir « ${citation.sourceName} »`,
+        path: citation.path!,
+      }));
+    const result = await this.vertex.answerProductHelp(
+      question,
+      buildProductHelpContext(matches),
+      currentPath,
+    );
+    return {
+      id: `product-help:${randomUUID()}`,
+      answer: result.text,
+      citations,
+      actions,
+      model: result.model,
+      scope: 'PRODUCT_HELP',
+    };
+  }
+
+  private resolveHelpPath(
+    path: string,
+    currentPath?: string,
+    dossierId?: string,
+  ) {
+    if (!path.includes(':dossierId')) return path;
+    const pathDossierId = currentPath?.match(
+      /^\/(?:portail\/)?dossiers\/([^/?]+)/,
+    )?.[1];
+    const resolvedId = pathDossierId ?? dossierId;
+    if (resolvedId) return path.replace(':dossierId', resolvedId);
+    return path.startsWith('/portail/') ? '/portail/dossiers' : '/dossiers';
   }
 
   private async recordTurn(
