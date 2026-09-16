@@ -12,6 +12,66 @@ const actor: JwtUser = {
 };
 
 describe('PlatformAdminService', () => {
+  it('combines runtime metrics, pipeline health, and integration status', async () => {
+    const operationalSnapshot = jest.fn().mockResolvedValue({
+      generatedAtUtc: '2026-09-16T10:00:00.000Z',
+      scope: 'CURRENT_API_REPLICA',
+      windowMinutes: 60,
+      runtime: { status: 'OPERATIONNEL' },
+      http: { requestsTotal: 12, errors5xx: 1 },
+      database: { status: 'OPERATIONNEL', latencyMs: 4 },
+      history: [],
+    });
+    const query = jest.fn().mockResolvedValue([
+      {
+        extractionPending: '2',
+        extractionProcessing: '1',
+        extractionFailed: '0',
+        invitationPending: '0',
+        invitationProcessing: '0',
+        invitationFailed: '1',
+        ttnPending: '0',
+        ttnProcessing: '0',
+        ttnFailed: '0',
+      },
+    ]);
+    const configured = new Set([
+      'APPLICATIONINSIGHTS_CONNECTION_STRING',
+      'DOCUMENT_EXTRACTION_ENABLED',
+      'SMTP_HOST',
+    ]);
+    const service = new PlatformAdminService(
+      { query } as unknown as DataSource,
+      {
+        get: jest.fn((key: string, fallback?: string) =>
+          configured.has(key)
+            ? key.endsWith('_ENABLED')
+              ? 'true'
+              : 'set'
+            : fallback,
+        ),
+      } as unknown as ConfigService,
+      { sendTestEmail: jest.fn() } as never,
+      { operationalSnapshot } as never,
+    );
+
+    const monitoring = await service.monitoring();
+
+    expect(monitoring.http.requestsTotal).toBe(12);
+    expect(monitoring.pipelines).toHaveLength(3);
+    expect(monitoring.pipelines[0]).toMatchObject({
+      code: 'DOCUMENT_EXTRACTION',
+      pending: 2,
+      processing: 1,
+    });
+    expect(monitoring.integrations).toEqual({
+      applicationInsightsConfigured: true,
+      documentExtractionEnabled: true,
+      assistantEnabled: false,
+      emailConfigured: true,
+    });
+  });
+
   it('reports operational failures without customer overdue tasks', async () => {
     const query = jest
       .fn()
@@ -39,6 +99,7 @@ describe('PlatformAdminService', () => {
         get: jest.fn((_key: string, fallback?: string) => fallback),
       } as unknown as ConfigService,
       { sendTestEmail: jest.fn() } as never,
+      { operationalSnapshot: jest.fn() } as never,
     );
 
     const overview = await service.overview();
@@ -61,6 +122,7 @@ describe('PlatformAdminService', () => {
       {} as DataSource,
       {} as ConfigService,
       { sendTestEmail: jest.fn() } as never,
+      { operationalSnapshot: jest.fn() } as never,
     );
 
     await expect(
@@ -96,6 +158,7 @@ describe('PlatformAdminService', () => {
       dataSource,
       {} as ConfigService,
       { sendTestEmail: jest.fn() } as never,
+      { operationalSnapshot: jest.fn() } as never,
     );
 
     await expect(

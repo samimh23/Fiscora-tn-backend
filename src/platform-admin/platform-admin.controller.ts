@@ -74,6 +74,11 @@ export class PlatformAdminController {
     return this.service.jobs();
   }
 
+  @Get('monitoring')
+  monitoring() {
+    return this.service.monitoring();
+  }
+
   @Get('email/status')
   emailStatus() {
     return this.service.emailStatus();

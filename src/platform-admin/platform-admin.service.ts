@@ -9,6 +9,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
 import type { JwtUser } from '../common/auth.types';
 import { InvitationMailerService } from '../email/invitation-mailer.service';
+import { MetricsService } from '../metrics/metrics.service';
 import type {
   RevokePlatformSessionsDto,
   SendPlatformTestEmailDto,
@@ -23,6 +24,7 @@ export class PlatformAdminService {
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly config: ConfigService,
     private readonly invitationMailer: InvitationMailerService,
+    private readonly metrics: MetricsService,
   ) {}
 
   async overview() {
@@ -236,6 +238,30 @@ export class PlatformAdminService {
         ),
         this.pipeline('TTN_TRANSMISSION', 'Transmission TTN', row, 'ttn'),
       ],
+    };
+  }
+
+  async monitoring() {
+    const [operational, jobs] = await Promise.all([
+      this.metrics.operationalSnapshot(),
+      this.jobs(),
+    ]);
+
+    return {
+      ...operational,
+      pipelines: jobs.pipelines,
+      integrations: {
+        applicationInsightsConfigured: Boolean(
+          this.config
+            .get<string>('APPLICATIONINSIGHTS_CONNECTION_STRING')
+            ?.trim(),
+        ),
+        documentExtractionEnabled:
+          this.config.get('DOCUMENT_EXTRACTION_ENABLED', 'false') === 'true',
+        assistantEnabled:
+          this.config.get('AI_ASSISTANT_ENABLED', 'false') === 'true',
+        emailConfigured: this.emailConfigured(),
+      },
     };
   }
 
