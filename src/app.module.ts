@@ -88,6 +88,8 @@ import { TunisianBanksCatalog1784379000000 } from './database/migrations/1784379
 import { CabinetPaymentCorrections1784380000000 } from './database/migrations/1784380000000-cabinet-payment-corrections';
 import { ThirdPartyPaymentCorrections1784381000000 } from './database/migrations/1784381000000-third-party-payment-corrections';
 import { DocumentExtractionWorkflow1784382000000 } from './database/migrations/1784382000000-document-extraction-workflow';
+import { AiAssistantRag1784383000000 } from './database/migrations/1784383000000-ai-assistant-rag';
+import { AssistantModule } from './assistant/assistant.module';
 
 @Module({
   imports: [
@@ -158,6 +160,7 @@ import { DocumentExtractionWorkflow1784382000000 } from './database/migrations/1
           CabinetPaymentCorrections1784380000000,
           ThirdPartyPaymentCorrections1784381000000,
           DocumentExtractionWorkflow1784382000000,
+          AiAssistantRag1784383000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,
@@ -198,6 +201,7 @@ import { DocumentExtractionWorkflow1784382000000 } from './database/migrations/1
     AnnualTaxModule,
     QualityAssuranceModule,
     MigrationAssistantModule,
+    AssistantModule,
   ],
   controllers: [HealthController],
   providers: [

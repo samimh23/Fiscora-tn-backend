@@ -46,6 +46,6 @@ import { NuExtractClientService } from './extraction/nuextract-client.service';
     NuExtractClientService,
     DocumentExtractionService,
   ],
-  exports: [DocumentsService],
+  exports: [DocumentsService, GoogleWifTokenService],
 })
 export class DocumentsModule {}
