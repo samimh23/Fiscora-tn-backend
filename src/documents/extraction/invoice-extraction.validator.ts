@@ -26,6 +26,20 @@ export class InvoiceExtractionValidator {
       );
     }
 
+    if (documentType === 'bank_statement') {
+      return this.validateBankStatement(input, normalizedData, issues);
+    }
+    if (documentType === 'other') {
+      issues.push(
+        this.warning(
+          'DOCUMENT_TYPE_CONFIRMATION_REQUIRED',
+          'document_type',
+          'Le document n’a pas été reconnu avec suffisamment de précision. Confirmez son type avant traitement.',
+        ),
+      );
+      return { normalizedData, issues };
+    }
+
     const supplier = this.record(input.supplier);
     if (!this.text(supplier?.name)) {
       issues.push(
@@ -168,6 +182,191 @@ export class InvoiceExtractionValidator {
     return { normalizedData, issues };
   }
 
+  private validateBankStatement(
+    input: Record<string, unknown>,
+    normalizedData: Record<string, unknown>,
+    issues: ExtractionValidationIssue[],
+  ): ExtractionValidationResult {
+    const statement = this.record(input.bank_statement);
+    if (!statement) {
+      issues.push(
+        this.error(
+          'BANK_STATEMENT_DATA_MISSING',
+          'bank_statement',
+          'Les données du relevé bancaire sont absentes.',
+        ),
+      );
+      return { normalizedData, issues };
+    }
+
+    const periodStart = this.isoDate(statement.period_start);
+    const periodEnd = this.isoDate(statement.period_end);
+    if (!periodStart) {
+      issues.push(
+        this.error(
+          'BANK_PERIOD_START_INVALID',
+          'bank_statement.period_start',
+          'La date de début du relevé est absente ou invalide.',
+        ),
+      );
+    }
+    if (!periodEnd) {
+      issues.push(
+        this.error(
+          'BANK_PERIOD_END_INVALID',
+          'bank_statement.period_end',
+          'La date de fin du relevé est absente ou invalide.',
+        ),
+      );
+    }
+    if (periodStart && periodEnd && periodStart > periodEnd) {
+      issues.push(
+        this.error(
+          'BANK_PERIOD_INVALID',
+          'bank_statement.period_end',
+          'La période du relevé est inversée.',
+        ),
+      );
+    }
+
+    const opening = this.amount(statement.opening_balance);
+    const closing = this.amount(statement.closing_balance);
+    if (opening == null) {
+      issues.push(
+        this.error(
+          'BANK_OPENING_BALANCE_MISSING',
+          'bank_statement.opening_balance',
+          'Le solde initial est absent ou illisible.',
+        ),
+      );
+    }
+    if (closing == null) {
+      issues.push(
+        this.error(
+          'BANK_CLOSING_BALANCE_MISSING',
+          'bank_statement.closing_balance',
+          'Le solde final est absent ou illisible.',
+        ),
+      );
+    }
+
+    const rows = Array.isArray(statement.transactions)
+      ? statement.transactions
+      : [];
+    if (!rows.length) {
+      issues.push(
+        this.error(
+          'BANK_TRANSACTIONS_MISSING',
+          'bank_statement.transactions',
+          'Aucune opération bancaire n’a été détectée.',
+        ),
+      );
+    }
+    const normalizedRows = rows.map((row, index) => {
+      const item = this.record(row) ?? {};
+      const debit = this.amount(item.debit);
+      const credit = this.amount(item.credit);
+      const printedAmount = this.amount(item.amount);
+      const amount =
+        printedAmount ??
+        (debit != null || credit != null ? (credit ?? 0) - (debit ?? 0) : null);
+      const transactionDate = this.isoDate(item.transaction_date);
+      const valueDate = this.isoDate(item.value_date);
+      const description = this.text(item.description);
+      if (!transactionDate) {
+        issues.push(
+          this.error(
+            'BANK_TRANSACTION_DATE_INVALID',
+            `bank_statement.transactions.${index}.transaction_date`,
+            `La date de l’opération ${index + 1} est absente ou invalide.`,
+          ),
+        );
+      }
+      if (!description) {
+        issues.push(
+          this.error(
+            'BANK_TRANSACTION_DESCRIPTION_MISSING',
+            `bank_statement.transactions.${index}.description`,
+            `Le libellé de l’opération ${index + 1} est absent.`,
+          ),
+        );
+      }
+      if (debit != null && credit != null && debit !== 0 && credit !== 0) {
+        issues.push(
+          this.error(
+            'BANK_TRANSACTION_DIRECTION_AMBIGUOUS',
+            `bank_statement.transactions.${index}`,
+            `L’opération ${index + 1} contient simultanément un débit et un crédit.`,
+          ),
+        );
+      }
+      if (amount == null || Math.abs(amount) < 0.0005) {
+        issues.push(
+          this.error(
+            'BANK_TRANSACTION_AMOUNT_INVALID',
+            `bank_statement.transactions.${index}.amount`,
+            `Le montant de l’opération ${index + 1} est absent ou nul.`,
+          ),
+        );
+      }
+      if (
+        transactionDate &&
+        periodStart &&
+        periodEnd &&
+        (transactionDate < periodStart || transactionDate > periodEnd)
+      ) {
+        issues.push(
+          this.error(
+            'BANK_TRANSACTION_OUTSIDE_PERIOD',
+            `bank_statement.transactions.${index}.transaction_date`,
+            `L’opération ${index + 1} est hors de la période du relevé.`,
+          ),
+        );
+      }
+      return {
+        transaction_date: transactionDate,
+        value_date: valueDate,
+        description,
+        reference: this.text(item.reference),
+        debit,
+        credit,
+        amount,
+        balance: this.amount(item.balance),
+      };
+    });
+
+    if (opening != null && closing != null && normalizedRows.length) {
+      const calculated = normalizedRows.reduce(
+        (total, row) =>
+          total + (typeof row.amount === 'number' ? row.amount : 0),
+        opening,
+      );
+      const difference = Math.abs(calculated - closing);
+      if (difference > 0.002) {
+        issues.push(
+          this.error(
+            'BANK_CLOSING_BALANCE_MISMATCH',
+            'bank_statement.closing_balance',
+            `Le solde final diffère du solde initial augmenté des opérations de ${difference.toFixed(3)} TND.`,
+          ),
+        );
+      }
+    }
+
+    normalizedData.bank_statement = {
+      bank_name: this.text(statement.bank_name),
+      iban: this.text(statement.iban),
+      account_number: this.text(statement.account_number),
+      period_start: periodStart,
+      period_end: periodEnd,
+      opening_balance: opening,
+      closing_balance: closing,
+      transactions: normalizedRows,
+    };
+    normalizedData.currency = this.text(input.currency) ?? 'TND';
+    return { normalizedData, issues };
+  }
+
   private record(value: unknown): Record<string, unknown> | null {
     return value && typeof value === 'object' && !Array.isArray(value)
       ? (value as Record<string, unknown>)
@@ -176,6 +375,18 @@ export class InvoiceExtractionValidator {
 
   private text(value: unknown) {
     return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  private isoDate(value: unknown) {
+    const text = this.text(value);
+    if (!text) return null;
+    const candidate = text.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return null;
+    const date = new Date(`${candidate}T00:00:00Z`);
+    return Number.isNaN(date.getTime()) ||
+      date.toISOString().slice(0, 10) !== candidate
+      ? null
+      : candidate;
   }
 
   private amount(value: unknown): number | null {

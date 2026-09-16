@@ -21,6 +21,7 @@ import { DOCUMENT_OBJECT_STORAGE } from './object-storage/object-storage';
 import { DocumentExtractionService } from './extraction/document-extraction.service';
 import { GoogleWifTokenService } from './extraction/google-wif-token.service';
 import { NuExtractClientService } from './extraction/nuextract-client.service';
+import { BankReconciliationModule } from '../bank-reconciliation/bank-reconciliation.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { NuExtractClientService } from './extraction/nuextract-client.service';
     DossiersModule,
     EmailModule,
     NotificationsModule,
+    BankReconciliationModule,
     TypeOrmModule.forFeature([
       AccountingDocument,
       DocumentExtractionJob,

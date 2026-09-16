@@ -128,10 +128,31 @@ export class NuExtractClientService {
           line_total: 'verbatim-string',
         },
       ],
+      bank_statement: {
+        bank_name: 'verbatim-string',
+        iban: 'verbatim-string',
+        account_number: 'verbatim-string',
+        period_start: 'date-time',
+        period_end: 'date-time',
+        opening_balance: 'verbatim-string',
+        closing_balance: 'verbatim-string',
+        transactions: [
+          {
+            transaction_date: 'date-time',
+            value_date: 'date-time',
+            description: 'verbatim-string',
+            reference: 'verbatim-string',
+            debit: 'verbatim-string',
+            credit: 'verbatim-string',
+            amount: 'verbatim-string',
+            balance: 'verbatim-string',
+          },
+        ],
+      },
     };
   }
 
   private instructions() {
-    return 'Classify document_type from visible evidence, then extract all applicable fields. Use null for unreadable or absent information and never infer hidden identifiers. Preserve printed identifiers exactly. Use ISO-8601 dates and ISO-4217 currencies. Return every monetary field as the exact printed string, including spaces and decimal separators; never remove punctuation or multiply by 1000. For Tunisian documents, DT means TND and a comma followed by three digits is a millime decimal separator: for example 3 782,353 must remain "3 782,353" and 1.459,000 must remain "1.459,000". Extract FODEC only into fodec_amount. Keep fiscal stamp separate in stamp_tax. Put other visible surcharges, duties, or levies into other_taxes, excluding TVA, FODEC, and fiscal stamp to avoid double counting. subtotal_excl_tax is the printed net HT amount after any discount. Financial values must be normalized and validated by the application before acceptance.';
+    return 'Classify document_type from visible evidence, then extract only the matching section. Use null for unreadable or absent information and never infer hidden identifiers. Preserve printed identifiers exactly. Use ISO-8601 dates and ISO-4217 currencies. Return every monetary field as the exact printed string, including spaces and decimal separators; never remove punctuation or multiply by 1000. For Tunisian documents, DT means TND and a comma followed by three digits is a millime decimal separator: for example 3 782,353 must remain "3 782,353" and 1.459,000 must remain "1.459,000". For invoices, extract FODEC only into fodec_amount, keep fiscal stamp separate in stamp_tax, and put other visible surcharges into other_taxes. For bank statements, fill bank_statement and return every visible transaction in printed order; use debit or credit when printed, otherwise amount; never invent a missing page or balance. Financial values must be normalized and validated by the application before acceptance.';
   }
 }

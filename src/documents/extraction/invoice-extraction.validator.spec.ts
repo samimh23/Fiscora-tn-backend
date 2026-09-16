@@ -148,4 +148,74 @@ describe('InvoiceExtractionValidator', () => {
       ]),
     );
   });
+
+  it('normalizes a balanced bank statement without invoice-only errors', () => {
+    const result = validator.validate({
+      document_type: 'bank_statement',
+      currency: 'TND',
+      bank_statement: {
+        bank_name: 'BIAT',
+        iban: 'TN5901000000000000000000',
+        period_start: '2026-06-01',
+        period_end: '2026-06-30',
+        opening_balance: '1 000,000',
+        closing_balance: '1 125,000',
+        transactions: [
+          {
+            transaction_date: '2026-06-10',
+            description: 'Virement client',
+            credit: '250,000',
+          },
+          {
+            transaction_date: '2026-06-12',
+            description: 'Frais bancaires',
+            debit: '125,000',
+          },
+        ],
+      },
+    });
+
+    expect(result.issues.filter((issue) => issue.severity === 'ERROR')).toEqual(
+      [],
+    );
+    expect(result.normalizedData.bank_statement).toMatchObject({
+      opening_balance: 1000,
+      closing_balance: 1125,
+      transactions: [
+        expect.objectContaining({ amount: 250 }),
+        expect.objectContaining({ amount: -125 }),
+      ],
+    });
+    expect(result.issues.map((issue) => issue.code)).not.toContain(
+      'SUPPLIER_MISSING',
+    );
+  });
+
+  it('blocks an inconsistent bank closing balance', () => {
+    const result = validator.validate({
+      document_type: 'bank_statement',
+      bank_statement: {
+        period_start: '2026-06-01',
+        period_end: '2026-06-30',
+        opening_balance: 100,
+        closing_balance: 999,
+        transactions: [
+          {
+            transaction_date: '2026-06-15',
+            description: 'Versement',
+            amount: 50,
+          },
+        ],
+      },
+    });
+
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'BANK_CLOSING_BALANCE_MISMATCH',
+          severity: 'ERROR',
+        }),
+      ]),
+    );
+  });
 });

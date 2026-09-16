@@ -3,6 +3,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
 } from 'class-validator';
 
@@ -18,6 +19,10 @@ export class ReviewExtractionDto {
   @IsOptional()
   @IsObject()
   correctedData?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsUUID()
+  bankAccountId?: string;
 
   @IsOptional()
   @IsString()

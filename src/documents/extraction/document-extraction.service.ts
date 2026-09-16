@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -15,6 +16,7 @@ import {
   AuditLog,
   DocumentExtractionJob,
   DocumentExtractionJobStatus,
+  DocumentCategory,
   ExtractionStatus,
   MalwareScanStatus,
 } from '../../database/entities';
@@ -29,7 +31,7 @@ import {
 } from './extraction.dto';
 import { InvoiceExtractionValidator } from './invoice-extraction.validator';
 import { NuExtractClientService } from './nuextract-client.service';
-import { Inject } from '@nestjs/common';
+import { BankReconciliationService } from '../../bank-reconciliation/bank-reconciliation.service';
 
 @Injectable()
 export class DocumentExtractionService implements OnModuleDestroy {
@@ -50,6 +52,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
     private readonly objectStorage: DocumentObjectStorage,
     private readonly dossiers: DossiersService,
     private readonly client: NuExtractClientService,
+    private readonly bankReconciliation: BankReconciliationService,
   ) {}
 
   onModuleDestroy() {
@@ -198,6 +201,21 @@ export class DocumentExtractionService implements OnModuleDestroy {
           'Corrigez les incohérences bloquantes avant approbation.',
         );
       }
+      if (validation.normalizedData.document_type === 'bank_statement') {
+        if (!dto.bankAccountId)
+          throw new BadRequestException(
+            'Sélectionnez le compte bancaire avant d’approuver le relevé.',
+          );
+        await this.bankReconciliation.importExtractedStatement(
+          organizationId,
+          dossierId,
+          userId,
+          dto.bankAccountId,
+          document.originalName,
+          validation.normalizedData,
+        );
+        document.category = DocumentCategory.Bank;
+      }
       job.status = DocumentExtractionJobStatus.Approved;
       job.normalizedData = validation.normalizedData;
       job.validationIssues = validation.issues;
@@ -229,6 +247,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
     if (this.destroyed || this.running || !this.enabled()) return;
     this.running = true;
     try {
+      await this.autoQueueEligibleDocuments();
       for (let processed = 0; processed < 2; processed += 1) {
         const job = await this.claim();
         if (!job) break;
@@ -402,6 +421,48 @@ export class DocumentExtractionService implements OnModuleDestroy {
 
   private enabled() {
     return this.config.get('DOCUMENT_EXTRACTION_ENABLED', 'false') === 'true';
+  }
+
+  private async autoQueueEligibleDocuments() {
+    if (this.config.get('DOCUMENT_EXTRACTION_AUTO_QUEUE', 'true') !== 'true')
+      return;
+    const rows: Array<{ documentId: string }> = await this.jobs.query(
+      `WITH candidates AS (
+         SELECT document.id, document.organization_id, document.dossier_id
+         FROM accounting.accounting_documents document
+         LEFT JOIN accounting.document_extraction_jobs job
+           ON job.document_id = document.id
+         WHERE document.deleted_at_utc IS NULL
+           AND document.malware_scan_status = $1
+           AND document.extraction_status = $2
+           AND document.mime_type IN ('image/jpeg', 'image/png')
+           AND job.id IS NULL
+         ORDER BY document.created_at_utc
+         LIMIT 50
+       ), inserted AS (
+         INSERT INTO accounting.document_extraction_jobs
+           (organization_id, dossier_id, document_id, status, attempt_count, available_at_utc)
+         SELECT organization_id, dossier_id, id, $3, 0, now()
+         FROM candidates
+         ON CONFLICT (document_id) DO NOTHING
+         RETURNING document_id
+       )
+       UPDATE accounting.accounting_documents document
+       SET extraction_status = $4, updated_at_utc = now()
+       FROM inserted
+       WHERE document.id = inserted.document_id
+       RETURNING document.id AS "documentId"`,
+      [
+        MalwareScanStatus.Clean,
+        ExtractionStatus.NotRequested,
+        DocumentExtractionJobStatus.Queued,
+        ExtractionStatus.Pending,
+      ],
+    );
+    if (rows.length)
+      this.logger.log(
+        `${rows.length} document(s) automatiquement ajouté(s) à la file d’extraction.`,
+      );
   }
 
   private errorMessage(error: unknown) {

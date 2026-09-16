@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import {
   Between,
@@ -644,6 +645,184 @@ export class BankReconciliationService {
       return created;
     });
     return this.getStatement(organizationId, dossierId, statement.id, userId);
+  }
+
+  async importExtractedStatement(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    bankAccountId: string,
+    sourceFileName: string,
+    extraction: Record<string, unknown>,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const bankAccount = await this.bankAccounts.findOneBy({
+      id: bankAccountId,
+      organizationId,
+      dossierId,
+      isActive: true,
+    });
+    if (!bankAccount)
+      throw new NotFoundException('Le compte bancaire est introuvable.');
+
+    const statement = this.extractedRecord(extraction.bank_statement);
+    if (!statement)
+      throw new BadRequestException(
+        'Les données structurées du relevé bancaire sont absentes.',
+      );
+    const periodStart = this.extractedDate(
+      statement.period_start,
+      'Date de début',
+    );
+    const periodEnd = this.extractedDate(statement.period_end, 'Date de fin');
+    if (periodStart > periodEnd)
+      throw new BadRequestException('La période du relevé est invalide.');
+    if (
+      await this.statements.existsBy({
+        bankAccountId,
+        periodStart,
+        periodEnd,
+      })
+    )
+      throw new ConflictException(
+        'Un relevé existe déjà pour ce compte et cette période.',
+      );
+
+    const openingBalance = this.extractedMoney(
+      statement.opening_balance,
+      'Solde initial',
+    );
+    const closingBalance = this.extractedMoney(
+      statement.closing_balance,
+      'Solde final',
+    );
+    const sourceRows = Array.isArray(statement.transactions)
+      ? statement.transactions
+      : [];
+    if (!sourceRows.length)
+      throw new BadRequestException(
+        'Le relevé extrait ne contient aucune opération.',
+      );
+    const occurrences = new Map<string, number>();
+    const rows = sourceRows.map((value, index) => {
+      const row = this.extractedRecord(value);
+      if (!row)
+        throw new BadRequestException(`L’opération ${index + 1} est invalide.`);
+      const transactionDate = this.extractedDate(
+        row.transaction_date,
+        `Date de l’opération ${index + 1}`,
+      );
+      if (transactionDate < periodStart || transactionDate > periodEnd)
+        throw new BadRequestException(
+          `L’opération ${index + 1} est hors de la période du relevé.`,
+        );
+      const valueDate = row.value_date
+        ? this.extractedDate(row.value_date, `Date de valeur ${index + 1}`)
+        : null;
+      const description = this.extractedText(row.description)
+        .trim()
+        .slice(0, 500);
+      if (!description)
+        throw new BadRequestException(
+          `Le libellé de l’opération ${index + 1} est absent.`,
+        );
+      const amount = this.extractedMoney(
+        row.amount,
+        `Montant de l’opération ${index + 1}`,
+      );
+      if (toMillimes(amount) === 0n)
+        throw new BadRequestException(
+          `Le montant de l’opération ${index + 1} est nul.`,
+        );
+      const reference =
+        this.extractedText(row.reference).trim().slice(0, 150) || null;
+      const balance =
+        row.balance == null
+          ? null
+          : this.extractedMoney(
+              row.balance,
+              `Solde de l’opération ${index + 1}`,
+            );
+      const base = [
+        transactionDate,
+        valueDate ?? '',
+        amount,
+        reference ?? '',
+        description.toLocaleLowerCase('fr'),
+      ].join('|');
+      const occurrence = (occurrences.get(base) ?? 0) + 1;
+      occurrences.set(base, occurrence);
+      return {
+        transactionDate,
+        valueDate,
+        description,
+        reference,
+        amount,
+        balance,
+        fingerprint: createHash('sha256')
+          .update(`${base}|${occurrence}`)
+          .digest('hex'),
+      };
+    });
+    const expectedClosing = rows.reduce(
+      (total, row) => total + toMillimes(row.amount),
+      toMillimes(openingBalance),
+    );
+    if (expectedClosing !== toMillimes(closingBalance))
+      throw new BadRequestException(
+        `Le solde final est incohérent : ${fromMillimes(expectedClosing)} TND attendu selon les opérations.`,
+      );
+    if (
+      await this.transactions.existsBy({
+        bankAccountId,
+        fingerprint: In(rows.map((row) => row.fingerprint)),
+      })
+    )
+      throw new ConflictException(
+        'Le relevé contient au moins une opération déjà importée.',
+      );
+
+    const created = await this.dataSource.transaction(async (manager) => {
+      const saved = await manager.save(
+        manager.create(BankStatement, {
+          organizationId,
+          dossierId,
+          bankAccountId,
+          periodStart,
+          periodEnd,
+          openingBalance,
+          closingBalance,
+          bookClosingBalance: null,
+          difference: null,
+          sourceFileName: sourceFileName.slice(0, 300),
+          rowCount: rows.length,
+          status: BankStatementStatus.Imported,
+          importedByUserId: userId,
+          reconciledByUserId: null,
+          reconciledAtUtc: null,
+        }),
+      );
+      await manager.save(
+        rows.map((row) =>
+          manager.create(BankTransaction, {
+            organizationId,
+            dossierId,
+            bankAccountId,
+            statementId: saved.id,
+            ...row,
+            status: BankTransactionStatus.Unmatched,
+            matchType: null,
+            matchConfidence: null,
+            matchedPaymentId: null,
+            journalEntryId: null,
+            matchedByUserId: null,
+            matchedAtUtc: null,
+          }),
+        ),
+      );
+      return saved;
+    });
+    return this.getStatement(organizationId, dossierId, created.id, userId);
   }
 
   async autoMatch(
@@ -1345,6 +1524,52 @@ export class BankReconciliationService {
         lastUsedAtUtc: new Date(),
       }),
     );
+  }
+
+  private extractedRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  }
+
+  private extractedDate(value: unknown, field: string) {
+    const text = this.extractedText(value).trim().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text))
+      throw new BadRequestException(`${field} est absente ou invalide.`);
+    const date = new Date(`${text}T00:00:00Z`);
+    if (
+      Number.isNaN(date.getTime()) ||
+      date.toISOString().slice(0, 10) !== text
+    )
+      throw new BadRequestException(`${field} est absente ou invalide.`);
+    return text;
+  }
+
+  private extractedMoney(value: unknown, field: string) {
+    if (typeof value === 'number' && Number.isFinite(value))
+      return fromMillimes(BigInt(Math.round(value * 1000)));
+    const raw = this.extractedText(value)
+      .trim()
+      .replace(/[\s\u00a0']/g, '')
+      .replace(/[^0-9.,()\-+]/g, '');
+    const parenthesized = raw.startsWith('(') && raw.endsWith(')');
+    let clean = raw.replace(/[()]/g, '');
+    const comma = clean.lastIndexOf(',');
+    const dot = clean.lastIndexOf('.');
+    if (comma >= 0 && dot >= 0) {
+      const decimal = comma > dot ? ',' : '.';
+      clean = clean.replace(decimal === ',' ? /\./g : /,/g, '');
+      clean = clean.replace(decimal, '.');
+    } else if (comma >= 0) clean = clean.replace(',', '.');
+    if (parenthesized) clean = `-${clean}`;
+    return fromMillimes(toMillimes(clean, field));
+  }
+
+  private extractedText(value: unknown) {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' && Number.isFinite(value))
+      return String(value);
+    return '';
   }
 }
 

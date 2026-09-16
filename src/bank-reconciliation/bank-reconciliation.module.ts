@@ -39,5 +39,6 @@ import { PeriodClosingModule } from '../period-closing/period-closing.module';
   ],
   controllers: [BankReconciliationController],
   providers: [BankReconciliationService, PermissionGuard],
+  exports: [BankReconciliationService],
 })
 export class BankReconciliationModule {}
