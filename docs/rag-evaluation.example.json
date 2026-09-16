@@ -1,0 +1,15 @@
+[
+  {
+    "id": "total-ttc-septembre",
+    "question": "Quel est le total TTC des factures de septembre 2026 ?",
+    "expectedTerms": ["total TTC", "septembre 2026", "TND"],
+    "expectedNumbers": ["100.000"],
+    "requireCitations": true
+  },
+  {
+    "id": "fournisseurs-valides",
+    "question": "Quels fournisseurs apparaissent dans les pièces validées ?",
+    "expectedTerms": ["Fournisseur Test"],
+    "requireCitations": true
+  }
+]

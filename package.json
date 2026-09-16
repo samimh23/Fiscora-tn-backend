@@ -16,6 +16,7 @@
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
     "demo:accounts": "ts-node src/dev/create-test-accounts.ts",
+    "assistant:eval": "ts-node src/dev/evaluate-assistant-rag.ts",
     "platform-admin:grant": "node dist/platform-admin/grant-platform-admin.js",
     "audit:prod": "npm audit --omit=dev --audit-level=moderate",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",

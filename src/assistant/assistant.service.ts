@@ -7,16 +7,16 @@ import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 import { DataSource, QueryRunner } from 'typeorm';
 import { DossiersService } from '../dossiers/dossiers.service';
+import {
+  type AccountingKnowledgeChunk,
+  type ApprovedExtractionForIndex,
+  buildAccountingChunks,
+} from './accounting-rag';
+import {
+  aggregateFinancialQuestion,
+  detectFinancialQuestion,
+} from './financial-question';
 import { VertexAiClient } from './vertex-ai.client';
-
-interface ApprovedExtractionRow {
-  document_id: string;
-  original_name: string;
-  category: string;
-  period_year: number | null;
-  period_month: number | null;
-  normalized_data: Record<string, unknown>;
-}
 
 interface KnowledgeChunkRow {
   id: string;
@@ -26,6 +26,14 @@ interface KnowledgeChunkRow {
   content: string;
   metadata: Record<string, unknown>;
   distance: number;
+  text_score: number;
+  relevance_score: number;
+}
+
+interface ExistingChunkRow {
+  source_id: string;
+  chunk_index: number;
+  content_hash: string;
 }
 
 export interface Citation {
@@ -54,49 +62,97 @@ export class AssistantService {
   async reindex(organizationId: string, dossierId: string, userId: string) {
     this.ensureEnabled();
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
-    const approved = await this.dataSource.query<ApprovedExtractionRow[]>(
-      `
-        SELECT job.document_id, document.original_name, document.category,
-          document.period_year, document.period_month, job.normalized_data
-        FROM accounting.document_extraction_jobs job
-        INNER JOIN accounting.accounting_documents document
-          ON document.id = job.document_id
-        WHERE job.organization_id = $1
-          AND job.dossier_id = $2
-          AND job.status = 'VALIDEE'
-          AND job.normalized_data IS NOT NULL
-          AND document.deleted_at_utc IS NULL
-        ORDER BY job.reviewed_at_utc DESC NULLS LAST, job.created_at_utc DESC
-      `,
-      [organizationId, dossierId],
-    );
+    const approved = await this.approvedExtractions(organizationId, dossierId);
     const prepared: Array<{
-      row: ApprovedExtractionRow;
+      row: ApprovedExtractionForIndex;
       index: number;
+      chunk: AccountingKnowledgeChunk;
       content: string;
+      contentHash: string;
       embedding: number[];
     }> = [];
+
+    const existing = await this.dataSource.query<ExistingChunkRow[]>(
+      `SELECT source_id, chunk_index, content_hash
+       FROM accounting.ai_knowledge_chunks
+       WHERE organization_id = $1 AND dossier_id = $2
+         AND source_type = 'REVIEWED_EXTRACTION'`,
+      [organizationId, dossierId],
+    );
+    const existingHashes = new Map(
+      existing.map((item) => [
+        `${item.source_id}:${item.chunk_index}`,
+        item.content_hash.trim(),
+      ]),
+    );
+    const candidates: Array<{
+      row: ApprovedExtractionForIndex;
+      index: number;
+      chunk: AccountingKnowledgeChunk;
+      content: string;
+      contentHash: string;
+    }> = [];
+    let reusedChunks = 0;
     for (const row of approved) {
-      for (const [index, content] of this.chunk(
-        this.extractionText(row),
-      ).entries()) {
-        const embedding = await this.vertex.embed(
-          content,
-          'RETRIEVAL_DOCUMENT',
-        );
-        prepared.push({ row, index, content, embedding });
+      for (const [index, chunk] of buildAccountingChunks(row).entries()) {
+        const contentHash = createHash('sha256')
+          .update(chunk.content)
+          .digest('hex');
+        if (existingHashes.get(`${row.document_id}:${index}`) === contentHash) {
+          reusedChunks += 1;
+          continue;
+        }
+        candidates.push({
+          row,
+          index,
+          chunk,
+          content: chunk.content,
+          contentHash,
+        });
       }
+    }
+    for (let offset = 0; offset < candidates.length; offset += 8) {
+      const batch = candidates.slice(offset, offset + 8);
+      const embeddings = await Promise.all(
+        batch.map((item) =>
+          this.vertex.embed(item.content, 'RETRIEVAL_DOCUMENT'),
+        ),
+      );
+      batch.forEach((item, index) =>
+        prepared.push({ ...item, embedding: embeddings[index] }),
+      );
     }
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
-      await queryRunner.query(
-        `DELETE FROM accounting.ai_knowledge_chunks
-         WHERE organization_id = $1 AND dossier_id = $2
-           AND source_type = 'REVIEWED_EXTRACTION'`,
-        [organizationId, dossierId],
-      );
+      const sourceIds = approved.map((row) => row.document_id);
+      if (sourceIds.length) {
+        await queryRunner.query(
+          `DELETE FROM accounting.ai_knowledge_chunks
+           WHERE organization_id = $1 AND dossier_id = $2
+             AND source_type = 'REVIEWED_EXTRACTION'
+             AND NOT (source_id = ANY($3::text[]))`,
+          [organizationId, dossierId, sourceIds],
+        );
+      } else {
+        await queryRunner.query(
+          `DELETE FROM accounting.ai_knowledge_chunks
+           WHERE organization_id = $1 AND dossier_id = $2
+             AND source_type = 'REVIEWED_EXTRACTION'`,
+          [organizationId, dossierId],
+        );
+      }
+      for (const row of approved) {
+        const chunkCount = buildAccountingChunks(row).length;
+        await queryRunner.query(
+          `DELETE FROM accounting.ai_knowledge_chunks
+           WHERE organization_id = $1 AND dossier_id = $2
+             AND source_type = 'REVIEWED_EXTRACTION'
+             AND source_id = $3 AND chunk_index >= $4`,
+          [organizationId, dossierId, row.document_id, chunkCount],
+        );
+      }
       for (const item of prepared) {
         await this.insertChunk(queryRunner, organizationId, dossierId, item);
       }
@@ -109,7 +165,9 @@ export class AssistantService {
     }
     return {
       documentsIndexed: approved.length,
-      chunksIndexed: prepared.length,
+      chunksIndexed: reusedChunks + prepared.length,
+      chunksEmbedded: prepared.length,
+      chunksReused: reusedChunks,
     };
   }
 
@@ -121,22 +179,89 @@ export class AssistantService {
   ) {
     this.ensureEnabled();
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const intent = detectFinancialQuestion(question);
+    if (intent) {
+      const approved = await this.approvedExtractions(
+        organizationId,
+        dossierId,
+      );
+      const aggregation = aggregateFinancialQuestion(approved, intent);
+      if (aggregation) {
+        const citations: Citation[] = aggregation.rows.map((row, index) => ({
+          label: `S${index + 1}`,
+          chunkId: `deterministic:${row.document_id}`,
+          sourceId: row.document_id,
+          sourceName: row.original_name,
+          pageNumber: null,
+        }));
+        const labels = citations.map((item) => `[${item.label}]`).join(' ');
+        const answer = `${aggregation.answer} ${labels}`.trim();
+        const id = await this.recordTurn(
+          organizationId,
+          dossierId,
+          userId,
+          question,
+          answer,
+          citations,
+          'deterministic-accounting-v1',
+          null,
+        );
+        return {
+          id,
+          answer,
+          citations,
+          model: 'deterministic-accounting-v1',
+        };
+      }
+    }
     const embedding = await this.vertex.embed(question, 'RETRIEVAL_QUERY');
     const chunks = await this.dataSource.query<KnowledgeChunkRow[]>(
       `
-        SELECT id, source_id, source_name, page_number, content, metadata,
-          embedding <=> $4::vector AS distance
-        FROM accounting.ai_knowledge_chunks
-        WHERE organization_id = $1 AND dossier_id = $2
-        ORDER BY (embedding <=> $4::vector)
-          - (0.05 * ts_rank(search_vector, plainto_tsquery('simple', $3))) ASC
-        LIMIT 6
+        WITH scored AS (
+          SELECT id, source_id, source_name, page_number, content, metadata,
+            embedding <=> $4::vector AS distance,
+            ts_rank(search_vector, plainto_tsquery('simple', $3)) AS text_score
+          FROM accounting.ai_knowledge_chunks
+          WHERE organization_id = $1 AND dossier_id = $2
+        ),
+        vector_ranked AS (
+          SELECT id, row_number() OVER (ORDER BY distance ASC) AS rank
+          FROM scored ORDER BY distance ASC LIMIT 20
+        ),
+        text_ranked AS (
+          SELECT id, row_number() OVER (ORDER BY text_score DESC) AS rank
+          FROM scored WHERE text_score > 0 ORDER BY text_score DESC LIMIT 20
+        ),
+        fused AS (
+          SELECT id, SUM(score) AS relevance_score
+          FROM (
+            SELECT id, 1.0 / (60 + rank) AS score FROM vector_ranked
+            UNION ALL
+            SELECT id, 1.0 / (60 + rank) AS score FROM text_ranked
+          ) ranked
+          GROUP BY id
+        )
+        SELECT scored.*, fused.relevance_score
+        FROM fused INNER JOIN scored ON scored.id = fused.id
+        ORDER BY fused.relevance_score DESC, scored.distance ASC
+        LIMIT 8
       `,
       [organizationId, dossierId, question, this.vector(embedding)],
     );
     if (!chunks.length) {
       throw new BadRequestException(
         'Aucune source validée n’est indexée pour ce dossier.',
+      );
+    }
+    const maxDistance = Number(
+      this.config.get<string>('AI_ASSISTANT_MAX_VECTOR_DISTANCE') ?? '0.8',
+    );
+    if (
+      chunks[0].distance > maxDistance &&
+      chunks.every((chunk) => chunk.text_score === 0)
+    ) {
+      throw new BadRequestException(
+        'Les sources validées ne permettent pas de répondre avec suffisamment de confiance.',
       );
     }
     const citations: Citation[] = chunks.map((chunk, index) => ({
@@ -153,6 +278,34 @@ export class AssistantService {
       )
       .join('\n\n');
     const result = await this.vertex.answer(question, context);
+    const id = await this.recordTurn(
+      organizationId,
+      dossierId,
+      userId,
+      question,
+      result.text,
+      citations,
+      result.model,
+      result.usage,
+    );
+    return {
+      id,
+      answer: result.text,
+      citations,
+      model: result.model,
+    };
+  }
+
+  private async recordTurn(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    question: string,
+    answer: string,
+    citations: Citation[],
+    model: string,
+    usage: Record<string, unknown> | null,
+  ) {
     const inserted = await this.dataSource.query<Array<{ id: string }>>(
       `
         INSERT INTO accounting.ai_chat_turns (
@@ -166,18 +319,13 @@ export class AssistantService {
         dossierId,
         userId,
         question,
-        result.text,
+        answer,
         JSON.stringify(citations),
-        result.model,
-        result.usage ? JSON.stringify(result.usage) : null,
+        model,
+        usage ? JSON.stringify(usage) : null,
       ],
     );
-    return {
-      id: inserted[0].id,
-      answer: result.text,
-      citations,
-      model: result.model,
-    };
+    return inserted[0].id;
   }
 
   private async insertChunk(
@@ -185,17 +333,15 @@ export class AssistantService {
     organizationId: string,
     dossierId: string,
     item: {
-      row: ApprovedExtractionRow;
+      row: ApprovedExtractionForIndex;
       index: number;
+      chunk: AccountingKnowledgeChunk;
       content: string;
+      contentHash: string;
       embedding: number[];
     },
   ) {
-    const metadata = {
-      category: item.row.category,
-      periodYear: item.row.period_year,
-      periodMonth: item.row.period_month,
-    };
+    const metadata = item.chunk.metadata;
     await queryRunner.query(
       `
         INSERT INTO accounting.ai_knowledge_chunks (
@@ -203,6 +349,12 @@ export class AssistantService {
           chunk_index, content, content_hash, metadata, embedding
         ) VALUES ($1, $2, 'REVIEWED_EXTRACTION', $3, $4, $5, $6, $7,
           $8::jsonb, $9::vector)
+        ON CONFLICT (organization_id, dossier_id, source_type, source_id, chunk_index)
+        DO UPDATE SET content = EXCLUDED.content,
+          content_hash = EXCLUDED.content_hash,
+          metadata = EXCLUDED.metadata,
+          embedding = EXCLUDED.embedding,
+          updated_at_utc = now()
       `,
       [
         organizationId,
@@ -211,39 +363,30 @@ export class AssistantService {
         item.row.original_name,
         item.index,
         item.content,
-        createHash('sha256').update(item.content).digest('hex'),
+        item.contentHash,
         JSON.stringify(metadata),
         this.vector(item.embedding),
       ],
     );
   }
 
-  private extractionText(row: ApprovedExtractionRow) {
-    const period =
-      row.period_year === null
-        ? 'non renseignée'
-        : `${row.period_year}-${String(row.period_month ?? 0).padStart(2, '0')}`;
-    return [
-      `Document: ${row.original_name}`,
-      `Catégorie: ${row.category}`,
-      `Période: ${period}`,
-      'Données extraites et validées humainement:',
-      JSON.stringify(row.normalized_data, null, 2),
-    ].join('\n');
-  }
-
-  private chunk(content: string) {
-    const size = 6000;
-    const overlap = 500;
-    if (content.length <= size) return [content];
-    const chunks: string[] = [];
-    let start = 0;
-    while (start < content.length) {
-      chunks.push(content.slice(start, start + size));
-      if (start + size >= content.length) break;
-      start += size - overlap;
-    }
-    return chunks;
+  private approvedExtractions(organizationId: string, dossierId: string) {
+    return this.dataSource.query<ApprovedExtractionForIndex[]>(
+      `
+        SELECT job.document_id, document.original_name, document.category,
+          document.period_year, document.period_month, job.normalized_data
+        FROM accounting.document_extraction_jobs job
+        INNER JOIN accounting.accounting_documents document
+          ON document.id = job.document_id
+        WHERE job.organization_id = $1
+          AND job.dossier_id = $2
+          AND job.status = 'VALIDEE'
+          AND job.normalized_data IS NOT NULL
+          AND document.deleted_at_utc IS NULL
+        ORDER BY job.reviewed_at_utc DESC NULLS LAST, job.created_at_utc DESC
+      `,
+      [organizationId, dossierId],
+    );
   }
 
   private vector(values: number[]) {
