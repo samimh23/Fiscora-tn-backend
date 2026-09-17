@@ -1,8 +1,10 @@
 import {
   AccountingDocument,
+  DocumentCategory,
   DocumentExtractionJob,
   DocumentExtractionJobStatus,
 } from '../database/entities';
+import { BadRequestException } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
 
 describe('DocumentsService.remove', () => {
@@ -85,5 +87,46 @@ describe('DocumentsService.remove', () => {
         },
       }),
     );
+  });
+});
+
+describe('DocumentsService document requests', () => {
+  it('does not create a silent request when no portal client or email exists', async () => {
+    const memberships = {
+      findOne: jest.fn().mockResolvedValue({
+        role: { normalizedName: 'PROPRIETAIRE' },
+      }),
+    };
+    const assignments = { find: jest.fn().mockResolvedValue([]) };
+    const expectations = { create: jest.fn(), save: jest.fn() };
+    const dossiers = {
+      getAccessibleEntity: jest.fn().mockResolvedValue({
+        id: 'dossier-1',
+        legalName: 'Société Exemple',
+        tradeName: null,
+      }),
+    };
+    const service = new DocumentsService(
+      {} as never,
+      {} as never,
+      expectations as never,
+      {} as never,
+      memberships as never,
+      assignments as never,
+      dossiers as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      service.createExpectation('organization-1', 'dossier-1', 'user-1', {
+        periodYear: 2026,
+        periodMonth: 9,
+        label: 'Relevé bancaire',
+        category: DocumentCategory.Bank,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(expectations.save).not.toHaveBeenCalled();
   });
 });

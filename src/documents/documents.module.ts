@@ -22,6 +22,7 @@ import { DocumentExtractionService } from './extraction/document-extraction.serv
 import { GoogleWifTokenService } from './extraction/google-wif-token.service';
 import { NuExtractClientService } from './extraction/nuextract-client.service';
 import { BankReconciliationModule } from '../bank-reconciliation/bank-reconciliation.module';
+import { PublicDocumentRequestsController } from './public-document-requests.controller';
 
 @Module({
   imports: [
@@ -39,7 +40,7 @@ import { BankReconciliationModule } from '../bank-reconciliation/bank-reconcilia
       DossierAssignment,
     ]),
   ],
-  controllers: [DocumentsController],
+  controllers: [DocumentsController, PublicDocumentRequestsController],
   providers: [
     DocumentsService,
     MalwareScannerService,

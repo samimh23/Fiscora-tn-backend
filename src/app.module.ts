@@ -95,6 +95,7 @@ import { EmailIngestionModule } from './email-ingestion/email-ingestion.module';
 import { GoogleIdentities1784385000000 } from './database/migrations/1784385000000-google-identities';
 import { RepairExtractionReviewQueue1784386000000 } from './database/migrations/1784386000000-repair-extraction-review-queue';
 import { ClientCommercialWorkflow1784387000000 } from './database/migrations/1784387000000-client-commercial-workflow';
+import { PublicDocumentRequestLinks1784388000000 } from './database/migrations/1784388000000-public-document-request-links';
 
 @Module({
   imports: [
@@ -170,6 +171,7 @@ import { ClientCommercialWorkflow1784387000000 } from './database/migrations/178
           GoogleIdentities1784385000000,
           RepairExtractionReviewQueue1784386000000,
           ClientCommercialWorkflow1784387000000,
+          PublicDocumentRequestLinks1784388000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,

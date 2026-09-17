@@ -1735,10 +1735,17 @@ export enum DocumentRequestStatus {
   Cancelled = 'ANNULEE',
 }
 
+export enum DocumentRequestDeliveryStatus {
+  Portal = 'PORTAIL',
+  Sent = 'ENVOYEE',
+  Failed = 'ECHEC',
+}
+
 export enum DocumentIngestionSource {
   Upload = 'UPLOAD',
   Email = 'EMAIL',
   Generated = 'GENERATED',
+  PublicLink = 'PUBLIC_LINK',
 }
 
 export enum InboundEmailStatus {
@@ -2139,6 +2146,51 @@ export class MissingDocumentExpectation extends AuditableEntity {
 
   @Column({ type: 'text', nullable: true })
   message!: string | null;
+
+  @Column({
+    name: 'recipient_email',
+    type: 'varchar',
+    length: 320,
+    nullable: true,
+  })
+  recipientEmail!: string | null;
+
+  @Index({ unique: true })
+  @Column({
+    name: 'public_token_hash',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
+  publicTokenHash!: string | null;
+
+  @Column({
+    name: 'public_token_expires_at_utc',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  publicTokenExpiresAtUtc!: Date | null;
+
+  @Column({
+    name: 'public_token_used_at_utc',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  publicTokenUsedAtUtc!: Date | null;
+
+  @Column({
+    name: 'delivery_status',
+    type: 'varchar',
+    length: 20,
+    default: DocumentRequestDeliveryStatus.Portal,
+  })
+  deliveryStatus!: DocumentRequestDeliveryStatus;
+
+  @Column({ name: 'delivery_error', type: 'text', nullable: true })
+  deliveryError!: string | null;
+
+  @Column({ name: 'sent_at_utc', type: 'timestamptz', nullable: true })
+  sentAtUtc!: Date | null;
 
   @Column({
     type: 'varchar',

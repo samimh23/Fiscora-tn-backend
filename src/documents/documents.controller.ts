@@ -26,6 +26,7 @@ import {
   CreateExpectationDto,
   DocumentQueryDto,
   RejectExpectationDto,
+  ResendExpectationDto,
   UpdateDocumentDto,
   UploadDocumentDto,
 } from './dto';
@@ -234,6 +235,24 @@ export class DocumentsController {
     return this.service.createExpectation(
       organizationId,
       dossierId,
+      user.userId,
+      dto,
+    );
+  }
+
+  @Post('missing/:expectationId/resend')
+  @RequirePermission(PermissionNames.DocumentsUpload)
+  resendExpectation(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('expectationId', ParseUUIDPipe) expectationId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: ResendExpectationDto,
+  ) {
+    return this.service.resendExpectation(
+      organizationId,
+      dossierId,
+      expectationId,
       user.userId,
       dto,
     );

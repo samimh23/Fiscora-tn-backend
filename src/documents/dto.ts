@@ -3,6 +3,7 @@ import {
   IsEnum,
   IsBoolean,
   IsDateString,
+  IsEmail,
   IsInt,
   IsOptional,
   IsString,
@@ -111,6 +112,18 @@ export class CreateExpectationDto {
   @IsString()
   @MaxLength(1000)
   message?: string | null;
+
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(320)
+  recipientEmail?: string | null;
+}
+
+export class ResendExpectationDto {
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(320)
+  recipientEmail?: string | null;
 }
 
 export class RejectExpectationDto {

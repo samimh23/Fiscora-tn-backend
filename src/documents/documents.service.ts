@@ -1,6 +1,8 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
+  GoneException,
   Inject,
   Injectable,
   NotFoundException,
@@ -8,6 +10,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { createHash, randomBytes } from 'node:crypto';
 import ExcelJS from 'exceljs';
 import { In, IsNull, Repository } from 'typeorm';
 import {
@@ -19,6 +22,7 @@ import {
   DocumentExtractionJobStatus,
   DocumentIngestionSource,
   DocumentProcessingStatus,
+  DocumentRequestDeliveryStatus,
   DocumentRequestStatus,
   MalwareScanStatus,
   MissingDocumentExpectation,
@@ -31,6 +35,7 @@ import {
   CreateExpectationDto,
   DocumentQueryDto,
   RejectExpectationDto,
+  ResendExpectationDto,
   UpdateDocumentDto,
   UploadDocumentDto,
 } from './dto';
@@ -262,6 +267,7 @@ export class DocumentsService implements OnModuleInit {
     });
     if (expectation) {
       expectation.receivedDocumentId = item.id;
+      expectation.status = DocumentRequestStatus.Received;
       await this.expectations.save(expectation);
       await this.audit(
         organizationId,
@@ -584,6 +590,19 @@ export class DocumentsService implements OnModuleInit {
       userId,
     );
     await this.ensureCabinetMember(organizationId, userId);
+    const clients = await this.clientRecipients(organizationId, dossierId);
+    const recipientEmail = dto.recipientEmail?.trim().toLowerCase() || null;
+    if (!recipientEmail && clients.length === 0) {
+      throw new BadRequestException(
+        'Aucun client n’a accès à ce dossier. Saisissez une adresse e-mail pour envoyer un lien sécurisé.',
+      );
+    }
+    const rawToken = recipientEmail
+      ? randomBytes(32).toString('base64url')
+      : null;
+    const expiresAtUtc = rawToken
+      ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      : null;
     const item = await this.expectations.save(
       this.expectations.create({
         organizationId,
@@ -594,6 +613,15 @@ export class DocumentsService implements OnModuleInit {
         label: dto.label.trim(),
         dueOn: dto.dueOn ?? null,
         message: dto.message?.trim() || null,
+        recipientEmail,
+        publicTokenHash: rawToken ? this.hashPublicToken(rawToken) : null,
+        publicTokenExpiresAtUtc: expiresAtUtc,
+        publicTokenUsedAtUtc: null,
+        deliveryStatus: recipientEmail
+          ? DocumentRequestDeliveryStatus.Sent
+          : DocumentRequestDeliveryStatus.Portal,
+        deliveryError: null,
+        sentAtUtc: null,
         status: DocumentRequestStatus.Requested,
         requestedByUserId: userId,
         requestedAtUtc: new Date(),
@@ -617,8 +645,227 @@ export class DocumentsService implements OnModuleInit {
       dossier.legalName,
       item,
       userId,
+      clients,
+      !recipientEmail,
     );
-    return item;
+    if (recipientEmail && rawToken) {
+      await this.deliverPublicDocumentRequest(
+        item,
+        rawToken,
+        userId,
+        dossier.tradeName ?? dossier.legalName,
+      );
+    }
+    return this.expectations.save(item);
+  }
+
+  async resendExpectation(
+    organizationId: string,
+    dossierId: string,
+    expectationId: string,
+    userId: string,
+    dto: ResendExpectationDto,
+  ) {
+    const dossier = await this.dossiers.getAccessibleEntity(
+      organizationId,
+      dossierId,
+      userId,
+    );
+    await this.ensureCabinetMember(organizationId, userId);
+    const expectation = await this.findExpectation(
+      organizationId,
+      dossierId,
+      expectationId,
+    );
+    if (
+      expectation.receivedDocumentId ||
+      [
+        DocumentRequestStatus.Validated,
+        DocumentRequestStatus.Cancelled,
+      ].includes(expectation.status)
+    ) {
+      throw new ConflictException(
+        'Cette demande est déjà terminée et ne peut pas être renvoyée.',
+      );
+    }
+    const recipientEmail =
+      dto.recipientEmail?.trim().toLowerCase() || expectation.recipientEmail;
+    if (!recipientEmail) {
+      throw new BadRequestException('Saisissez l’adresse e-mail du client.');
+    }
+    const rawToken = randomBytes(32).toString('base64url');
+    expectation.recipientEmail = recipientEmail;
+    expectation.publicTokenHash = this.hashPublicToken(rawToken);
+    expectation.publicTokenExpiresAtUtc = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000,
+    );
+    expectation.publicTokenUsedAtUtc = null;
+    expectation.deliveryError = null;
+    await this.expectations.save(expectation);
+    await this.deliverPublicDocumentRequest(
+      expectation,
+      rawToken,
+      userId,
+      dossier.tradeName ?? dossier.legalName,
+    );
+    return this.expectations.save(expectation);
+  }
+
+  async previewPublicExpectation(token: string) {
+    const expectation = await this.findPublicExpectation(token);
+    const expired = Boolean(
+      expectation.publicTokenExpiresAtUtc &&
+      expectation.publicTokenExpiresAtUtc <= new Date(),
+    );
+    const completed = Boolean(expectation.receivedDocumentId);
+    return {
+      label: expectation.label,
+      category: expectation.category,
+      periodYear: expectation.periodYear,
+      periodMonth: expectation.periodMonth,
+      dueOn: expectation.dueOn,
+      message: expectation.message,
+      dossierName:
+        expectation.dossier.tradeName ?? expectation.dossier.legalName,
+      organizationName: expectation.dossier.organization.name,
+      expiresAtUtc: expectation.publicTokenExpiresAtUtc,
+      status: completed ? 'RECEIVED' : expired ? 'EXPIRED' : 'OPEN',
+      canUpload:
+        !completed &&
+        !expired &&
+        ![
+          DocumentRequestStatus.Validated,
+          DocumentRequestStatus.Cancelled,
+        ].includes(expectation.status),
+    };
+  }
+
+  async uploadPublicExpectation(token: string, file?: Express.Multer.File) {
+    const expectation = await this.findPublicExpectation(token);
+    if (!file) throw new BadRequestException('Sélectionnez un fichier.');
+    if (
+      expectation.publicTokenExpiresAtUtc &&
+      expectation.publicTokenExpiresAtUtc <= new Date()
+    ) {
+      throw new GoneException(
+        'Ce lien a expiré. Demandez au cabinet de vous en envoyer un nouveau.',
+      );
+    }
+    if (
+      expectation.receivedDocumentId ||
+      expectation.publicTokenUsedAtUtc ||
+      [
+        DocumentRequestStatus.Validated,
+        DocumentRequestStatus.Cancelled,
+      ].includes(expectation.status)
+    ) {
+      throw new ConflictException('Cette demande a déjà reçu une réponse.');
+    }
+    this.validateIncomingFile(file);
+
+    let malwareScanStatus = MalwareScanStatus.NotScanned;
+    let malwareScannedAtUtc: Date | null = null;
+    try {
+      const scan = await this.malwareScanner.scan(file.buffer);
+      if (scan.status === 'INFECTED') {
+        await this.audit(
+          expectation.organizationId,
+          null,
+          'document.security_scan.infected',
+          expectation.id,
+          {
+            dossierId: expectation.dossierId,
+            name: file.originalname,
+            signature: scan.signature,
+            source: 'public_link',
+            stored: false,
+          },
+        );
+        throw new BadRequestException(
+          `Le fichier a été bloqué par l’antivirus (${scan.signature}).`,
+        );
+      }
+      if (scan.status === 'CLEAN') {
+        malwareScanStatus = MalwareScanStatus.Clean;
+        malwareScannedAtUtc = new Date();
+      }
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      if (error instanceof MalwareScannerUnavailableError) {
+        throw new ServiceUnavailableException(
+          'Le contrôle antivirus est indisponible. Réessayez dans quelques minutes.',
+        );
+      }
+      throw error;
+    }
+
+    const objectKey = `${expectation.organizationId}/${expectation.dossierId}/${new Date().getUTCFullYear()}/${crypto.randomUUID()}-${this.safeName(file.originalname)}`;
+    try {
+      await this.objectStorage.putObject(objectKey, file.buffer, file.mimetype);
+    } catch {
+      throw new BadRequestException(
+        'Le stockage de fichiers est temporairement indisponible.',
+      );
+    }
+    const item = await this.documents.save(
+      this.documents.create({
+        organizationId: expectation.organizationId,
+        dossierId: expectation.dossierId,
+        taskId: null,
+        obligationId: null,
+        originalName: file.originalname,
+        objectKey,
+        mimeType: file.mimetype,
+        sizeBytes: String(file.size),
+        category: expectation.category,
+        periodYear: expectation.periodYear,
+        periodMonth: expectation.periodMonth,
+        processingStatus: DocumentProcessingStatus.ToProcess,
+        version: 1,
+        replacesDocumentId: null,
+        uploadedByUserId: null,
+        ingestionSource: DocumentIngestionSource.PublicLink,
+        sourceSenderEmail: expectation.recipientEmail,
+        sourceSenderName: 'Client invité',
+        sourceSubject: `Réponse à la demande : ${expectation.label}`,
+        sourceMessageId: `public-document-request:${expectation.id}`,
+        inboundEmailId: null,
+        isClientVisible: true,
+        malwareScanStatus,
+        malwareSignature: null,
+        malwareScannedAtUtc,
+        deletedAtUtc: null,
+      }),
+    );
+    const receivedAtUtc = new Date();
+    expectation.receivedDocumentId = item.id;
+    expectation.status = DocumentRequestStatus.Received;
+    expectation.publicTokenUsedAtUtc = receivedAtUtc;
+    await this.expectations.save(expectation);
+    await this.audit(
+      expectation.organizationId,
+      null,
+      'document.uploaded.public_link',
+      item.id,
+      {
+        dossierId: expectation.dossierId,
+        expectationId: expectation.id,
+        name: file.originalname,
+      },
+    );
+    await this.notifyCabinetDocumentReceived(
+      expectation.organizationId,
+      expectation.dossierId,
+      expectation,
+      item,
+      null,
+    );
+    return {
+      documentId: item.id,
+      originalName: item.originalName,
+      requestLabel: expectation.label,
+      receivedAtUtc,
+    };
   }
 
   async receiveExpectation(
@@ -793,6 +1040,25 @@ export class DocumentsService implements OnModuleInit {
     return expectation;
   }
 
+  private async findPublicExpectation(token: string) {
+    const normalized = token.trim();
+    if (normalized.length < 32 || normalized.length > 200) {
+      throw new NotFoundException('Ce lien de dépôt est invalide.');
+    }
+    const expectation = await this.expectations.findOne({
+      where: { publicTokenHash: this.hashPublicToken(normalized) },
+      relations: { dossier: { organization: true } },
+    });
+    if (!expectation) {
+      throw new NotFoundException('Ce lien de dépôt est invalide.');
+    }
+    return expectation;
+  }
+
+  private hashPublicToken(token: string) {
+    return createHash('sha256').update(token, 'utf8').digest('hex');
+  }
+
   private toResponse(
     item: AccountingDocument,
     uploader?: OrganizationMembership,
@@ -801,7 +1067,8 @@ export class DocumentsService implements OnModuleInit {
     const uploaderType =
       item.ingestionSource === DocumentIngestionSource.Email
         ? 'EMAIL'
-        : item.ingestionSource === DocumentIngestionSource.Generated
+        : item.ingestionSource === DocumentIngestionSource.Generated ||
+            item.ingestionSource === DocumentIngestionSource.PublicLink
           ? 'CLIENT'
           : (knownUploaderType ??
             (uploader
@@ -840,7 +1107,8 @@ export class DocumentsService implements OnModuleInit {
         name:
           (uploaderType === 'EMAIL'
             ? item.sourceSenderName || item.sourceSenderEmail || 'E-mail'
-            : item.ingestionSource === DocumentIngestionSource.Generated
+            : item.ingestionSource === DocumentIngestionSource.Generated ||
+                item.ingestionSource === DocumentIngestionSource.PublicLink
               ? item.sourceSenderName || 'Client'
               : uploader?.user.fullName) ??
           (uploaderType === 'CLIENT'
@@ -896,7 +1164,7 @@ export class DocumentsService implements OnModuleInit {
     dossierId: string,
     expectation: MissingDocumentExpectation,
     document: AccountingDocument,
-    uploadedByUserId: string,
+    uploadedByUserId: string | null,
   ) {
     const [assignments, owners] = await Promise.all([
       this.assignments.find({
@@ -946,8 +1214,9 @@ export class DocumentsService implements OnModuleInit {
     dossierName: string,
     expectation: MissingDocumentExpectation,
     requestedByUserId: string,
+    clients: Array<{ userId: string; fullName: string; email: string }>,
+    sendEmail: boolean,
   ) {
-    const clients = await this.clientRecipients(organizationId, dossierId);
     const requester = await this.memberships.findOne({
       where: { organizationId, userId: requestedByUserId, isActive: true },
       relations: { user: true, organization: true },
@@ -963,6 +1232,7 @@ export class DocumentsService implements OnModuleInit {
         entityId: expectation.id,
         deduplicationKey: `document-request-created:${expectation.id}:${client.userId}`,
       });
+      if (!sendEmail) continue;
       try {
         await this.invitationMailer.sendDocumentRequest({
           organizationId,
@@ -982,6 +1252,53 @@ export class DocumentsService implements OnModuleInit {
         // The portal notification remains the source of truth if SMTP is unavailable.
       }
     }
+  }
+
+  private async deliverPublicDocumentRequest(
+    expectation: MissingDocumentExpectation,
+    rawToken: string,
+    requestedByUserId: string,
+    dossierName: string,
+  ) {
+    if (!expectation.recipientEmail) {
+      throw new BadRequestException('Saisissez l’adresse e-mail du client.');
+    }
+    const requester = await this.memberships.findOne({
+      where: {
+        organizationId: expectation.organizationId,
+        userId: requestedByUserId,
+        isActive: true,
+      },
+      relations: { user: true, organization: true },
+    });
+    try {
+      await this.invitationMailer.sendDocumentRequest({
+        organizationId: expectation.organizationId,
+        actorUserId: requestedByUserId,
+        recipient: expectation.recipientEmail,
+        clientName: expectation.recipientEmail.split('@')[0] || 'Client',
+        organizationName: requester?.organization?.name ?? 'Votre cabinet',
+        dossierId: expectation.dossierId,
+        dossierName,
+        requestLabel: expectation.label,
+        periodLabel: `${String(expectation.periodMonth).padStart(2, '0')}/${expectation.periodYear}`,
+        dueOn: expectation.dueOn,
+        message: expectation.message,
+        replyTo: requester?.user.email ?? null,
+        uploadToken: rawToken,
+        uploadExpiresAtUtc: expectation.publicTokenExpiresAtUtc,
+      });
+      expectation.deliveryStatus = DocumentRequestDeliveryStatus.Sent;
+      expectation.deliveryError = null;
+      expectation.sentAtUtc = new Date();
+    } catch (error) {
+      expectation.deliveryStatus = DocumentRequestDeliveryStatus.Failed;
+      expectation.deliveryError = (
+        error instanceof Error ? error.message : 'Erreur d’envoi inconnue'
+      ).slice(0, 1000);
+      expectation.sentAtUtc = null;
+    }
+    await this.expectations.save(expectation);
   }
 
   private async notifyClientsForExpectationStatus(

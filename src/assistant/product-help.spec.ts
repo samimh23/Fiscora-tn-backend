@@ -33,6 +33,15 @@ describe('product help retrieval', () => {
     expect(matches[0].entry.id).toBe('banking');
   });
 
+  it('explains account-free client document requests', () => {
+    const matches = findProductHelp(
+      'Comment demander une pièce à un client sans compte ?',
+      '/documents',
+      allPermissions,
+    );
+    expect(matches[0].entry.id).toBe('document-request-public-link');
+  });
+
   it('never returns a page the member cannot access', () => {
     const matches = findProductHelp(
       'Comment inviter un collaborateur ?',

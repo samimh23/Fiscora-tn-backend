@@ -84,4 +84,40 @@ describe('InvitationMailerService', () => {
       }),
     );
   });
+
+  it('sends an account-free document request to a one-time public upload URL', async () => {
+    const service = new InvitationMailerService(
+      new ConfigService({
+        APP_PUBLIC_URL: 'https://app.fiscora.me/',
+        SMTP_HOST: 'smtp-relay.brevo.com',
+      }),
+      emailLogs as never,
+    );
+
+    await service.sendDocumentRequest({
+      organizationId: 'organization-1',
+      actorUserId: 'user-1',
+      recipient: 'client@example.com',
+      clientName: 'Client',
+      organizationName: 'Cabinet Fiscora',
+      dossierId: 'dossier-1',
+      dossierName: 'Société Exemple',
+      requestLabel: 'Relevé bancaire',
+      periodLabel: '09/2026',
+      uploadToken: 'secure token',
+      uploadExpiresAtUtc: new Date('2026-09-24T12:00:00.000Z'),
+    });
+
+    expect(String(sentMessages[0].text)).toContain(
+      'https://app.fiscora.me/depot-document/secure%20token',
+    );
+    expect(String(sentMessages[0].text)).not.toContain('/portail/dossiers/');
+    expect(emailLogs.write).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'DOCUMENT_REQUEST',
+        recipient: 'client@example.com',
+        status: 'ENVOYE',
+      }),
+    );
+  });
 });

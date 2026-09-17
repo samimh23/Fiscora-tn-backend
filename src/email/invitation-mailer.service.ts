@@ -35,6 +35,8 @@ interface DocumentRequestEmailInput {
   dueOn?: string | null;
   message?: string | null;
   replyTo?: string | null;
+  uploadToken?: string | null;
+  uploadExpiresAtUtc?: Date | null;
 }
 
 @Injectable()
@@ -291,7 +293,9 @@ export class InvitationMailerService {
     const publicUrl = this.config
       .get<string>('APP_PUBLIC_URL', 'http://127.0.0.1:5173')
       .replace(/\/$/, '');
-    const url = `${publicUrl}/portail/dossiers/${encodeURIComponent(input.dossierId)}?tab=documents`;
+    const url = input.uploadToken
+      ? `${publicUrl}/depot-document/${encodeURIComponent(input.uploadToken)}`
+      : `${publicUrl}/portail/dossiers/${encodeURIComponent(input.dossierId)}?tab=documents`;
     const due = input.dueOn
       ? new Intl.DateTimeFormat('fr-TN', {
           dateStyle: 'long',
@@ -316,6 +320,9 @@ export class InvitationMailerService {
           `Période : ${input.periodLabel}`,
           due ? `Échéance : ${due}` : '',
           input.message ? `Message du cabinet : ${input.message}` : '',
+          input.uploadExpiresAtUtc
+            ? `Lien valable jusqu’au : ${new Intl.DateTimeFormat('fr-TN', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Africa/Tunis' }).format(input.uploadExpiresAtUtc)}`
+            : '',
           `Déposer la pièce : ${url}`,
         ]
           .filter(Boolean)
@@ -337,6 +344,7 @@ export class InvitationMailerService {
                     : ''
                 }
                 <p style="margin:28px 0"><a href="${this.escape(url)}" style="background:#145a46;color:#fff;text-decoration:none;padding:14px 22px;border-radius:9px;font-weight:700">D&eacute;poser la pi&egrave;ce</a></p>
+                ${input.uploadExpiresAtUtc ? `<p style="color:#66736d;font-size:13px">Ce lien personnel expire le ${this.escape(new Intl.DateTimeFormat('fr-TN', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Africa/Tunis' }).format(input.uploadExpiresAtUtc))} et ne permet de r&eacute;pondre qu&rsquo;&agrave; cette demande.</p>` : ''}
                 <p style="color:#66736d;font-size:12px;word-break:break-all">Si le bouton ne fonctionne pas : ${this.escape(url)}</p>
               </div>
             </div>

@@ -129,6 +129,32 @@ const entries: ProductHelpEntry[] = [
     ],
   },
   {
+    id: 'document-request-public-link',
+    title: 'Demander une pièce à un client sans compte Fiscora',
+    path: '/documents',
+    permission: 'documents.upload',
+    keywords: [
+      'demander pièce',
+      'client sans compte',
+      'lien sécurisé',
+      'envoyer demande email',
+      'document manquant',
+      'renvoyer lien',
+    ],
+    summary:
+      'Le cabinet peut envoyer par e-mail un lien sécurisé permettant au client de déposer une pièce dans le bon dossier sans créer de compte.',
+    steps: [
+      'Choisissez le dossier et ouvrez Collecte puis Documents.',
+      'Dans Documents demandés au client, cliquez sur Nouvelle demande.',
+      'Renseignez la pièce, la période et l’adresse e-mail du destinataire.',
+      'Envoyez la demande; le lien personnel reste valable sept jours et accepte un seul fichier.',
+      'Suivez le statut d’envoi dans la demande et utilisez Renvoyer le lien si nécessaire.',
+    ],
+    notes: [
+      'Le fichier est analysé par l’antivirus puis classé automatiquement dans la période, la catégorie et le dossier de la demande.',
+    ],
+  },
+  {
     id: 'assistant',
     title: 'Utiliser l’Assistant Fiscora',
     path: '/assistant',
