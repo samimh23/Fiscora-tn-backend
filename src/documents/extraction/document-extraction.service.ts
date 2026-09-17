@@ -150,6 +150,10 @@ export class DocumentExtractionService implements OnModuleDestroy {
         organizationId,
         dossierId,
         status: DocumentExtractionJobStatus.ReviewRequired,
+        document: {
+          deletedAtUtc: IsNull(),
+          extractionStatus: ExtractionStatus.ReviewRequired,
+        },
       },
       relations: { document: true },
       order: { processedAtUtc: 'ASC' },

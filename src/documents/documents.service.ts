@@ -15,6 +15,8 @@ import {
   AuditLog,
   DossierAssignment,
   DocumentCategory,
+  DocumentExtractionJob,
+  DocumentExtractionJobStatus,
   DocumentIngestionSource,
   DocumentProcessingStatus,
   DocumentRequestStatus,
@@ -515,10 +517,38 @@ export class DocumentsService implements OnModuleInit {
       item,
       userId,
     );
-    item.deletedAtUtc = new Date();
-    await this.documents.save(item);
+    const deletedAtUtc = new Date();
+    item.deletedAtUtc = deletedAtUtc;
+    const closedExtractionJobs = await this.documents.manager.transaction(
+      async (manager) => {
+        await manager.getRepository(AccountingDocument).save(item);
+        const result = await manager
+          .getRepository(DocumentExtractionJob)
+          .update(
+            {
+              documentId: item.id,
+              status: In([
+                DocumentExtractionJobStatus.Queued,
+                DocumentExtractionJobStatus.Processing,
+                DocumentExtractionJobStatus.ReviewRequired,
+              ]),
+            },
+            {
+              status: DocumentExtractionJobStatus.Rejected,
+              leaseExpiresAtUtc: null,
+              workerId: null,
+              reviewedAtUtc: deletedAtUtc,
+              reviewedByUserId: userId,
+              reviewComment:
+                'Extraction annulée automatiquement : document supprimé.',
+            },
+          );
+        return result.affected ?? 0;
+      },
+    );
     await this.audit(organizationId, userId, 'document.deleted', item.id, {
       dossierId,
+      closedExtractionJobs,
     });
     return { deleted: true };
   }
