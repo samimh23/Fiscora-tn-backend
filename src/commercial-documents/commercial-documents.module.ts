@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { PermissionGuard } from '../common/permission.guard';
 import {
+  AccountingDocument,
   CommercialDocument,
   CommercialDocumentLine,
   LedgerAccount,
@@ -11,6 +12,7 @@ import {
 } from '../database/entities';
 import { DossiersModule } from '../dossiers/dossiers.module';
 import { FiscalSettingsModule } from '../fiscal-settings/fiscal-settings.module';
+import { DocumentsModule } from '../documents/documents.module';
 import { CommercialDocumentsController } from './commercial-documents.controller';
 import { CommercialDocumentsService } from './commercial-documents.service';
 
@@ -19,7 +21,9 @@ import { CommercialDocumentsService } from './commercial-documents.service';
     AuthModule,
     DossiersModule,
     FiscalSettingsModule,
+    DocumentsModule,
     TypeOrmModule.forFeature([
+      AccountingDocument,
       CommercialDocument,
       CommercialDocumentLine,
       ThirdParty,

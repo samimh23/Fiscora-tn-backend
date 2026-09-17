@@ -1738,6 +1738,7 @@ export enum DocumentRequestStatus {
 export enum DocumentIngestionSource {
   Upload = 'UPLOAD',
   Email = 'EMAIL',
+  Generated = 'GENERATED',
 }
 
 export enum InboundEmailStatus {
@@ -3287,6 +3288,7 @@ export enum CommercialDocumentKind {
   Order = 'COMMANDE',
   DeliveryNote = 'BON_LIVRAISON',
   ReceiptNote = 'BON_RECEPTION',
+  Invoice = 'FACTURE',
 }
 
 export enum CommercialDocumentStatus {
@@ -3355,6 +3357,13 @@ export class CommercialDocument extends AuditableEntity {
 
   @Column({ name: 'business_invoice_id', type: 'uuid', nullable: true })
   businessInvoiceId!: string | null;
+
+  @Column({ name: 'accounting_document_id', type: 'uuid', nullable: true })
+  accountingDocumentId!: string | null;
+
+  @OneToOne(() => AccountingDocument, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'accounting_document_id' })
+  accountingDocument!: AccountingDocument | null;
 
   @Column({ type: 'text', nullable: true })
   notes!: string | null;

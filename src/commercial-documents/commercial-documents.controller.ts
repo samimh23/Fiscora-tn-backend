@@ -28,7 +28,7 @@ export class CommercialDocumentsController {
   constructor(private readonly service: CommercialDocumentsService) {}
 
   @Get()
-  @RequirePermission(PermissionNames.BusinessInvoicesView)
+  @RequirePermission(PermissionNames.CommercialDocumentsView)
   list(
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
     @Param('dossierId', ParseUUIDPipe) dossierId: string,
@@ -38,7 +38,7 @@ export class CommercialDocumentsController {
   }
 
   @Get(':documentId')
-  @RequirePermission(PermissionNames.BusinessInvoicesView)
+  @RequirePermission(PermissionNames.CommercialDocumentsView)
   get(
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
     @Param('dossierId', ParseUUIDPipe) dossierId: string,
@@ -49,7 +49,7 @@ export class CommercialDocumentsController {
   }
 
   @Post()
-  @RequirePermission(PermissionNames.BusinessInvoicesManage)
+  @RequirePermission(PermissionNames.CommercialDocumentsManage)
   create(
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
     @Param('dossierId', ParseUUIDPipe) dossierId: string,
@@ -60,7 +60,7 @@ export class CommercialDocumentsController {
   }
 
   @Put(':documentId')
-  @RequirePermission(PermissionNames.BusinessInvoicesManage)
+  @RequirePermission(PermissionNames.CommercialDocumentsManage)
   update(
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
     @Param('dossierId', ParseUUIDPipe) dossierId: string,
@@ -78,7 +78,7 @@ export class CommercialDocumentsController {
   }
 
   @Post(':documentId/confirm')
-  @RequirePermission(PermissionNames.BusinessInvoicesManage)
+  @RequirePermission(PermissionNames.CommercialDocumentsManage)
   confirm(
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
     @Param('dossierId', ParseUUIDPipe) dossierId: string,
@@ -94,7 +94,7 @@ export class CommercialDocumentsController {
   }
 
   @Post(':documentId/convert')
-  @RequirePermission(PermissionNames.BusinessInvoicesManage)
+  @RequirePermission(PermissionNames.CommercialDocumentsManage)
   convert(
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
     @Param('dossierId', ParseUUIDPipe) dossierId: string,
@@ -112,7 +112,7 @@ export class CommercialDocumentsController {
   }
 
   @Post(':documentId/cancel')
-  @RequirePermission(PermissionNames.BusinessInvoicesManage)
+  @RequirePermission(PermissionNames.CommercialDocumentsManage)
   cancel(
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
     @Param('dossierId', ParseUUIDPipe) dossierId: string,

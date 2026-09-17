@@ -1,24 +1,37 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import PDFDocument from 'pdfkit';
 import { DataSource, In, Repository } from 'typeorm';
 import { fromMillimes, multiplyRate, toMillimes } from '../common/money';
 import {
+  AccountingDocument,
+  ClientDossier,
   CommercialDocument,
   CommercialDocumentDirection,
   CommercialDocumentKind,
   CommercialDocumentLine,
   CommercialDocumentStatus,
+  DocumentCategory,
+  DocumentIngestionSource,
+  DocumentProcessingStatus,
+  ExtractionStatus,
   LedgerAccount,
+  MalwareScanStatus,
   ThirdParty,
   ThirdPartyType,
 } from '../database/entities';
 import { DossiersService } from '../dossiers/dossiers.service';
 import { FiscalSettingsService } from '../fiscal-settings/fiscal-settings.service';
+import {
+  DOCUMENT_OBJECT_STORAGE,
+  type DocumentObjectStorage,
+} from '../documents/object-storage/object-storage';
 import { ConvertCommercialDocumentDto, SaveCommercialDocumentDto } from './dto';
 
 @Injectable()
@@ -31,6 +44,8 @@ export class CommercialDocumentsService {
     private readonly thirdParties: Repository<ThirdParty>,
     @InjectRepository(LedgerAccount)
     private readonly accounts: Repository<LedgerAccount>,
+    @Inject(DOCUMENT_OBJECT_STORAGE)
+    private readonly objectStorage: DocumentObjectStorage,
     private readonly dossiers: DossiersService,
     private readonly fiscalSettings: FiscalSettingsService,
   ) {}
@@ -154,14 +169,80 @@ export class CommercialDocumentsService {
     documentId: string,
     userId: string,
   ) {
-    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const dossier = await this.dossiers.getAccessibleEntity(
+      organizationId,
+      dossierId,
+      userId,
+    );
     const document = await this.find(organizationId, dossierId, documentId);
     if (document.status !== CommercialDocumentStatus.Draft)
       throw new ConflictException('Ce document n’est plus en brouillon.');
-    document.status = CommercialDocumentStatus.Confirmed;
-    document.confirmedByUserId = userId;
-    document.confirmedAtUtc = new Date();
-    return this.documents.save(document);
+    const confirmedAtUtc = new Date();
+    let generated:
+      { buffer: Buffer; objectKey: string; originalName: string } | undefined;
+    if (
+      document.direction === CommercialDocumentDirection.Sale &&
+      document.kind === CommercialDocumentKind.Invoice &&
+      !document.accountingDocumentId
+    ) {
+      const buffer = await this.renderInvoicePdf(dossier, document);
+      const safeNumber = document.number.replace(/[^a-zA-Z0-9_-]+/g, '-');
+      generated = {
+        buffer,
+        objectKey: `${organizationId}/${dossierId}/generated-sales-invoices/${document.id}.pdf`,
+        originalName: `facture-${safeNumber}.pdf`,
+      };
+      await this.objectStorage.putObject(
+        generated.objectKey,
+        generated.buffer,
+        'application/pdf',
+      );
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      document.status = CommercialDocumentStatus.Confirmed;
+      document.confirmedByUserId = userId;
+      document.confirmedAtUtc = confirmedAtUtc;
+      if (generated) {
+        const [periodYear, periodMonth] = document.issueDate
+          .split('-')
+          .map(Number);
+        const accountingDocument = await manager.save(
+          manager.create(AccountingDocument, {
+            organizationId,
+            dossierId,
+            taskId: null,
+            obligationId: null,
+            originalName: generated.originalName,
+            objectKey: generated.objectKey,
+            mimeType: 'application/pdf',
+            sizeBytes: String(generated.buffer.length),
+            category: DocumentCategory.Sales,
+            periodYear,
+            periodMonth,
+            processingStatus: DocumentProcessingStatus.ToProcess,
+            extractionStatus: ExtractionStatus.Validated,
+            extractedData: this.structuredInvoice(document, dossier),
+            malwareScanStatus: MalwareScanStatus.Clean,
+            malwareSignature: null,
+            malwareScannedAtUtc: confirmedAtUtc,
+            version: 1,
+            replacesDocumentId: null,
+            uploadedByUserId: userId,
+            ingestionSource: DocumentIngestionSource.Generated,
+            sourceSenderEmail: document.thirdParty.email,
+            sourceSenderName: dossier.tradeName ?? dossier.legalName,
+            sourceSubject: `Facture de vente ${document.number}`,
+            sourceMessageId: `commercial-document:${document.id}`,
+            inboundEmailId: null,
+            isClientVisible: true,
+            deletedAtUtc: null,
+          }),
+        );
+        document.accountingDocumentId = accountingDocument.id;
+      }
+      return manager.save(document);
+    });
   }
 
   async convert(
@@ -348,6 +429,7 @@ export class CommercialDocumentsService {
             CommercialDocumentKind.Quote,
             CommercialDocumentKind.Order,
             CommercialDocumentKind.DeliveryNote,
+            CommercialDocumentKind.Invoice,
           ]
         : [CommercialDocumentKind.Order, CommercialDocumentKind.ReceiptNote];
     if (!allowed.includes(kind))
@@ -382,7 +464,9 @@ export class CommercialDocumentsService {
           ? CommercialDocumentKind.Order
           : source === CommercialDocumentKind.Order
             ? CommercialDocumentKind.DeliveryNote
-            : null
+            : source === CommercialDocumentKind.DeliveryNote
+              ? CommercialDocumentKind.Invoice
+              : null
         : source === CommercialDocumentKind.Order
           ? CommercialDocumentKind.ReceiptNote
           : null;
@@ -404,5 +488,147 @@ export class CommercialDocumentsService {
     if (!document)
       throw new NotFoundException('Le document commercial est introuvable.');
     return document;
+  }
+
+  private structuredInvoice(
+    document: CommercialDocument,
+    dossier: ClientDossier,
+  ) {
+    return {
+      document_type: 'invoice',
+      direction: 'sale',
+      document_number: document.number,
+      issue_date: document.issueDate,
+      currency: document.currencyCode,
+      issuer: {
+        name: dossier.tradeName ?? dossier.legalName,
+        tax_identifier: dossier.taxIdentifier,
+      },
+      customer: {
+        name: document.thirdParty.name,
+        tax_identifier: document.thirdParty.taxIdentifier,
+        address: document.thirdParty.address,
+      },
+      subtotal_excl_tax: document.netAmount,
+      tax_amount: document.vatAmount,
+      total_incl_tax: document.grossAmount,
+      amount_due: document.grossAmount,
+      line_items: document.lines.map((line) => ({
+        description: line.description,
+        quantity: line.quantity,
+        unit_price: line.unitPrice,
+        tax_rate: line.vatRate,
+        line_total: line.grossAmount,
+      })),
+      source: 'client_portal',
+    };
+  }
+
+  private renderInvoicePdf(
+    dossier: ClientDossier,
+    invoice: CommercialDocument,
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const pdf = new PDFDocument({ size: 'A4', margin: 45 });
+      const chunks: Buffer[] = [];
+      pdf.on('data', (chunk: Buffer) => chunks.push(chunk));
+      pdf.on('end', () => resolve(Buffer.concat(chunks)));
+      pdf.on('error', reject);
+
+      const issuer = dossier.tradeName ?? dossier.legalName;
+      pdf.font('Helvetica-Bold').fontSize(20).text(issuer);
+      pdf.font('Helvetica').fontSize(9);
+      if (dossier.taxIdentifier) pdf.text(`MF : ${dossier.taxIdentifier}`);
+      if (dossier.rneNumber) pdf.text(`RNE : ${dossier.rneNumber}`);
+      pdf.moveDown(1.5);
+      pdf
+        .font('Helvetica-Bold')
+        .fontSize(18)
+        .text('FACTURE', { align: 'right' });
+      pdf.font('Helvetica').fontSize(10).text(`N° ${invoice.number}`, {
+        align: 'right',
+      });
+      pdf.text(`Date : ${invoice.issueDate}`, { align: 'right' });
+      pdf.moveDown();
+      pdf.font('Helvetica-Bold').text('Client');
+      pdf.font('Helvetica').text(invoice.thirdParty.name);
+      if (invoice.thirdParty.taxIdentifier)
+        pdf.text(`MF : ${invoice.thirdParty.taxIdentifier}`);
+      if (invoice.thirdParty.address) pdf.text(invoice.thirdParty.address);
+      pdf.moveDown(1.5);
+
+      let y = pdf.y;
+      const columns = [45, 320, 375, 455, 545];
+      pdf.font('Helvetica-Bold').fontSize(9);
+      pdf.text('Désignation', columns[0], y, { width: 265 });
+      pdf.text('Qté', columns[1], y, { width: 45, align: 'right' });
+      pdf.text('P.U.', columns[2], y, { width: 70, align: 'right' });
+      pdf.text('TVA', columns[3], y, { width: 55, align: 'right' });
+      pdf.text('Total', columns[4] - 55, y, { width: 95, align: 'right' });
+      y += 18;
+      pdf
+        .moveTo(45, y - 4)
+        .lineTo(550, y - 4)
+        .strokeColor('#999999')
+        .stroke();
+      pdf.font('Helvetica').fontSize(8.5);
+      for (const line of invoice.lines) {
+        if (y > 690) {
+          pdf.addPage();
+          y = 55;
+        }
+        pdf.text(line.description, columns[0], y, { width: 265 });
+        pdf.text(line.quantity, columns[1], y, { width: 45, align: 'right' });
+        pdf.text(line.unitPrice, columns[2], y, { width: 70, align: 'right' });
+        pdf.text(
+          `${(Number(line.vatRate) * 100).toFixed(1)} %`,
+          columns[3],
+          y,
+          {
+            width: 55,
+            align: 'right',
+          },
+        );
+        pdf.text(line.grossAmount, columns[4] - 55, y, {
+          width: 95,
+          align: 'right',
+        });
+        y += 22;
+      }
+      y += 12;
+      pdf.font('Helvetica').fontSize(10);
+      pdf.text(
+        `Total HT : ${invoice.netAmount} ${invoice.currencyCode}`,
+        340,
+        y,
+        {
+          width: 210,
+          align: 'right',
+        },
+      );
+      y += 17;
+      pdf.text(`TVA : ${invoice.vatAmount} ${invoice.currencyCode}`, 340, y, {
+        width: 210,
+        align: 'right',
+      });
+      y += 18;
+      pdf
+        .font('Helvetica-Bold')
+        .fontSize(12)
+        .text(
+          `Total TTC : ${invoice.grossAmount} ${invoice.currencyCode}`,
+          300,
+          y,
+          {
+            width: 250,
+            align: 'right',
+          },
+        );
+      if (invoice.notes) {
+        pdf.moveDown(3);
+        pdf.font('Helvetica').fontSize(9).text(invoice.notes);
+      }
+      pdf.end();
+    });
   }
 }

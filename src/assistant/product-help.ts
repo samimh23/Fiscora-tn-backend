@@ -178,12 +178,12 @@ const entries: ProductHelpEntry[] = [
   },
   {
     id: 'invoices',
-    title: 'Gérer les achats, ventes et règlements',
+    title: 'Contrôler les factures et règlements',
     path: '/factures',
     permission: 'business_invoices.view',
     keywords: [
       'facture achat',
-      'facture vente',
+      'facture comptable',
       'avoir',
       'client fournisseur',
       'tiers',
@@ -192,11 +192,11 @@ const entries: ProductHelpEntry[] = [
       'solde facture',
     ],
     summary:
-      'Achats & ventes permet de saisir les tiers, factures, avoirs et règlements, puis de générer les écritures contrôlées.',
+      'Factures & règlements est l’espace du cabinet pour contrôler les pièces reçues, les comptabiliser et suivre leur règlement.',
     steps: [
       'Choisissez le dossier puis le sous-espace Factures ou Règlements.',
       'Créez ou sélectionnez le tiers concerné.',
-      'Saisissez le document, contrôlez les taxes et totaux, puis validez selon vos permissions.',
+      'Contrôlez le document reçu, les taxes et les totaux, puis comptabilisez-le selon vos permissions.',
     ],
   },
   {
@@ -643,8 +643,31 @@ const entries: ProductHelpEntry[] = [
       'Un dossier du portail regroupe les informations que le cabinet a rendues visibles au client.',
     steps: [
       'Ouvrez Mes dossiers puis choisissez la société.',
-      'Utilisez les onglets Vue d’ensemble, Documents, Échéances, Déclarations, Factures, Honoraires, États financiers ou Messages.',
+      'Utilisez les onglets Vue d’ensemble, Documents, Échéances, Déclarations, Factures, Honoraires, États financiers, Messages ou Ventes & facturation.',
       'Si une information attendue est absente, contactez le cabinet depuis Messages.',
+    ],
+  },
+  {
+    id: 'portal-sales',
+    title: 'Créer un devis ou une facture depuis le portail client',
+    path: '/portail/dossiers/:dossierId?tab=sales',
+    permission: 'commercial_documents.view',
+    keywords: [
+      'créer devis',
+      'créer facture client',
+      'facturation client',
+      'bon de livraison',
+      'cycle commercial client',
+      'émettre facture',
+    ],
+    summary:
+      'Ventes & facturation appartient au client. Il permet de gérer ses clients et de transformer un devis en commande, livraison puis facture.',
+    steps: [
+      'Ouvrez le dossier puis l’onglet Ventes & facturation.',
+      'Ajoutez d’abord le client dans le sous-onglet Clients si nécessaire.',
+      'Créez directement une facture ou démarrez par un devis, puis confirmez et convertissez chaque étape.',
+      'Cliquez sur Émettre pour finaliser la facture. Le PDF est alors transmis automatiquement dans les Documents reçus du cabinet.',
+      'Le paiement n’est pas requis pour transmettre la facture; le cabinet effectue ensuite le contrôle comptable.',
     ],
   },
   {

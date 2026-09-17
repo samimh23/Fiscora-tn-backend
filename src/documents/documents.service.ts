@@ -801,13 +801,15 @@ export class DocumentsService implements OnModuleInit {
     const uploaderType =
       item.ingestionSource === DocumentIngestionSource.Email
         ? 'EMAIL'
-        : (knownUploaderType ??
-          (uploader
-            ? uploader.role.normalizedName ===
-              SystemRoleNames.ClientPortal.toUpperCase()
-              ? 'CLIENT'
-              : 'CABINET'
-            : 'UNKNOWN'));
+        : item.ingestionSource === DocumentIngestionSource.Generated
+          ? 'CLIENT'
+          : (knownUploaderType ??
+            (uploader
+              ? uploader.role.normalizedName ===
+                SystemRoleNames.ClientPortal.toUpperCase()
+                ? 'CLIENT'
+                : 'CABINET'
+              : 'UNKNOWN'));
     return {
       id: item.id,
       dossierId: item.dossierId,
@@ -838,7 +840,9 @@ export class DocumentsService implements OnModuleInit {
         name:
           (uploaderType === 'EMAIL'
             ? item.sourceSenderName || item.sourceSenderEmail || 'E-mail'
-            : uploader?.user.fullName) ??
+            : item.ingestionSource === DocumentIngestionSource.Generated
+              ? item.sourceSenderName || 'Client'
+              : uploader?.user.fullName) ??
           (uploaderType === 'CLIENT'
             ? 'Client'
             : uploaderType === 'CABINET'
