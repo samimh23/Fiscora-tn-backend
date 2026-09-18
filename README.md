@@ -381,7 +381,7 @@ le message original et transmet une copie à l'application.
 
 ## Extraction IA et revue humaine
 
-L'API de documents possède un workflow NuExtract durable et sans clé cloud :
+L'API de documents possède un workflow Qwen3.5 durable et sans clé cloud :
 
 - `POST .../documents/:documentId/extraction` met en file une image JPEG/PNG saine ;
 - `GET .../documents/:documentId/extraction` retourne l'état et les contrôles ;

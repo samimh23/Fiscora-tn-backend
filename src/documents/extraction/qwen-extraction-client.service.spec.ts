@@ -1,0 +1,34 @@
+import {
+  extractionInstructions,
+  parseQwenExtractionJson,
+} from './qwen-extraction-client.service';
+
+describe('Qwen extraction contract', () => {
+  it('accepts schema-constrained JSON', () => {
+    expect(
+      parseQwenExtractionJson(
+        '```json\n{"document_type":"bank_statement"}\n```',
+      ),
+    ).toEqual({ document_type: 'bank_statement' });
+  });
+
+  it('recovers a JSON object surrounded by model commentary', () => {
+    expect(
+      parseQwenExtractionJson(
+        'Result follows: {"document_type":"invoice"} End of result.',
+      ),
+    ).toEqual({ document_type: 'invoice' });
+  });
+
+  it('reports truncated responses distinctly', () => {
+    expect(() =>
+      parseQwenExtractionJson('{"document_type":"bank_statement"', 'length'),
+    ).toThrow('truncated');
+  });
+
+  it('uses the short transcription prompt without a forced schema', () => {
+    expect(extractionInstructions()).toContain('every visible field');
+    expect(extractionInstructions()).toContain('spaces, commas and points');
+    expect(extractionInstructions()).toContain('Return JSON only');
+  });
+});

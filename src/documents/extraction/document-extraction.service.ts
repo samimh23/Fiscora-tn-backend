@@ -30,7 +30,7 @@ import {
   ReviewExtractionDto,
 } from './extraction.dto';
 import { InvoiceExtractionValidator } from './invoice-extraction.validator';
-import { NuExtractClientService } from './nuextract-client.service';
+import { QwenExtractionClientService } from './qwen-extraction-client.service';
 import { BankReconciliationService } from '../../bank-reconciliation/bank-reconciliation.service';
 
 @Injectable()
@@ -51,7 +51,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
     @Inject(DOCUMENT_OBJECT_STORAGE)
     private readonly objectStorage: DocumentObjectStorage,
     private readonly dossiers: DossiersService,
-    private readonly client: NuExtractClientService,
+    private readonly client: QwenExtractionClientService,
     private readonly bankReconciliation: BankReconciliationService,
   ) {}
 

@@ -20,7 +20,7 @@ import { documentObjectStorageProvider } from './object-storage/object-storage.p
 import { DOCUMENT_OBJECT_STORAGE } from './object-storage/object-storage';
 import { DocumentExtractionService } from './extraction/document-extraction.service';
 import { GoogleWifTokenService } from './extraction/google-wif-token.service';
-import { NuExtractClientService } from './extraction/nuextract-client.service';
+import { QwenExtractionClientService } from './extraction/qwen-extraction-client.service';
 import { BankReconciliationModule } from '../bank-reconciliation/bank-reconciliation.module';
 import { PublicDocumentRequestsController } from './public-document-requests.controller';
 
@@ -47,7 +47,7 @@ import { PublicDocumentRequestsController } from './public-document-requests.con
     PermissionGuard,
     documentObjectStorageProvider,
     GoogleWifTokenService,
-    NuExtractClientService,
+    QwenExtractionClientService,
     DocumentExtractionService,
   ],
   exports: [
