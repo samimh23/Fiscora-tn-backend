@@ -118,10 +118,14 @@ export function extractionInstructions(
 The previous extraction failed these controls. Re-read the original image and correct these problems. Do not copy or infer values from the previous result:
 ${correctionIssues
   .slice(0, 20)
-  .map(
-    (issue) =>
-      `- ${String(issue.field ?? 'document')}: ${String(issue.message ?? issue.code ?? 'invalid value')}`,
-  )
+  .map((issue) => {
+    const field = promptValue(issue.field, 'document');
+    const message = promptValue(
+      issue.message,
+      promptValue(issue.code, 'invalid value'),
+    );
+    return `- ${field}: ${message}`;
+  })
   .join('\n')}
 `
     : '';
@@ -214,6 +218,13 @@ Rules:
 - A transaction must not contain both a debit and a credit unless both are visibly printed on that same row.
 ${correctionGuidance}
 `;
+}
+
+function promptValue(value: unknown, fallback: string) {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'number' || typeof value === 'boolean')
+    return value.toString();
+  return fallback;
 }
 
 export function parseQwenExtractionJson(
