@@ -37,4 +37,17 @@ describe('Qwen extraction contract', () => {
     expect(prompt).toContain('spaces, commas and points');
     expect(prompt).toContain('Return JSON only');
   });
+
+  it('adds previous validation failures to a targeted reread', () => {
+    const prompt = extractionInstructions([
+      {
+        field: 'bank_statement.transactions.0',
+        message: 'Debit and credit are both present.',
+      },
+    ]);
+
+    expect(prompt).toContain('previous extraction failed');
+    expect(prompt).toContain('bank_statement.transactions.0');
+    expect(prompt).toContain('Debit and credit are both present.');
+  });
 });

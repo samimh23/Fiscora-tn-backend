@@ -24,7 +24,11 @@ export class QwenExtractionClientService {
     );
   }
 
-  async extract(content: Buffer, mimeType: string) {
+  async extract(
+    content: Buffer,
+    mimeType: string,
+    correctionIssues: Array<Record<string, unknown>> = [],
+  ) {
     // NUEXTRACT_SERVICE_URL remains a temporary fallback so the model can be
     // rolled out without coupling the Azure and GCP deployments.
     const serviceUrl = (
@@ -72,7 +76,7 @@ export class QwenExtractionClientService {
               },
               {
                 type: 'text',
-                text: extractionInstructions(),
+                text: extractionInstructions(correctionIssues),
               },
             ],
           },
@@ -106,7 +110,21 @@ export class QwenExtractionClientService {
   }
 }
 
-export function extractionInstructions() {
+export function extractionInstructions(
+  correctionIssues: Array<Record<string, unknown>> = [],
+) {
+  const correctionGuidance = correctionIssues.length
+    ? `
+The previous extraction failed these controls. Re-read the original image and correct these problems. Do not copy or infer values from the previous result:
+${correctionIssues
+  .slice(0, 20)
+  .map(
+    (issue) =>
+      `- ${String(issue.field ?? 'document')}: ${String(issue.message ?? issue.code ?? 'invalid value')}`,
+  )
+  .join('\n')}
+`
+    : '';
   return `
 Extract this financial document and return valid JSON only.
 
@@ -186,7 +204,15 @@ Rules:
 - Use null when a value is absent or unreadable.
 - Never invent, calculate, merge, repeat or move values.
 - One printed table row must produce exactly one JSON row.
+- Never combine two adjacent printed rows.
+- Preserve duplicate descriptions as separate transactions.
+- Read each amount from the same horizontal line as its description.
+- If debit is present, credit must be null.
+- If credit is present, debit must be null.
+- Do not calculate a net amount from debit and credit.
+- Before returning JSON, verify that the JSON transaction count equals the number of printed transaction rows.
 - A transaction must not contain both a debit and a credit unless both are visibly printed on that same row.
+${correctionGuidance}
 `;
 }
 

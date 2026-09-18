@@ -95,6 +95,9 @@ export class DocumentExtractionService implements OnModuleDestroy {
           documentId,
         });
       }
+      const previousValidationIssues = Array.isArray(item.validationIssues)
+        ? item.validationIssues
+        : [];
       Object.assign(item, {
         status: DocumentExtractionJobStatus.Queued,
         attemptCount: 0,
@@ -106,7 +109,10 @@ export class DocumentExtractionService implements OnModuleDestroy {
         reviewedAtUtc: null,
         reviewedByUserId: null,
         reviewComment: null,
-        validationIssues: [],
+        modelName: null,
+        rawResponse: null,
+        normalizedData: null,
+        validationIssues: previousValidationIssues,
       });
       document.extractionStatus = ExtractionStatus.Pending;
       document.extractedData = null;
@@ -315,7 +321,11 @@ export class DocumentExtractionService implements OnModuleDestroy {
       document.extractionStatus = ExtractionStatus.Processing;
       await this.documents.save(document);
       const file = await this.objectStorage.readObject(document.objectKey);
-      const extracted = await this.client.extract(file, document.mimeType);
+      const extracted = await this.client.extract(
+        file,
+        document.mimeType,
+        Array.isArray(job.validationIssues) ? job.validationIssues : [],
+      );
       const validation = new InvoiceExtractionValidator().validate(
         extracted.data,
       );
