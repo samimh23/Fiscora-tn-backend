@@ -26,9 +26,15 @@ describe('Qwen extraction contract', () => {
     ).toThrow('truncated');
   });
 
-  it('uses the short transcription prompt without a forced schema', () => {
-    expect(extractionInstructions()).toContain('every visible field');
-    expect(extractionInstructions()).toContain('spaces, commas and points');
-    expect(extractionInstructions()).toContain('Return JSON only');
+  it('provides the canonical Fiscora extraction schema', () => {
+    const prompt = extractionInstructions();
+
+    expect(prompt).toContain('"document_type": "invoice"');
+    expect(prompt).toContain('"supplier"');
+    expect(prompt).toContain('"line_items"');
+    expect(prompt).toContain('"bank_statement"');
+    expect(prompt).toContain('"transactions"');
+    expect(prompt).toContain('spaces, commas and points');
+    expect(prompt).toContain('Return JSON only');
   });
 });
