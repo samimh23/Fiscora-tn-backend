@@ -107,7 +107,87 @@ export class QwenExtractionClientService {
 }
 
 export function extractionInstructions() {
-  return 'Extract this financial document to valid JSON. Use document_type as invoice, credit_note, bank_statement, receipt, or other. Copy every visible field and every table row in printed order. Preserve all text and numbers exactly as printed, including spaces, commas and points. One printed row must equal one JSON row. For an empty value use null. Never merge rows, shift values, repeat values, calculate, normalize or guess. Return JSON only.';
+  return `
+Extract this financial document and return valid JSON only.
+
+Use exactly one of these document_type values:
+invoice, credit_note, receipt, bank_statement, other.
+
+For invoice, credit_note, or receipt, return exactly:
+{
+  "document_type": "invoice",
+  "supplier": {
+    "name": null,
+    "tax_id": null,
+    "address": null
+  },
+  "customer": {
+    "name": null,
+    "tax_id": null,
+    "address": null
+  },
+  "document_number": null,
+  "issue_date": null,
+  "currency": null,
+  "subtotal_excl_tax": null,
+  "tax_amount": null,
+  "fodec_amount": null,
+  "stamp_tax": null,
+  "other_taxes": [
+    {
+      "label": null,
+      "amount": null
+    }
+  ],
+  "total_incl_tax": null,
+  "amount_due": null,
+  "line_items": [
+    {
+      "description": null,
+      "quantity": null,
+      "unit_price": null,
+      "tax_rate": null,
+      "line_total": null
+    }
+  ]
+}
+
+For a bank statement, return exactly:
+{
+  "document_type": "bank_statement",
+  "currency": null,
+  "bank_statement": {
+    "bank_name": null,
+    "iban": null,
+    "account_number": null,
+    "period_start": null,
+    "period_end": null,
+    "opening_balance": null,
+    "closing_balance": null,
+    "transactions": [
+      {
+        "transaction_date": null,
+        "value_date": null,
+        "description": null,
+        "reference": null,
+        "debit": null,
+        "credit": null,
+        "amount": null,
+        "balance": null
+      }
+    ]
+  }
+}
+
+Rules:
+- Return JSON only, without Markdown or explanations.
+- Keep monetary values as strings exactly as printed, including spaces, commas and points.
+- Convert dates to YYYY-MM-DD.
+- Use null when a value is absent or unreadable.
+- Never invent, calculate, merge, repeat or move values.
+- One printed table row must produce exactly one JSON row.
+- A transaction must not contain both a debit and a credit unless both are visibly printed on that same row.
+`;
 }
 
 export function parseQwenExtractionJson(
