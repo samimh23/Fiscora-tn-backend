@@ -32,6 +32,7 @@ describe('Qwen extraction contract', () => {
     expect(prompt).toContain('"document_type": "invoice"');
     expect(prompt).toContain('"supplier"');
     expect(prompt).toContain('"line_items"');
+    expect(prompt).toContain('"additional_fields"');
     expect(prompt).toContain('"bank_statement"');
     expect(prompt).toContain('"transactions"');
     expect(prompt).toContain('spaces, commas and points');

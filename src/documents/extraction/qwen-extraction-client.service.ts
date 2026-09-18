@@ -163,6 +163,12 @@ For invoice, credit_note, or receipt, return exactly:
   ],
   "total_incl_tax": null,
   "amount_due": null,
+  "additional_fields": [
+    {
+      "label": null,
+      "value": null
+    }
+  ],
   "line_items": [
     {
       "description": null,
