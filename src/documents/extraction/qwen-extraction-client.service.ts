@@ -211,6 +211,7 @@ Rules:
 - Return JSON only, without Markdown or explanations.
 - Keep monetary values as strings exactly as printed, including spaces, commas and points.
 - Convert dates to YYYY-MM-DD.
+- On French and Tunisian documents, DD/MM/YYYY means day/month/year: for example 26/03/2024 must become 2024-03-26, never 2024-06-26.
 - Use null when a value is absent or unreadable.
 - Never invent, calculate, merge, repeat or move values.
 - One printed table row must produce exactly one JSON row.
