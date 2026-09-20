@@ -71,7 +71,26 @@ export class InvoiceExtractionValidator {
       );
     }
 
-    const subtotal = this.amount(input.subtotal_excl_tax);
+    let grossSubtotal = this.amount(input.gross_subtotal_excl_tax);
+    let discountAmount = this.amount(input.global_discount_amount);
+    let discountRate = this.amount(input.global_discount_rate);
+    if (discountRate != null && discountRate > 1) discountRate /= 100;
+    let subtotal = this.amount(input.subtotal_excl_tax);
+    if (subtotal == null && grossSubtotal != null && discountAmount != null)
+      subtotal = grossSubtotal - discountAmount;
+    if (subtotal == null && grossSubtotal != null && discountRate != null)
+      subtotal = grossSubtotal * (1 - discountRate);
+    if (grossSubtotal == null && subtotal != null && discountAmount != null)
+      grossSubtotal = subtotal + discountAmount;
+    if (discountAmount == null && grossSubtotal != null && subtotal != null)
+      discountAmount = grossSubtotal - subtotal;
+    if (
+      discountRate == null &&
+      grossSubtotal != null &&
+      grossSubtotal > 0 &&
+      discountAmount != null
+    )
+      discountRate = discountAmount / grossSubtotal;
     const tax = this.amount(input.tax_amount);
     const fodec = this.amount(input.fodec_amount) ?? 0;
     const stamp = this.amount(input.stamp_tax) ?? 0;
@@ -87,6 +106,9 @@ export class InvoiceExtractionValidator {
     const total = this.amount(input.total_incl_tax);
     const due = this.amount(input.amount_due);
     const financialFields = [
+      ['gross_subtotal_excl_tax', grossSubtotal],
+      ['global_discount_amount', discountAmount],
+      ['global_discount_rate', discountRate],
       ['subtotal_excl_tax', subtotal],
       ['tax_amount', tax],
       ['fodec_amount', this.amount(input.fodec_amount)],
@@ -122,28 +144,56 @@ export class InvoiceExtractionValidator {
       ...item,
       amount: this.amount(item.amount),
     }));
-    if (subtotal != null && tax != null && total != null) {
-      const difference = Math.abs(
-        subtotal + tax + fodec + stamp + otherTaxTotal - total,
+    if (discountRate != null && discountRate > 1) {
+      issues.push(
+        this.error(
+          'GLOBAL_DISCOUNT_RATE_INVALID',
+          'global_discount_rate',
+          'Le taux de remise globale doit être compris entre 0 et 100 %.',
+        ),
       );
+    }
+    if (grossSubtotal != null && discountAmount != null && subtotal != null) {
+      const difference = Math.abs(grossSubtotal - discountAmount - subtotal);
+      if (difference > 0.02) {
+        issues.push(
+          this.error(
+            'GLOBAL_DISCOUNT_MISMATCH',
+            'global_discount_amount',
+            `La remise globale ne correspond pas à HT brut - base HT de ${difference.toFixed(3)}.`,
+          ),
+        );
+      }
+    }
+    if (subtotal != null && tax != null && total != null) {
+      const totalBeforeStamp = subtotal + tax + fodec + otherTaxTotal;
+      const differenceBeforeStamp = Math.abs(totalBeforeStamp - total);
+      const differenceWithStamp = Math.abs(totalBeforeStamp + stamp - total);
+      const difference = Math.min(differenceBeforeStamp, differenceWithStamp);
       if (difference > 0.02) {
         issues.push(
           this.error(
             'TOTAL_MISMATCH',
             'total_incl_tax',
-            `Le total diffère de HT + TVA + FODEC + autres taxes + timbre de ${difference.toFixed(3)}.`,
+            `Le total TTC ne correspond ni à la base HT + TVA + FODEC + autres taxes, ni à ce total avec timbre. Écart minimal : ${difference.toFixed(3)}.`,
           ),
         );
       }
-    }
-    if (due != null && total != null && due - total > 0.02) {
-      issues.push(
-        this.warning(
-          'AMOUNT_DUE_ABOVE_TOTAL',
-          'amount_due',
-          'Le montant dû dépasse le total TTC.',
-        ),
-      );
+      if (due != null && difference <= 0.02) {
+        const totalAlreadyIncludesStamp =
+          differenceWithStamp <= differenceBeforeStamp;
+        const expectedDue = totalAlreadyIncludesStamp ? total : total + stamp;
+        const dueDifference = Math.abs(expectedDue - due);
+        if (dueDifference > 0.02) {
+          issues.push(
+            this.error(
+              'NET_PAYABLE_MISMATCH',
+              'amount_due',
+              `Le net à payer diffère du TTC après timbre de ${dueDifference.toFixed(3)}.`,
+            ),
+          );
+        }
+      }
     }
 
     const lines = Array.isArray(input.line_items) ? input.line_items : [];
@@ -154,6 +204,7 @@ export class InvoiceExtractionValidator {
         ...item,
         quantity: this.amount(item.quantity),
         unit_price: this.amount(item.unit_price),
+        discount_rate: this.rate(item.discount_rate),
         tax_rate: this.amount(item.tax_rate),
         line_total: this.amount(item.line_total),
       };
@@ -164,9 +215,12 @@ export class InvoiceExtractionValidator {
       if (!item) return;
       const quantity = this.amount(item.quantity);
       const unitPrice = this.amount(item.unit_price);
+      const discountRate = this.rate(item.discount_rate) ?? 0;
       const lineTotal = this.amount(item.line_total);
       if (quantity != null && unitPrice != null && lineTotal != null) {
-        const difference = Math.abs(quantity * unitPrice - lineTotal);
+        const difference = Math.abs(
+          quantity * unitPrice * (1 - discountRate) - lineTotal,
+        );
         if (difference > Math.max(0.02, Math.abs(lineTotal) * 0.01)) {
           issues.push(
             this.warning(
@@ -402,6 +456,12 @@ export class InvoiceExtractionValidator {
         : `${compact.slice(0, separator).replace(/[,.]/g, '')}.${compact.slice(separator + 1).replace(/[,.]/g, '')}`;
     const parsed = Number(decimal);
     return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private rate(value: unknown): number | null {
+    const rate = this.amount(value);
+    if (rate == null) return null;
+    return rate > 1 ? rate / 100 : rate;
   }
 
   private error(

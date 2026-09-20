@@ -78,6 +78,45 @@ describe('InvoiceExtractionValidator', () => {
     );
   });
 
+  it('preserves a global discount and separates TTC from net payable', () => {
+    const result = validator.validate({
+      document_type: 'invoice',
+      supplier: { name: 'LEADERSOFT Sarl' },
+      document_number: 'FV2018/00063',
+      issue_date: '2018-05-05',
+      gross_subtotal_excl_tax: '1 398,000',
+      global_discount_amount: '139,800',
+      global_discount_rate: '10 %',
+      subtotal_excl_tax: '1 258,200',
+      tax_amount: '239,058',
+      stamp_tax: '0,600',
+      total_incl_tax: '1 497,258',
+      amount_due: '1 497,858',
+      line_items: [
+        {
+          description: 'ARTICLE 1',
+          quantity: 1,
+          unit_price: '120,000',
+          discount_rate: '10 %',
+          line_total: '108,000',
+        },
+      ],
+    });
+
+    expect(result.issues.filter((issue) => issue.severity === 'ERROR')).toEqual(
+      [],
+    );
+    expect(result.normalizedData).toMatchObject({
+      gross_subtotal_excl_tax: 1398,
+      global_discount_amount: 139.8,
+      global_discount_rate: 0.1,
+      subtotal_excl_tax: 1258.2,
+      total_incl_tax: 1497.258,
+      amount_due: 1497.858,
+      line_items: [expect.objectContaining({ discount_rate: 0.1 })],
+    });
+  });
+
   it('normalizes Tunisian monetary strings without multiplying them by 1000', () => {
     const result = validator.validate({
       document_type: 'invoice',
@@ -127,7 +166,7 @@ describe('InvoiceExtractionValidator', () => {
       subtotal_excl_tax: '3 782,353',
       tax_amount: '718,647',
       stamp_tax: '1,000',
-      total_incl_tax: '4 501,000',
+      total_incl_tax: '4 500,000',
     });
 
     const mismatch = result.issues.find(

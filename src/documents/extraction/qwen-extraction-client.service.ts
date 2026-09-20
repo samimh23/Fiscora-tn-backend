@@ -155,6 +155,9 @@ For invoice, credit_note, or receipt, return exactly:
   "document_number": null,
   "issue_date": null,
   "currency": null,
+  "gross_subtotal_excl_tax": null,
+  "global_discount_amount": null,
+  "global_discount_rate": null,
   "subtotal_excl_tax": null,
   "tax_amount": null,
   "fodec_amount": null,
@@ -178,10 +181,12 @@ For invoice, credit_note, or receipt, return exactly:
       "description": null,
       "quantity": null,
       "unit_price": null,
+      "discount_rate": null,
       "tax_rate": null,
       "line_total": null
     }
-  ]
+  ],
+  "_evidence": {}
 }
 
 For a bank statement, return exactly:
@@ -208,7 +213,8 @@ For a bank statement, return exactly:
         "balance": null
       }
     ]
-  }
+  },
+  "_evidence": {}
 }
 
 Rules:
@@ -218,6 +224,8 @@ Rules:
 - On French and Tunisian documents, DD/MM/YYYY means day/month/year: for example 26/03/2024 must become 2024-03-26, never 2024-06-26.
 - Use null when a value is absent or unreadable.
 - Never invent, calculate, merge, repeat or move values.
+- For invoices, gross_subtotal_excl_tax is the printed HT before a global discount, global_discount_amount/global_discount_rate are the printed global discount, and subtotal_excl_tax is the taxable HT after that discount (often labelled Base TVA or Net HT).
+- For invoices, total_incl_tax is the printed TTC before stamp duty and amount_due is the printed net payable after stamp duty. Copy the two values separately even when their labels are close together.
 - One printed table row must produce exactly one JSON row.
 - Never combine two adjacent printed rows.
 - Preserve duplicate descriptions as separate transactions.
@@ -227,6 +235,11 @@ Rules:
 - Do not calculate a net amount from debit and credit.
 - Before returning JSON, verify that the JSON transaction count equals the number of printed transaction rows.
 - A transaction must not contain both a debit and a credit unless both are visibly printed on that same row.
+- Add visual evidence in _evidence for every visible header value using its JSON path as the key.
+- For each invoice line, add one _evidence entry keyed line_items.N. For each bank row, add one entry keyed bank_statement.transactions.N, where N starts at 0.
+- Each evidence entry must be {"page": 1, "text": "exact printed text", "bbox": [x1, y1, x2, y2]}.
+- bbox coordinates must be integers normalized from 0 to 1000 relative to the full original image: top-left is [0,0] and bottom-right is [1000,1000].
+- The evidence box must tightly cover only the printed value or the corresponding printed table row. Omit evidence when the value is absent or unreadable; never invent coordinates.
 ${correctionGuidance}
 `;
 }

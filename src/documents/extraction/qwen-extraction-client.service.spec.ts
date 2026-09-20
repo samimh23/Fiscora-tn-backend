@@ -32,9 +32,15 @@ describe('Qwen extraction contract', () => {
     expect(prompt).toContain('"document_type": "invoice"');
     expect(prompt).toContain('"supplier"');
     expect(prompt).toContain('"line_items"');
+    expect(prompt).toContain('"gross_subtotal_excl_tax"');
+    expect(prompt).toContain('"global_discount_amount"');
+    expect(prompt).toContain('"global_discount_rate"');
     expect(prompt).toContain('"additional_fields"');
     expect(prompt).toContain('"bank_statement"');
     expect(prompt).toContain('"transactions"');
+    expect(prompt).toContain('"_evidence"');
+    expect(prompt).toContain('"bbox": [x1, y1, x2, y2]');
+    expect(prompt).toContain('normalized from 0 to 1000');
     expect(prompt).toContain('spaces, commas and points');
     expect(prompt).toContain('Return JSON only');
   });
