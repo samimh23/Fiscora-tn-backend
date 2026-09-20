@@ -425,6 +425,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
       attemptCount: job.attemptCount,
       availableAtUtc: job.availableAtUtc,
       modelName: job.modelName,
+      sourceData: this.sourceData(job),
       normalizedData: job.normalizedData,
       validationIssues: job.validationIssues,
       lastError: job.lastError,
@@ -433,6 +434,15 @@ export class DocumentExtractionService implements OnModuleDestroy {
       reviewedByUserId: job.reviewedByUserId,
       reviewComment: job.reviewComment,
     };
+  }
+
+  private sourceData(job: DocumentExtractionJob) {
+    const candidate = job.rawResponse?.extractedData;
+    return candidate &&
+      typeof candidate === 'object' &&
+      !Array.isArray(candidate)
+      ? candidate
+      : job.normalizedData;
   }
 
   private enabled() {

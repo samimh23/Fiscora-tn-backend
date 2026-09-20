@@ -105,7 +105,11 @@ export class QwenExtractionClientService {
     const data = parseQwenExtractionJson(contentText, choice?.finish_reason);
     return {
       data,
-      rawResponse: { content: contentText, usage: body.usage ?? null },
+      rawResponse: {
+        content: contentText,
+        usage: body.usage ?? null,
+        extractedData: structuredClone(data),
+      },
     };
   }
 }
