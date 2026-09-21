@@ -38,9 +38,10 @@ describe('Qwen extraction contract', () => {
     expect(prompt).toContain('"additional_fields"');
     expect(prompt).toContain('"bank_statement"');
     expect(prompt).toContain('"transactions"');
-    expect(prompt).toContain('"_evidence"');
-    expect(prompt).toContain('"bbox": [x1, y1, x2, y2]');
-    expect(prompt).toContain('normalized from 0 to 1000');
+    expect(prompt).not.toContain('"_evidence"');
+    expect(prompt).not.toContain('"bbox"');
+    expect(prompt).toContain('unit_price_basis');
+    expect(prompt).toContain('Do not return coordinates');
     expect(prompt).toContain('spaces, commas and points');
     expect(prompt).toContain('Return JSON only');
   });

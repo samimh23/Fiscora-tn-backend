@@ -47,7 +47,7 @@ export class QwenExtractionClientService {
       },
       body: JSON.stringify({
         model: this.modelName,
-        temperature: 0.7,
+        temperature: 0,
         top_p: 0.8,
         top_k: 20,
         presence_penalty: 1.5,
@@ -145,11 +145,13 @@ For invoice, credit_note, or receipt, return exactly:
   "supplier": {
     "name": null,
     "tax_id": null,
+    "registration_number": null,
     "address": null
   },
   "customer": {
     "name": null,
     "tax_id": null,
+    "registration_number": null,
     "address": null
   },
   "document_number": null,
@@ -178,15 +180,18 @@ For invoice, credit_note, or receipt, return exactly:
   ],
   "line_items": [
     {
+      "reference": null,
+      "barcode": null,
       "description": null,
       "quantity": null,
       "unit_price": null,
+      "unit_price_basis": "unknown",
       "discount_rate": null,
       "tax_rate": null,
-      "line_total": null
+      "line_total": null,
+      "line_total_basis": "unknown"
     }
-  ],
-  "_evidence": {}
+  ]
 }
 
 For a bank statement, return exactly:
@@ -213,8 +218,7 @@ For a bank statement, return exactly:
         "balance": null
       }
     ]
-  },
-  "_evidence": {}
+  }
 }
 
 Rules:
@@ -235,11 +239,8 @@ Rules:
 - Do not calculate a net amount from debit and credit.
 - Before returning JSON, verify that the JSON transaction count equals the number of printed transaction rows.
 - A transaction must not contain both a debit and a credit unless both are visibly printed on that same row.
-- Add visual evidence in _evidence for every visible header value using its JSON path as the key.
-- For each invoice line, add one _evidence entry keyed line_items.N. For each bank row, add one entry keyed bank_statement.transactions.N, where N starts at 0.
-- Each evidence entry must be {"page": 1, "text": "exact printed text", "bbox": [x1, y1, x2, y2]}.
-- bbox coordinates must be integers normalized from 0 to 1000 relative to the full original image: top-left is [0,0] and bottom-right is [1000,1000].
-- The evidence box must tightly cover only the printed value or the corresponding printed table row. Omit evidence when the value is absent or unreadable; never invent coordinates.
+- unit_price_basis and line_total_basis must be exactly HT, TTC, or unknown according to the printed column label. Never treat PU TTC as PU HT.
+- Do not return coordinates, bounding boxes, visual evidence, source token IDs, or an _evidence field. Fiscora matches values to OCR coordinates separately.
 ${correctionGuidance}
 `;
 }

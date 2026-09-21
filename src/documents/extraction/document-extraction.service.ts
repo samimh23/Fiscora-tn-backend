@@ -32,6 +32,8 @@ import {
 import { InvoiceExtractionValidator } from './invoice-extraction.validator';
 import { QwenExtractionClientService } from './qwen-extraction-client.service';
 import { BankReconciliationService } from '../../bank-reconciliation/bank-reconciliation.service';
+import { PaddleOcrClientService } from './paddle-ocr-client.service';
+import { attachOcrEvidence } from './ocr-evidence-matcher';
 
 @Injectable()
 export class DocumentExtractionService implements OnModuleDestroy {
@@ -52,6 +54,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
     private readonly objectStorage: DocumentObjectStorage,
     private readonly dossiers: DossiersService,
     private readonly client: QwenExtractionClientService,
+    private readonly paddleOcr: PaddleOcrClientService,
     private readonly bankReconciliation: BankReconciliationService,
   ) {}
 
@@ -321,18 +324,34 @@ export class DocumentExtractionService implements OnModuleDestroy {
       document.extractionStatus = ExtractionStatus.Processing;
       await this.documents.save(document);
       const file = await this.objectStorage.readObject(document.objectKey);
-      const extracted = await this.client.extract(
-        file,
-        document.mimeType,
-        Array.isArray(job.validationIssues) ? job.validationIssues : [],
-      );
+      const ocrPromise = this.paddleOcr
+        .extract(file, document.mimeType)
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `PaddleOCR evidence unavailable for ${document.id}: ${this.errorMessage(error)}`,
+          );
+          return null;
+        });
+      const [extracted, ocrDocument] = await Promise.all([
+        this.client.extract(
+          file,
+          document.mimeType,
+          Array.isArray(job.validationIssues) ? job.validationIssues : [],
+        ),
+        ocrPromise,
+      ]);
+      const extractionData = attachOcrEvidence(extracted.data, ocrDocument);
       const validation = new InvoiceExtractionValidator().validate(
-        extracted.data,
+        extractionData,
       );
       Object.assign(job, {
         status: DocumentExtractionJobStatus.ReviewRequired,
         modelName: this.client.modelName,
-        rawResponse: extracted.rawResponse,
+        rawResponse: {
+          ...extracted.rawResponse,
+          extractedData: structuredClone(extractionData),
+          ocr: ocrDocument,
+        },
         normalizedData: validation.normalizedData,
         validationIssues: validation.issues,
         lastError: null,
