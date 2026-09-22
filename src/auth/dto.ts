@@ -46,6 +46,32 @@ export class LoginDto {
   password!: string;
 }
 
+export class CompleteMfaLoginDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  challengeToken!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  code!: string;
+}
+
+export class ConfirmMfaSetupDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(20)
+  code!: string;
+}
+
+export class VerifyMfaActionDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  code!: string;
+}
+
 export class GoogleLoginDto {
   @ApiProperty({
     description:

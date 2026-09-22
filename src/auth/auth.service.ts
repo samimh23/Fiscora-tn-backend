@@ -33,6 +33,8 @@ import {
 import {
   AcceptInvitationDto,
   ChangePasswordDto,
+  CompleteMfaLoginDto,
+  ConfirmMfaSetupDto,
   GoogleLoginDto,
   GoogleRegisterDto,
   LoginDto,
@@ -42,8 +44,15 @@ import {
   RevokeTokenDto,
   ResetPasswordDto,
   UpdateProfileDto,
+  VerifyMfaActionDto,
 } from './dto';
 import { GoogleIdentityService } from './google-identity.service';
+import { MfaService } from './mfa.service';
+
+interface MfaChallengePayload {
+  sub: string;
+  purpose: 'mfa_challenge';
+}
 
 @Injectable()
 export class AuthService {
@@ -60,6 +69,7 @@ export class AuthService {
     private readonly passwordResetTokens: Repository<PasswordResetToken>,
     private readonly mailer: InvitationMailerService,
     private readonly googleIdentity: GoogleIdentityService,
+    private readonly mfa: MfaService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -120,7 +130,8 @@ export class AuthService {
           detailsJson: null,
         }),
       );
-      return this.issueTokens(manager, user);
+      if (user.mfaEnabled) return this.createMfaChallenge(user);
+      return this.completeLogin(manager, user);
     });
   }
 
@@ -137,9 +148,8 @@ export class AuthService {
         'Adresse e-mail ou mot de passe incorrect.',
       );
     }
-    user.lastLoginAtUtc = new Date();
-    await this.users.save(user);
-    return this.issueTokens(this.dataSource.manager, user);
+    if (user.mfaEnabled) return this.createMfaChallenge(user);
+    return this.completeLogin(this.dataSource.manager, user);
   }
 
   async googleLogin(dto: GoogleLoginDto) {
@@ -216,9 +226,9 @@ export class AuthService {
         throw new UnauthorizedException('Ce compte Fiscora est désactivé.');
       }
       user.emailVerified = true;
-      user.lastLoginAtUtc = new Date();
       await manager.save(user);
-      return this.issueTokens(manager, user);
+      if (user.mfaEnabled) return this.createMfaChallenge(user);
+      return this.completeLogin(manager, user);
     });
   }
 
@@ -239,9 +249,11 @@ export class AuthService {
         }
         linkedIdentity.lastAuthenticatedAtUtc = new Date();
         await manager.save(linkedIdentity);
-        linkedIdentity.user.lastLoginAtUtc = new Date();
         await manager.save(linkedIdentity.user);
-        return this.issueTokens(manager, linkedIdentity.user);
+        if (linkedIdentity.user.mfaEnabled) {
+          return this.createMfaChallenge(linkedIdentity.user);
+        }
+        return this.completeLogin(manager, linkedIdentity.user);
       }
 
       if (
@@ -334,6 +346,158 @@ export class AuthService {
 
       return this.issueTokens(manager, user);
     });
+  }
+
+  async completeMfaLogin(dto: CompleteMfaLoginDto) {
+    const payload = await this.verifyMfaChallenge(dto.challengeToken);
+    const outcome = await this.dataSource.transaction(async (manager) => {
+      const verified = await this.consumeMfaCredential(
+        manager,
+        payload.sub,
+        dto.code,
+      );
+      if (!verified.ok) return verified;
+      const response = await this.completeLogin(manager, verified.user);
+      await this.writeMfaAudit(
+        manager,
+        verified.user.id,
+        verified.method === 'recovery'
+          ? 'auth.mfa_recovery_login'
+          : 'auth.mfa_login',
+      );
+      return { ok: true as const, response };
+    });
+    if (!outcome.ok) throw new UnauthorizedException(outcome.message);
+    return outcome.response;
+  }
+
+  async mfaStatus(userId: string) {
+    const user = await this.users.findOneByOrFail({ id: userId });
+    return {
+      enabled: user.mfaEnabled,
+      enabledAtUtc: user.mfaEnabledAtUtc,
+      recoveryCodesRemaining: user.mfaRecoveryCodeHashes?.length ?? 0,
+    };
+  }
+
+  async beginMfaSetup(userId: string) {
+    const user = await this.users.findOneByOrFail({ id: userId });
+    if (user.mfaEnabled) {
+      throw new ConflictException(
+        'La double authentification est déjà activée.',
+      );
+    }
+    const secret = this.mfa.generateSecret();
+    const otpAuthUri = this.mfa.buildOtpAuthUri(user.email, secret);
+    user.mfaPendingSecretEncrypted = this.mfa.encryptSecret(secret);
+    await this.users.save(user);
+    return {
+      secret,
+      otpAuthUri,
+      qrCodeDataUrl: await this.mfa.toQrCodeDataUrl(otpAuthUri),
+    };
+  }
+
+  async confirmMfaSetup(userId: string, dto: ConfirmMfaSetupDto) {
+    return this.dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, {
+        where: { id: userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!user?.mfaPendingSecretEncrypted) {
+        throw new BadRequestException(
+          'Commencez d’abord la configuration de la double authentification.',
+        );
+      }
+      if (user.mfaEnabled) {
+        throw new ConflictException(
+          'La double authentification est déjà activée.',
+        );
+      }
+
+      const secret = this.mfa.decryptSecret(user.mfaPendingSecretEncrypted);
+      const step = this.mfa.findMatchingTotpStep(secret, dto.code);
+      if (step === null) {
+        throw new BadRequestException(
+          'Le code de vérification est incorrect ou expiré.',
+        );
+      }
+
+      const recoveryCodes = this.mfa.generateRecoveryCodes();
+      user.mfaEnabled = true;
+      user.mfaSecretEncrypted = user.mfaPendingSecretEncrypted;
+      user.mfaPendingSecretEncrypted = null;
+      user.mfaRecoveryCodeHashes = recoveryCodes.map((code) =>
+        this.mfa.hashRecoveryCode(code),
+      );
+      user.mfaLastAcceptedStep = String(step);
+      user.mfaFailedAttempts = 0;
+      user.mfaLockedUntilUtc = null;
+      user.mfaEnabledAtUtc = new Date();
+      await manager.save(user);
+      await this.writeMfaAudit(manager, user.id, 'auth.mfa_enabled');
+      return {
+        message: 'La double authentification est activée.',
+        recoveryCodes,
+      };
+    });
+  }
+
+  async regenerateMfaRecoveryCodes(userId: string, dto: VerifyMfaActionDto) {
+    const outcome = await this.dataSource.transaction(async (manager) => {
+      const verified = await this.consumeMfaCredential(
+        manager,
+        userId,
+        dto.code,
+      );
+      if (!verified.ok) return verified;
+      const recoveryCodes = this.mfa.generateRecoveryCodes();
+      verified.user.mfaRecoveryCodeHashes = recoveryCodes.map((code) =>
+        this.mfa.hashRecoveryCode(code),
+      );
+      await manager.save(verified.user);
+      await this.writeMfaAudit(
+        manager,
+        userId,
+        'auth.mfa_recovery_codes_regenerated',
+      );
+      return { ok: true as const, recoveryCodes };
+    });
+    if (!outcome.ok) throw new UnauthorizedException(outcome.message);
+    return { recoveryCodes: outcome.recoveryCodes };
+  }
+
+  async disableMfa(userId: string, dto: VerifyMfaActionDto) {
+    const outcome = await this.dataSource.transaction(async (manager) => {
+      const verified = await this.consumeMfaCredential(
+        manager,
+        userId,
+        dto.code,
+      );
+      if (!verified.ok) return verified;
+
+      verified.user.mfaEnabled = false;
+      verified.user.mfaSecretEncrypted = null;
+      verified.user.mfaPendingSecretEncrypted = null;
+      verified.user.mfaRecoveryCodeHashes = null;
+      verified.user.mfaLastAcceptedStep = null;
+      verified.user.mfaFailedAttempts = 0;
+      verified.user.mfaLockedUntilUtc = null;
+      verified.user.mfaEnabledAtUtc = null;
+      await manager.save(verified.user);
+      await manager.update(
+        RefreshToken,
+        { userId, revokedAtUtc: IsNull() },
+        { revokedAtUtc: new Date() },
+      );
+      await this.writeMfaAudit(manager, userId, 'auth.mfa_disabled');
+      return { ok: true as const };
+    });
+    if (!outcome.ok) throw new UnauthorizedException(outcome.message);
+    return {
+      message:
+        'La double authentification est désactivée. Toutes les sessions ont été révoquées.',
+    };
   }
 
   async refresh(dto: RefreshDto) {
@@ -547,7 +711,8 @@ export class AuthService {
           detailsJson: null,
         }),
       );
-      return this.issueTokens(manager, user);
+      if (user.mfaEnabled) return this.createMfaChallenge(user);
+      return this.completeLogin(manager, user);
     });
   }
 
@@ -592,6 +757,7 @@ export class AuthService {
       email: user.email,
       fullName: user.fullName,
       isPlatformAdmin: user.isPlatformAdmin,
+      mfaEnabled: user.mfaEnabled,
       organizations: await this.organizationSummaries(
         this.dataSource.manager,
         user.id,
@@ -629,6 +795,152 @@ export class AuthService {
       message:
         'Mot de passe modifié. Toutes les sessions devront se reconnecter à l’expiration de leur jeton d’accès.',
     };
+  }
+
+  private async createMfaChallenge(user: User) {
+    const minutes = Number(this.config.get('MFA_CHALLENGE_MINUTES', 5));
+    const expiresAtUtc = new Date(Date.now() + minutes * 60_000);
+    const challengeToken = await this.jwtService.signAsync(
+      { sub: user.id, purpose: 'mfa_challenge' },
+      {
+        secret: this.config.getOrThrow<string>('JWT_SIGNING_KEY'),
+        issuer: this.config.get('JWT_ISSUER', 'accounting-platform'),
+        audience: this.config.get('JWT_AUDIENCE', 'accounting-platform-api'),
+        expiresIn: `${minutes}m`,
+      },
+    );
+    return {
+      mfaRequired: true as const,
+      challengeToken,
+      expiresAtUtc,
+    };
+  }
+
+  private async verifyMfaChallenge(
+    challengeToken: string,
+  ): Promise<MfaChallengePayload> {
+    try {
+      const payload = await this.jwtService.verifyAsync<MfaChallengePayload>(
+        challengeToken,
+        {
+          secret: this.config.getOrThrow<string>('JWT_SIGNING_KEY'),
+          issuer: this.config.get('JWT_ISSUER', 'accounting-platform'),
+          audience: this.config.get('JWT_AUDIENCE', 'accounting-platform-api'),
+        },
+      );
+      if (payload.purpose !== 'mfa_challenge' || !payload.sub) {
+        throw new Error('Invalid MFA challenge');
+      }
+      return payload;
+    } catch {
+      throw new UnauthorizedException(
+        'La demande MFA est invalide ou expirée. Reconnectez-vous.',
+      );
+    }
+  }
+
+  private async consumeMfaCredential(
+    manager: EntityManager,
+    userId: string,
+    code: string,
+  ): Promise<
+    | { ok: true; user: User; method: 'totp' | 'recovery' }
+    | { ok: false; message: string }
+  > {
+    const user = await manager.findOne(User, {
+      where: { id: userId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!user?.isActive || !user.mfaEnabled || !user.mfaSecretEncrypted) {
+      return {
+        ok: false,
+        message: 'La double authentification n’est pas disponible.',
+      };
+    }
+
+    const now = new Date();
+    if (user.mfaLockedUntilUtc && user.mfaLockedUntilUtc > now) {
+      return {
+        ok: false,
+        message:
+          'Trop de tentatives. Attendez quelques minutes avant de réessayer.',
+      };
+    }
+
+    if (this.mfa.isRecoveryCode(code)) {
+      const recoveryHash = this.mfa.hashRecoveryCode(code);
+      const hashes = user.mfaRecoveryCodeHashes ?? [];
+      const index = hashes.indexOf(recoveryHash);
+      if (index >= 0) {
+        user.mfaRecoveryCodeHashes = hashes.filter(
+          (_, currentIndex) => currentIndex !== index,
+        );
+        user.mfaFailedAttempts = 0;
+        user.mfaLockedUntilUtc = null;
+        await manager.save(user);
+        return { ok: true, user, method: 'recovery' };
+      }
+      return this.recordFailedMfaAttempt(manager, user);
+    }
+
+    const secret = this.mfa.decryptSecret(user.mfaSecretEncrypted);
+    const step = this.mfa.findMatchingTotpStep(secret, code);
+    const lastStep = user.mfaLastAcceptedStep
+      ? Number(user.mfaLastAcceptedStep)
+      : null;
+    if (step === null || (lastStep !== null && step <= lastStep)) {
+      return this.recordFailedMfaAttempt(manager, user);
+    }
+
+    user.mfaLastAcceptedStep = String(step);
+    user.mfaFailedAttempts = 0;
+    user.mfaLockedUntilUtc = null;
+    await manager.save(user);
+    return { ok: true, user, method: 'totp' };
+  }
+
+  private async recordFailedMfaAttempt(
+    manager: EntityManager,
+    user: User,
+  ): Promise<{ ok: false; message: string }> {
+    const maximumAttempts = Number(this.config.get('MFA_MAX_ATTEMPTS', 5));
+    const lockMinutes = Number(this.config.get('MFA_LOCK_MINUTES', 10));
+    user.mfaFailedAttempts = (user.mfaFailedAttempts ?? 0) + 1;
+    if (user.mfaFailedAttempts >= maximumAttempts) {
+      user.mfaLockedUntilUtc = new Date(Date.now() + lockMinutes * 60_000);
+      user.mfaFailedAttempts = 0;
+    }
+    await manager.save(user);
+    return {
+      ok: false,
+      message:
+        user.mfaLockedUntilUtc && user.mfaLockedUntilUtc > new Date()
+          ? 'Trop de tentatives. Le contrôle MFA est temporairement verrouillé.'
+          : 'Le code d’authentification est incorrect, expiré ou déjà utilisé.',
+    };
+  }
+
+  private async completeLogin(manager: EntityManager, user: User) {
+    user.lastLoginAtUtc = new Date();
+    await manager.save(user);
+    return this.issueTokens(manager, user);
+  }
+
+  private async writeMfaAudit(
+    manager: EntityManager,
+    userId: string,
+    action: string,
+  ) {
+    await manager.save(
+      manager.create(AuditLog, {
+        organizationId: null,
+        actorUserId: userId,
+        action,
+        entityType: 'User',
+        entityId: userId,
+        detailsJson: null,
+      }),
+    );
   }
 
   private async createSystemRole(
@@ -689,6 +1001,7 @@ export class AuthService {
         fullName: user.fullName,
         isActive: user.isActive,
         isPlatformAdmin: user.isPlatformAdmin,
+        mfaEnabled: user.mfaEnabled,
       },
       organizations: await this.organizationSummaries(manager, user.id),
     };

@@ -65,6 +65,34 @@ export class User extends AuditableEntity {
   @Column({ name: 'last_login_at_utc', type: 'timestamptz', nullable: true })
   lastLoginAtUtc!: Date | null;
 
+  @Column({ name: 'mfa_enabled', default: false })
+  mfaEnabled!: boolean;
+
+  @Column({ name: 'mfa_secret_encrypted', type: 'text', nullable: true })
+  mfaSecretEncrypted!: string | null;
+
+  @Column({
+    name: 'mfa_pending_secret_encrypted',
+    type: 'text',
+    nullable: true,
+  })
+  mfaPendingSecretEncrypted!: string | null;
+
+  @Column({ name: 'mfa_recovery_code_hashes', type: 'jsonb', nullable: true })
+  mfaRecoveryCodeHashes!: string[] | null;
+
+  @Column({ name: 'mfa_last_accepted_step', type: 'bigint', nullable: true })
+  mfaLastAcceptedStep!: string | null;
+
+  @Column({ name: 'mfa_failed_attempts', type: 'integer', default: 0 })
+  mfaFailedAttempts!: number;
+
+  @Column({ name: 'mfa_locked_until_utc', type: 'timestamptz', nullable: true })
+  mfaLockedUntilUtc!: Date | null;
+
+  @Column({ name: 'mfa_enabled_at_utc', type: 'timestamptz', nullable: true })
+  mfaEnabledAtUtc!: Date | null;
+
   @OneToMany(() => OrganizationMembership, (membership) => membership.user)
   memberships!: OrganizationMembership[];
 

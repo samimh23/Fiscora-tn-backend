@@ -19,6 +19,8 @@ import { AuthService } from './auth.service';
 import {
   AcceptInvitationDto,
   ChangePasswordDto,
+  CompleteMfaLoginDto,
+  ConfirmMfaSetupDto,
   GoogleLoginDto,
   GoogleRegisterDto,
   LoginDto,
@@ -28,6 +30,7 @@ import {
   RevokeTokenDto,
   ResetPasswordDto,
   UpdateProfileDto,
+  VerifyMfaActionDto,
 } from './dto';
 
 @ApiTags('Authentification')
@@ -44,6 +47,12 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('mfa/verify-login')
+  @HttpCode(HttpStatus.OK)
+  completeMfaLogin(@Body() dto: CompleteMfaLoginDto) {
+    return this.authService.completeMfaLogin(dto);
   }
 
   @Post('google')
@@ -116,5 +125,50 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   changePassword(@CurrentUser() user: JwtUser, @Body() dto: ChangePasswordDto) {
     return this.authService.changePassword(user.userId, dto);
+  }
+
+  @Get('mfa/status')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  mfaStatus(@CurrentUser() user: JwtUser) {
+    return this.authService.mfaStatus(user.userId);
+  }
+
+  @Post('mfa/setup')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  beginMfaSetup(@CurrentUser() user: JwtUser) {
+    return this.authService.beginMfaSetup(user.userId);
+  }
+
+  @Post('mfa/confirm')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  confirmMfaSetup(
+    @CurrentUser() user: JwtUser,
+    @Body() dto: ConfirmMfaSetupDto,
+  ) {
+    return this.authService.confirmMfaSetup(user.userId, dto);
+  }
+
+  @Post('mfa/recovery-codes')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  regenerateMfaRecoveryCodes(
+    @CurrentUser() user: JwtUser,
+    @Body() dto: VerifyMfaActionDto,
+  ) {
+    return this.authService.regenerateMfaRecoveryCodes(user.userId, dto);
+  }
+
+  @Post('mfa/disable')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  disableMfa(@CurrentUser() user: JwtUser, @Body() dto: VerifyMfaActionDto) {
+    return this.authService.disableMfa(user.userId, dto);
   }
 }

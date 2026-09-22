@@ -96,6 +96,7 @@ import { GoogleIdentities1784385000000 } from './database/migrations/17843850000
 import { RepairExtractionReviewQueue1784386000000 } from './database/migrations/1784386000000-repair-extraction-review-queue';
 import { ClientCommercialWorkflow1784387000000 } from './database/migrations/1784387000000-client-commercial-workflow';
 import { PublicDocumentRequestLinks1784388000000 } from './database/migrations/1784388000000-public-document-request-links';
+import { UserMfa1784389000000 } from './database/migrations/1784389000000-user-mfa';
 
 @Module({
   imports: [
@@ -172,6 +173,7 @@ import { PublicDocumentRequestLinks1784388000000 } from './database/migrations/1
           RepairExtractionReviewQueue1784386000000,
           ClientCommercialWorkflow1784387000000,
           PublicDocumentRequestLinks1784388000000,
+          UserMfa1784389000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,
