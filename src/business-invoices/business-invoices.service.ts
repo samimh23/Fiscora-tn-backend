@@ -20,6 +20,7 @@ import {
   CommercialDocumentDirection,
   CommercialDocumentKind,
   CommercialDocumentStatus,
+  DocumentProcessingStatus,
   FiscalParameterCode,
   JournalEntry,
   JournalEntryLine,
@@ -130,6 +131,17 @@ export class BusinessInvoicesService {
       throw new ConflictException(
         'Une facture du même type porte déjà ce numéro.',
       );
+    const duplicateSource = dto.sourceDocumentId
+      ? await this.invoices.findOneBy({
+          organizationId,
+          dossierId,
+          sourceDocumentId: dto.sourceDocumentId,
+        })
+      : null;
+    if (duplicateSource && duplicateSource.id !== invoiceId)
+      throw new ConflictException(
+        'Ce document source possède déjà une facture.',
+      );
     const thirdParty = dto.thirdPartyId
       ? await this.thirdParties.findOneBy({
           id: dto.thirdPartyId,
@@ -165,15 +177,15 @@ export class BusinessInvoicesService {
       throw new BadRequestException(
         `Sélectionnez un journal de ${dto.type === BusinessInvoiceType.Purchase ? 'achats' : 'ventes'}.`,
       );
-    if (
-      dto.sourceDocumentId &&
-      !(await this.documents.existsBy({
-        id: dto.sourceDocumentId,
-        organizationId,
-        dossierId,
-        deletedAtUtc: IsNull(),
-      }))
-    )
+    const sourceDocument = dto.sourceDocumentId
+      ? await this.documents.findOneBy({
+          id: dto.sourceDocumentId,
+          organizationId,
+          dossierId,
+          deletedAtUtc: IsNull(),
+        })
+      : null;
+    if (dto.sourceDocumentId && !sourceDocument)
       throw new NotFoundException('Le document source est introuvable.');
     const commercialSource = dto.sourceCommercialDocumentId
       ? await this.commercialDocuments.findOne({
@@ -336,6 +348,10 @@ export class BusinessInvoicesService {
         commercialSource.status = CommercialDocumentStatus.Converted;
         commercialSource.businessInvoiceId = saved.id;
         await manager.save(commercialSource);
+      }
+      if (sourceDocument) {
+        sourceDocument.processingStatus = DocumentProcessingStatus.Processed;
+        await manager.save(sourceDocument);
       }
       return manager.findOneOrFail(BusinessInvoice, {
         where: { id: saved.id },
