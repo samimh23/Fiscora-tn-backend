@@ -210,7 +210,10 @@ export class DocumentExtractionService implements OnModuleDestroy {
           'Aucune donnée extraite ne peut être approuvée.',
         );
       const validation = new InvoiceExtractionValidator().validate(accepted);
-      if (validation.issues.some((issue) => issue.severity === 'ERROR')) {
+      const blockingIssues = validation.issues.filter(
+        (issue) => issue.severity === 'ERROR',
+      );
+      if (blockingIssues.length && !dto.forceApprove) {
         throw new BadRequestException(
           'Corrigez les incohérences bloquantes avant approbation.',
         );
@@ -251,7 +254,18 @@ export class DocumentExtractionService implements OnModuleDestroy {
       userId,
       `document.extraction.${dto.decision === ExtractionReviewDecision.Approve ? 'approved' : 'rejected'}`,
       documentId,
-      { dossierId, jobId: job.id, corrected: Boolean(dto.correctedData) },
+      {
+        dossierId,
+        jobId: job.id,
+        corrected: Boolean(dto.correctedData),
+        forcedApproval:
+          dto.decision === ExtractionReviewDecision.Approve &&
+          dto.forceApprove === true &&
+          job.validationIssues.some((issue) => issue.severity === 'ERROR'),
+        remainingErrorCount: job.validationIssues.filter(
+          (issue) => issue.severity === 'ERROR',
+        ).length,
+      },
     );
     return this.response(job);
   }

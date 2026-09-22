@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEnum,
   IsObject,
   IsOptional,
@@ -28,4 +29,8 @@ export class ReviewExtractionDto {
   @IsString()
   @MaxLength(2000)
   comment?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  forceApprove?: boolean;
 }
