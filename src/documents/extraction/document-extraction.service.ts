@@ -32,7 +32,10 @@ import {
 import { InvoiceExtractionValidator } from './invoice-extraction.validator';
 import { QwenExtractionClientService } from './qwen-extraction-client.service';
 import { BankReconciliationService } from '../../bank-reconciliation/bank-reconciliation.service';
-import { PaddleOcrClientService } from './paddle-ocr-client.service';
+import {
+  PaddleOcrClientService,
+  parsePaddleOcrResponse,
+} from './paddle-ocr-client.service';
 import { attachOcrEvidence } from './ocr-evidence-matcher';
 
 @Injectable()
@@ -79,9 +82,13 @@ export class DocumentExtractionService implements OnModuleDestroy {
         'Le document doit être validé par l’antivirus avant extraction.',
       );
     }
-    if (!['image/jpeg', 'image/png'].includes(document.mimeType)) {
+    if (
+      !['image/jpeg', 'image/png', 'application/pdf'].includes(
+        document.mimeType,
+      )
+    ) {
       throw new BadRequestException(
-        'L’extraction automatique accepte actuellement les images JPEG et PNG. Convertissez chaque page PDF en image avant de la soumettre.',
+        'L’extraction automatique accepte les documents PDF, JPEG et PNG.',
       );
     }
 
@@ -276,11 +283,19 @@ export class DocumentExtractionService implements OnModuleDestroy {
     this.running = true;
     try {
       await this.autoQueueEligibleDocuments();
-      for (let processed = 0; processed < 2; processed += 1) {
+      const configuredConcurrency = Number(
+        this.config.get('DOCUMENT_EXTRACTION_WORKER_CONCURRENCY', 4),
+      );
+      const concurrency = Number.isFinite(configuredConcurrency)
+        ? Math.min(32, Math.max(1, Math.floor(configuredConcurrency)))
+        : 4;
+      const claimed: DocumentExtractionJob[] = [];
+      for (let processed = 0; processed < concurrency; processed += 1) {
         const job = await this.claim();
         if (!job) break;
-        await this.process(job);
+        claimed.push(job);
       }
+      await Promise.allSettled(claimed.map((job) => this.process(job)));
     } catch (error) {
       this.logger.error(
         error instanceof Error ? error.message : 'Extraction worker failed.',
@@ -293,7 +308,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
   private async claim(): Promise<DocumentExtractionJob | null> {
     const leaseMinutes = Math.max(
       5,
-      Number(this.config.get('DOCUMENT_EXTRACTION_LEASE_MINUTES', 15)),
+      Number(this.config.get('DOCUMENT_EXTRACTION_LEASE_MINUTES', 30)),
     );
     const result: unknown = await this.jobs.query(
       `WITH candidate AS (
@@ -338,22 +353,18 @@ export class DocumentExtractionService implements OnModuleDestroy {
       document.extractionStatus = ExtractionStatus.Processing;
       await this.documents.save(document);
       const file = await this.objectStorage.readObject(document.objectKey);
-      const ocrPromise = this.paddleOcr
-        .extract(file, document.mimeType)
-        .catch((error: unknown) => {
-          this.logger.warn(
-            `PaddleOCR evidence unavailable for ${document.id}: ${this.errorMessage(error)}`,
-          );
-          return null;
-        });
-      const [extracted, ocrDocument] = await Promise.all([
-        this.client.extract(
-          file,
-          document.mimeType,
-          Array.isArray(job.validationIssues) ? job.validationIssues : [],
-        ),
-        ocrPromise,
-      ]);
+      const correctionIssues = Array.isArray(job.validationIssues)
+        ? job.validationIssues
+        : [];
+      const [extracted, ocrDocument] =
+        document.mimeType === 'application/pdf'
+          ? await this.extractPdf(job, file, correctionIssues)
+          : await this.extractImage(
+              file,
+              document.mimeType,
+              document.id,
+              correctionIssues,
+            );
       const extractionData = attachOcrEvidence(extracted.data, ocrDocument);
       const validation = new InvoiceExtractionValidator().validate(
         extractionData,
@@ -495,7 +506,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
            AND document.malware_scan_status = $1
             AND document.extraction_status = $2
             AND document.extracted_data IS NULL
-           AND document.mime_type IN ('image/jpeg', 'image/png')
+           AND document.mime_type IN ('image/jpeg', 'image/png', 'application/pdf')
            AND job.id IS NULL
          ORDER BY document.created_at_utc
          LIMIT 50
@@ -524,6 +535,63 @@ export class DocumentExtractionService implements OnModuleDestroy {
       this.logger.log(
         `${rows.length} document(s) automatiquement ajouté(s) à la file d’extraction.`,
       );
+  }
+
+  private async extractPdf(
+    job: DocumentExtractionJob,
+    file: Buffer,
+    correctionIssues: Array<Record<string, unknown>>,
+  ) {
+    let ocrDocument = this.cachedOcrDocument(job);
+    if (!ocrDocument) {
+      ocrDocument = await this.paddleOcr.extract(file, 'application/pdf');
+    }
+    if (!ocrDocument) {
+      throw new Error(
+        'PADDLE_OCR_SERVICE_URL is required to extract PDF documents.',
+      );
+    }
+    job.rawResponse = {
+      stage: 'OCR_COMPLETE',
+      pageCount: ocrDocument.pages?.length ?? 1,
+      ocr: ocrDocument,
+    };
+    await this.jobs.save(job);
+    const extracted = await this.client.extractFromOcr(
+      ocrDocument,
+      correctionIssues,
+    );
+    return [extracted, ocrDocument] as const;
+  }
+
+  private cachedOcrDocument(job: DocumentExtractionJob) {
+    const candidate = job.rawResponse?.ocr;
+    if (!candidate) return null;
+    try {
+      return parsePaddleOcrResponse(candidate);
+    } catch {
+      return null;
+    }
+  }
+
+  private async extractImage(
+    file: Buffer,
+    mimeType: string,
+    documentId: string,
+    correctionIssues: Array<Record<string, unknown>>,
+  ) {
+    const ocrPromise = this.paddleOcr
+      .extract(file, mimeType)
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `PaddleOCR evidence unavailable for ${documentId}: ${this.errorMessage(error)}`,
+        );
+        return null;
+      });
+    return Promise.all([
+      this.client.extract(file, mimeType, correctionIssues),
+      ocrPromise,
+    ]);
   }
 
   private errorMessage(error: unknown) {

@@ -31,6 +31,33 @@ describe('PaddleOCR response parser', () => {
     });
   });
 
+  it('keeps per-page dimensions and extraction sources for PDFs', () => {
+    expect(
+      parsePaddleOcrResponse({
+        width: 595,
+        height: 842,
+        pages: [
+          { page: 1, width: 595, height: 842, source: 'text' },
+          { page: 2, width: 2067, height: 2924, source: 'ocr' },
+        ],
+        tokens: [
+          {
+            id: 'p2_t1',
+            page: 2,
+            text: 'Total TTC',
+            confidence: 0.98,
+            bbox: [100, 200, 300, 240],
+          },
+        ],
+      }),
+    ).toMatchObject({
+      pages: [
+        { page: 1, width: 595, height: 842, source: 'text' },
+        { page: 2, width: 2067, height: 2924, source: 'ocr' },
+      ],
+    });
+  });
+
   it('normalizes the PP-OCR website/service response', () => {
     expect(
       parsePaddleOcrResponse({

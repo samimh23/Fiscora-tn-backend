@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleWifTokenService } from './google-wif-token.service';
+import type { OcrDocument, OcrToken } from './ocr-evidence-matcher';
 
 interface ChatCompletionResponse {
   choices?: Array<{
@@ -13,6 +14,8 @@ interface ChatCompletionResponse {
 @Injectable()
 export class QwenExtractionClientService {
   readonly modelName: string;
+  private activeRequests = 0;
+  private readonly requestWaiters: Array<() => void> = [];
 
   constructor(
     private readonly config: ConfigService,
@@ -29,6 +32,87 @@ export class QwenExtractionClientService {
     mimeType: string,
     correctionIssues: Array<Record<string, unknown>> = [],
   ) {
+    return this.complete([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:${mimeType};base64,${content.toString('base64')}`,
+            },
+          },
+          {
+            type: 'text',
+            text: extractionInstructions(correctionIssues),
+          },
+        ],
+      },
+    ]);
+  }
+
+  async extractFromOcr(
+    document: OcrDocument,
+    correctionIssues: Array<Record<string, unknown>> = [],
+  ) {
+    const batches = ocrTokenBatches(
+      document.tokens,
+      this.configuredInteger('DOCUMENT_EXTRACTION_OCR_BATCH_PAGES', 4, 10),
+      this.configuredInteger(
+        'DOCUMENT_EXTRACTION_OCR_BATCH_MAX_CHARS',
+        28_000,
+        60_000,
+      ),
+    );
+    if (!batches.length) throw new Error('PaddleOCR returned no OCR tokens.');
+
+    const extracted = await Promise.all(
+      batches.map((tokens, index) =>
+        this.complete([
+          {
+            role: 'system',
+            content:
+              'You map OCR tokens from financial documents into the exact Fiscora accounting schema. Return JSON only.',
+          },
+          {
+            role: 'user',
+            content: ocrExtractionInstructions(
+              tokens,
+              index,
+              batches.length,
+              correctionIssues,
+            ),
+          },
+        ]),
+      ),
+    );
+    const data = mergeExtractionBatches(extracted.map((item) => item.data));
+    return {
+      data,
+      rawResponse: {
+        content: JSON.stringify(data),
+        batches: extracted.map((item, index) => ({
+          index,
+          pages: [...new Set(batches[index].map((token) => token.page))],
+          tokenCount: batches[index].length,
+          content: item.rawResponse.content,
+          usage: item.rawResponse.usage,
+        })),
+        extractedData: structuredClone(data),
+      },
+    };
+  }
+
+  private async complete(messages: Array<Record<string, unknown>>) {
+    await this.acquireRequestSlot();
+    try {
+      return await this.sendCompletion(messages);
+    } finally {
+      this.releaseRequestSlot();
+    }
+  }
+
+  private async sendCompletion(messages: Array<Record<string, unknown>>) {
     // NUEXTRACT_SERVICE_URL remains a temporary fallback so the model can be
     // rolled out without coupling the Azure and GCP deployments.
     const serviceUrl = (
@@ -64,23 +148,7 @@ export class QwenExtractionClientService {
             ),
           ),
         ),
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${content.toString('base64')}`,
-                },
-              },
-              {
-                type: 'text',
-                text: extractionInstructions(correctionIssues),
-              },
-            ],
-          },
-        ],
+        messages,
       }),
       signal: AbortSignal.timeout(
         Number(
@@ -111,6 +179,35 @@ export class QwenExtractionClientService {
         extractedData: structuredClone(data),
       },
     };
+  }
+
+  private requestConcurrency() {
+    return this.configuredInteger(
+      'DOCUMENT_EXTRACTION_QWEN_CONCURRENCY',
+      4,
+      32,
+    );
+  }
+
+  private configuredInteger(name: string, fallback: number, maximum: number) {
+    const configured = Number(this.config.get(name, fallback));
+    return Number.isFinite(configured)
+      ? Math.min(maximum, Math.max(1, Math.floor(configured)))
+      : fallback;
+  }
+
+  private async acquireRequestSlot() {
+    if (this.activeRequests < this.requestConcurrency()) {
+      this.activeRequests += 1;
+      return;
+    }
+    await new Promise<void>((resolve) => this.requestWaiters.push(resolve));
+  }
+
+  private releaseRequestSlot() {
+    const next = this.requestWaiters.shift();
+    if (next) next();
+    else this.activeRequests = Math.max(0, this.activeRequests - 1);
   }
 }
 
@@ -243,6 +340,186 @@ Rules:
 - Do not return coordinates, bounding boxes, visual evidence, source token IDs, or an _evidence field. Fiscora matches values to OCR coordinates separately.
 ${correctionGuidance}
 `;
+}
+
+export function ocrTokenBatches(
+  tokens: OcrToken[],
+  pagesPerBatch: number,
+  maximumCharacters = 28_000,
+) {
+  const batchSize = Number.isFinite(pagesPerBatch)
+    ? Math.max(1, Math.floor(pagesPerBatch))
+    : 1;
+  const characterLimit = Number.isFinite(maximumCharacters)
+    ? Math.max(1_000, Math.floor(maximumCharacters))
+    : 28_000;
+  const pageNumbers = [...new Set(tokens.map((token) => token.page))].sort(
+    (left, right) => left - right,
+  );
+  const batches: OcrToken[][] = [];
+  let current: OcrToken[] = [];
+  let currentPages = 0;
+  let currentCharacters = 0;
+  for (const page of pageNumbers) {
+    const pageTokens = tokens.filter((token) => token.page === page);
+    const pageCharacters = pageTokens.reduce(
+      (total, token) => total + compactOcrToken(token).length,
+      0,
+    );
+    if (
+      current.length &&
+      (currentPages >= batchSize ||
+        currentCharacters + pageCharacters > characterLimit)
+    ) {
+      batches.push(current);
+      current = [];
+      currentPages = 0;
+      currentCharacters = 0;
+    }
+    for (const token of pageTokens) {
+      const tokenCharacters = compactOcrToken(token).length;
+      if (
+        current.length &&
+        currentCharacters + tokenCharacters > characterLimit
+      ) {
+        batches.push(current);
+        current = [];
+        currentPages = 0;
+        currentCharacters = 0;
+      }
+      current.push(token);
+      currentCharacters += tokenCharacters;
+    }
+    currentPages += 1;
+  }
+  if (current.length) batches.push(current);
+  return batches.filter((batch) => batch.length > 0);
+}
+
+export function ocrExtractionInstructions(
+  tokens: OcrToken[],
+  batchIndex: number,
+  batchCount: number,
+  correctionIssues: Array<Record<string, unknown>> = [],
+) {
+  const compactTokens = tokens.map((token) => [
+    token.id,
+    token.page,
+    token.text,
+    token.confidence,
+    token.bbox,
+  ]);
+  return `${extractionInstructions(correctionIssues)}
+
+The original document was read by OCR. This is page batch ${batchIndex + 1} of ${batchCount}.
+- Extract only values and rows visibly supported by OCR_INPUT.
+- Use page and bbox positions to reconstruct columns and rows.
+- A repeated table header is not a transaction or invoice line.
+- Do not emit placeholder rows when this page batch has no visible row.
+- Other batches from the same document will be merged deterministically.
+
+OCR_INPUT:
+${JSON.stringify({ fields: ['id', 'page', 'text', 'confidence', 'bbox'], tokens: compactTokens })}`;
+}
+
+function compactOcrToken(token: OcrToken) {
+  return JSON.stringify([
+    token.id,
+    token.page,
+    token.text,
+    token.confidence,
+    token.bbox,
+  ]);
+}
+
+const COLLECTED_ARRAY_PATHS = new Set([
+  'line_items',
+  'additional_fields',
+  'other_taxes',
+  'bank_statement.transactions',
+]);
+
+const PREFER_LATER_PATHS = new Set([
+  'gross_subtotal_excl_tax',
+  'global_discount_amount',
+  'global_discount_rate',
+  'subtotal_excl_tax',
+  'tax_amount',
+  'fodec_amount',
+  'stamp_tax',
+  'total_incl_tax',
+  'amount_due',
+  'bank_statement.period_end',
+  'bank_statement.closing_balance',
+]);
+
+export function mergeExtractionBatches(
+  batches: Array<Record<string, unknown>>,
+): Record<string, unknown> {
+  if (!batches.length) throw new Error('Qwen returned no extraction batches.');
+  const result: Record<string, unknown> = {};
+  for (const batch of batches) mergeRecord(result, batch, '');
+
+  const types = batches
+    .map((batch) => batch.document_type)
+    .filter((value): value is string => typeof value === 'string');
+  result.document_type =
+    types.find((value) => value !== 'other') ?? types[0] ?? 'other';
+  return result;
+}
+
+function mergeRecord(
+  target: Record<string, unknown>,
+  source: Record<string, unknown>,
+  parentPath: string,
+) {
+  for (const [key, sourceValue] of Object.entries(source)) {
+    if (key === '_evidence') continue;
+    const path = parentPath ? `${parentPath}.${key}` : key;
+    const targetValue = target[key];
+    if (Array.isArray(sourceValue)) {
+      const sourceArray = sourceValue as unknown[];
+      const usefulValues = sourceArray.filter(hasUsefulValue);
+      if (!COLLECTED_ARRAY_PATHS.has(path)) {
+        if (targetValue === undefined && usefulValues.length)
+          target[key] = structuredClone(usefulValues);
+        continue;
+      }
+      const existing: unknown[] = Array.isArray(targetValue)
+        ? (targetValue as unknown[])
+        : [];
+      target[key] = [...existing, ...structuredClone(usefulValues)];
+      continue;
+    }
+    if (isRecord(sourceValue)) {
+      const nested = isRecord(targetValue) ? targetValue : {};
+      mergeRecord(nested, sourceValue, path);
+      target[key] = nested;
+      continue;
+    }
+    if (!hasUsefulValue(sourceValue)) {
+      if (!(key in target)) target[key] = null;
+      continue;
+    }
+    if (
+      !hasUsefulValue(targetValue) ||
+      PREFER_LATER_PATHS.has(path) ||
+      (path === 'document_type' && targetValue === 'other')
+    ) {
+      target[key] = sourceValue;
+    }
+  }
+}
+
+function hasUsefulValue(value: unknown): boolean {
+  if (value == null || value === '') return false;
+  if (Array.isArray(value)) return value.some(hasUsefulValue);
+  if (isRecord(value)) return Object.values(value).some(hasUsefulValue);
+  return true;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 function promptValue(value: unknown, fallback: string) {

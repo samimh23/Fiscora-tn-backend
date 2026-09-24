@@ -9,6 +9,12 @@ export type OcrToken = {
 export type OcrDocument = {
   width: number;
   height: number;
+  pages?: Array<{
+    page: number;
+    width: number;
+    height: number;
+    source?: 'text' | 'ocr';
+  }>;
   tokens: OcrToken[];
 };
 
@@ -34,11 +40,14 @@ export function attachOcrEvidence(
   for (const [path, value] of scalarValues(result)) {
     const token = uniqueMatch(value, document.tokens, minimumConfidence);
     if (!token) continue;
+    const dimensions = document.pages?.find(
+      (page) => page.page === token.page,
+    ) ?? { width: document.width, height: document.height };
     evidence[path] = {
       status: 'MATCHED',
       page: token.page,
       text: token.text,
-      bbox: normalizeBox(token.bbox, document.width, document.height),
+      bbox: normalizeBox(token.bbox, dimensions.width, dimensions.height),
       confidence: token.confidence,
       tokenIds: [token.id],
     };

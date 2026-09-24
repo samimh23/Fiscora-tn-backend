@@ -392,5 +392,6 @@ Les tâches sont persistées dans PostgreSQL, louées avec `SKIP LOCKED`, repris
 après expiration du bail et limitées à quatre tentatives. L'API Azure appelle le
 service Cloud Run privé avec Workload Identity Federation : aucune clé de compte
 de service Google n'est conservée. Les totaux sont contrôlés, mais chaque résultat
-passe tout de même par une revue humaine. Le rendu des pages PDF reste à ajouter ;
-un PDF est donc refusé explicitement au lieu de produire un faux succès.
+passe tout de même par une revue humaine. Les PDF sont rendus page par page par le
+service OCR, puis leurs jetons sont envoyés à Qwen par lots bornés et fusionnés
+avant les contrôles comptables.

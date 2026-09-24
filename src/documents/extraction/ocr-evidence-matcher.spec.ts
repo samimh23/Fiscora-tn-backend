@@ -87,4 +87,31 @@ describe('OCR evidence matcher', () => {
     );
     expect(result._evidence).toEqual({});
   });
+
+  it('normalizes a PDF token with the dimensions of its own page', () => {
+    const result = attachOcrEvidence(
+      { amount_due: '200,000' },
+      {
+        width: 100,
+        height: 100,
+        pages: [
+          { page: 1, width: 100, height: 100 },
+          { page: 2, width: 200, height: 400 },
+        ],
+        tokens: [
+          {
+            id: 'p2_t1',
+            page: 2,
+            text: '200,000',
+            confidence: 1,
+            bbox: [20, 40, 100, 80],
+          },
+        ],
+      },
+    );
+
+    expect(result._evidence).toMatchObject({
+      amount_due: { page: 2, bbox: [100, 100, 500, 200] },
+    });
+  });
 });

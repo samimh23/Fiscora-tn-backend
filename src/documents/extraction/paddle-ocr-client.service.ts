@@ -30,7 +30,7 @@ export class PaddleOcrClientService {
         contentBase64: content.toString('base64'),
       }),
       signal: AbortSignal.timeout(
-        Number(this.config.get('PADDLE_OCR_TIMEOUT_MS', 120_000)),
+        Number(this.config.get('PADDLE_OCR_TIMEOUT_MS', 900_000)),
       ),
     });
     if (!response.ok) {
@@ -54,7 +54,10 @@ export function parsePaddleOcrResponse(input: unknown): OcrDocument {
       .map((value) => normalizedToken(value))
       .filter((value): value is OcrToken => value !== null);
     if (!tokens.length) throw new Error('PaddleOCR returned no OCR tokens.');
-    return { width, height, tokens };
+    const pages = array(root?.pages)
+      ?.map((value) => normalizedPage(value))
+      .filter((value): value is NonNullable<typeof value> => value !== null);
+    return { width, height, ...(pages?.length ? { pages } : {}), tokens };
   }
   const rootArray = Array.isArray(input) ? input : null;
   const pages = rootArray ?? array(root?.ocrResults) ?? array(root?.results);
@@ -89,6 +92,25 @@ export function parsePaddleOcrResponse(input: unknown): OcrDocument {
   });
   if (!tokens.length) throw new Error('PaddleOCR returned no OCR tokens.');
   return { width, height, tokens };
+}
+
+function normalizedPage(
+  value: unknown,
+): NonNullable<OcrDocument['pages']>[number] | null {
+  const page = record(value);
+  const number = numeric(page?.page);
+  const width = numeric(page?.width);
+  const height = numeric(page?.height);
+  const source = page?.source;
+  if (!number || !width || !height) return null;
+  const normalizedSource =
+    source === 'text' || source === 'ocr' ? source : undefined;
+  return {
+    page: number,
+    width,
+    height,
+    ...(normalizedSource ? { source: normalizedSource } : {}),
+  };
 }
 
 function normalizedToken(value: unknown): OcrToken | null {
