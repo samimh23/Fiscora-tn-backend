@@ -8,6 +8,7 @@ import {
   ClientNotificationPreference,
   DossierAssignment,
   OrganizationMembership,
+  User,
 } from '../database/entities';
 import { DossiersModule } from '../dossiers/dossiers.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -16,6 +17,7 @@ import {
   ClientPortalPreferencesController,
 } from './client-portal.controller';
 import { ClientPortalService } from './client-portal.service';
+import { ClientPortalGateway } from './client-portal.gateway';
 
 @Module({
   imports: [
@@ -28,9 +30,10 @@ import { ClientPortalService } from './client-portal.service';
       ClientNotificationPreference,
       DossierAssignment,
       OrganizationMembership,
+      User,
     ]),
   ],
   controllers: [ClientPortalController, ClientPortalPreferencesController],
-  providers: [ClientPortalService, PermissionGuard],
+  providers: [ClientPortalService, ClientPortalGateway, PermissionGuard],
 })
 export class ClientPortalModule {}

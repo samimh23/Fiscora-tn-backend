@@ -36,6 +36,6 @@ import { MfaService } from './mfa.service';
   ],
   controllers: [AuthController],
   providers: [AuthService, GoogleIdentityService, JwtStrategy, MfaService],
-  exports: [JwtStrategy, PassportModule],
+  exports: [JwtModule, JwtStrategy, PassportModule],
 })
 export class AuthModule {}

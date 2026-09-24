@@ -20,6 +20,7 @@ import {
   SaveClientApprovalDto,
   SaveClientNotificationPreferencesDto,
 } from './dto';
+import { ClientPortalGateway } from './client-portal.gateway';
 
 @Injectable()
 export class ClientPortalService {
@@ -36,6 +37,7 @@ export class ClientPortalService {
     private readonly assignments: Repository<DossierAssignment>,
     private readonly dossiers: DossiersService,
     private readonly notifications: NotificationsService,
+    private readonly realtime: ClientPortalGateway,
   ) {}
 
   async list(organizationId: string, dossierId: string, userId: string) {
@@ -113,7 +115,12 @@ export class ClientPortalService {
         deduplicationKey: `client-portal-message:${message.id}:${recipientUserId}`,
       });
     }
-    return this.toMessage(message);
+    const result = this.toMessage(message);
+    this.realtime.publishMessage(
+      { organizationId, dossierId, message: result },
+      recipients,
+    );
+    return result;
   }
 
   async contacts(organizationId: string, dossierId: string, userId: string) {
