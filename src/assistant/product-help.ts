@@ -165,6 +165,7 @@ const entries: ProductHelpEntry[] = [
       'question document',
       'source validée',
       'actualiser sources',
+      'reconstruire index',
       'guide fiscora',
     ],
     summary:
@@ -172,7 +173,7 @@ const entries: ProductHelpEntry[] = [
     steps: [
       'Pour une procédure, décrivez la tâche ou demandez à quoi sert la page actuelle.',
       'Pour une question comptable, choisissez d’abord le dossier concerné.',
-      'Actualisez les sources après avoir approuvé de nouvelles extractions.',
+      'Les extractions approuvées sont ajoutées automatiquement aux sources; utilisez Reconstruire l’index uniquement comme outil de réparation.',
       'Utilisez les citations pour contrôler l’origine de la réponse.',
     ],
     notes: [

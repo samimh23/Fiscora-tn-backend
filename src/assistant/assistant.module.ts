@@ -10,6 +10,7 @@ import {
   ContextualAssistantController,
 } from './assistant.controller';
 import { AssistantService } from './assistant.service';
+import { AssistantIndexingService } from './assistant-indexing.service';
 import { VertexAiClient } from './vertex-ai.client';
 
 @Module({
@@ -20,6 +21,11 @@ import { VertexAiClient } from './vertex-ai.client';
     TypeOrmModule.forFeature([OrganizationMembership]),
   ],
   controllers: [AssistantController, ContextualAssistantController],
-  providers: [AssistantService, VertexAiClient, PermissionGuard],
+  providers: [
+    AssistantService,
+    AssistantIndexingService,
+    VertexAiClient,
+    PermissionGuard,
+  ],
 })
 export class AssistantModule {}

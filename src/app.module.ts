@@ -97,6 +97,7 @@ import { RepairExtractionReviewQueue1784386000000 } from './database/migrations/
 import { ClientCommercialWorkflow1784387000000 } from './database/migrations/1784387000000-client-commercial-workflow';
 import { PublicDocumentRequestLinks1784388000000 } from './database/migrations/1784388000000-public-document-request-links';
 import { UserMfa1784389000000 } from './database/migrations/1784389000000-user-mfa';
+import { AutomaticAiIndexing1784390000000 } from './database/migrations/1784390000000-automatic-ai-indexing';
 
 @Module({
   imports: [
@@ -174,6 +175,7 @@ import { UserMfa1784389000000 } from './database/migrations/1784389000000-user-m
           ClientCommercialWorkflow1784387000000,
           PublicDocumentRequestLinks1784388000000,
           UserMfa1784389000000,
+          AutomaticAiIndexing1784390000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Param,
   ParseUUIDPipe,
   Post,
@@ -23,6 +24,15 @@ import { AssistantService } from './assistant.service';
 @Controller('api/organizations/:organizationId/dossiers/:dossierId/assistant')
 export class AssistantController {
   constructor(private readonly service: AssistantService) {}
+
+  @Get('index-status')
+  indexStatus(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.indexStatus(organizationId, dossierId, user.userId);
+  }
 
   @Post('reindex')
   reindex(

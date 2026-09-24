@@ -44,6 +44,14 @@ interface ExistingChunkRow {
   content_hash: string;
 }
 
+interface IndexStatusRow {
+  pending: string;
+  processing: string;
+  failed: string;
+  indexed: string;
+  last_processed_at_utc: Date | null;
+}
+
 export interface Citation {
   label: string;
   chunkId: string;
@@ -124,6 +132,7 @@ export class AssistantService {
   async reindex(organizationId: string, dossierId: string, userId: string) {
     this.ensureEnabled();
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const reindexStartedAt = new Date();
     const approved = await this.approvedExtractions(organizationId, dossierId);
     const prepared: Array<{
       row: ApprovedExtractionForIndex;
@@ -225,12 +234,144 @@ export class AssistantService {
     } finally {
       await queryRunner.release();
     }
+    await this.dataSource.query(
+      `UPDATE accounting.ai_indexing_jobs
+       SET status = 'INDEXED', processed_at_utc = now(),
+         lease_expires_at_utc = NULL, worker_id = NULL, last_error = NULL,
+         updated_at_utc = now()
+       WHERE organization_id = $1 AND dossier_id = $2
+         AND coalesce(updated_at_utc, created_at_utc) <= $3`,
+      [organizationId, dossierId, reindexStartedAt],
+    );
     return {
       documentsIndexed: approved.length,
       chunksIndexed: reusedChunks + prepared.length,
       chunksEmbedded: prepared.length,
       chunksReused: reusedChunks,
     };
+  }
+
+  async indexStatus(organizationId: string, dossierId: string, userId: string) {
+    this.ensureEnabled();
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const rows = await this.dataSource.query<IndexStatusRow[]>(
+      `SELECT
+         count(*) FILTER (WHERE status = 'PENDING')::text AS pending,
+         count(*) FILTER (WHERE status = 'PROCESSING')::text AS processing,
+         count(*) FILTER (WHERE status = 'FAILED')::text AS failed,
+         count(*) FILTER (WHERE status = 'INDEXED')::text AS indexed,
+         max(processed_at_utc) AS last_processed_at_utc
+       FROM accounting.ai_indexing_jobs
+       WHERE organization_id = $1 AND dossier_id = $2`,
+      [organizationId, dossierId],
+    );
+    const row = rows[0];
+    return {
+      pending: Number(row?.pending ?? 0),
+      processing: Number(row?.processing ?? 0),
+      failed: Number(row?.failed ?? 0),
+      indexed: Number(row?.indexed ?? 0),
+      lastProcessedAtUtc: row?.last_processed_at_utc ?? null,
+    };
+  }
+
+  async indexDocument(
+    organizationId: string,
+    dossierId: string,
+    documentId: string,
+  ) {
+    const row = (
+      await this.approvedExtractions(organizationId, dossierId, documentId)
+    )[0];
+    if (!row) {
+      await this.removeDocumentFromIndex(organizationId, dossierId, documentId);
+      return { chunksIndexed: 0, chunksEmbedded: 0 };
+    }
+
+    const chunks = buildAccountingChunks(row);
+    const existing = await this.dataSource.query<ExistingChunkRow[]>(
+      `SELECT source_id, chunk_index, content_hash
+       FROM accounting.ai_knowledge_chunks
+       WHERE organization_id = $1 AND dossier_id = $2
+         AND source_type = 'REVIEWED_EXTRACTION' AND source_id = $3`,
+      [organizationId, dossierId, documentId],
+    );
+    const existingHashes = new Map(
+      existing.map((item) => [item.chunk_index, item.content_hash.trim()]),
+    );
+    const candidates = chunks
+      .map((chunk, index) => {
+        const contentHash = createHash('sha256')
+          .update(chunk.content)
+          .digest('hex');
+        return { row, index, chunk, content: chunk.content, contentHash };
+      })
+      .filter((item) => existingHashes.get(item.index) !== item.contentHash);
+    const prepared: Array<{
+      row: ApprovedExtractionForIndex;
+      index: number;
+      chunk: AccountingKnowledgeChunk;
+      content: string;
+      contentHash: string;
+      embedding: number[];
+    }> = [];
+    for (let offset = 0; offset < candidates.length; offset += 8) {
+      const batch = candidates.slice(offset, offset + 8);
+      const embeddings = await Promise.all(
+        batch.map((item) =>
+          this.vertex.embed(item.content, 'RETRIEVAL_DOCUMENT'),
+        ),
+      );
+      batch.forEach((item, index) =>
+        prepared.push({ ...item, embedding: embeddings[index] }),
+      );
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      await queryRunner.query(
+        `DELETE FROM accounting.ai_knowledge_chunks
+         WHERE organization_id = $1 AND dossier_id = $2
+           AND source_type = 'REVIEWED_EXTRACTION' AND source_id = $3
+           AND chunk_index >= $4`,
+        [organizationId, dossierId, documentId, chunks.length],
+      );
+      for (const item of prepared) {
+        await this.insertChunk(queryRunner, organizationId, dossierId, item);
+      }
+      await this.removeReplacedDocumentChunks(
+        queryRunner,
+        organizationId,
+        dossierId,
+        documentId,
+      );
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+    return {
+      chunksIndexed: chunks.length,
+      chunksEmbedded: prepared.length,
+    };
+  }
+
+  async removeDocumentFromIndex(
+    organizationId: string,
+    dossierId: string,
+    documentId: string,
+  ) {
+    const result: unknown = await this.dataSource.query(
+      `DELETE FROM accounting.ai_knowledge_chunks
+       WHERE organization_id = $1 AND dossier_id = $2
+         AND source_type = 'REVIEWED_EXTRACTION' AND source_id = $3`,
+      [organizationId, dossierId, documentId],
+    );
+    return result;
   }
 
   async ask(
@@ -482,7 +623,37 @@ export class AssistantService {
     );
   }
 
-  private approvedExtractions(organizationId: string, dossierId: string) {
+  private removeReplacedDocumentChunks(
+    queryRunner: QueryRunner,
+    organizationId: string,
+    dossierId: string,
+    documentId: string,
+  ) {
+    return queryRunner.query(
+      `WITH RECURSIVE ancestors AS (
+         SELECT replaces_document_id AS id
+         FROM accounting.accounting_documents WHERE id = $3
+         UNION ALL
+         SELECT document.replaces_document_id
+         FROM accounting.accounting_documents document
+         INNER JOIN ancestors ON document.id = ancestors.id
+         WHERE document.replaces_document_id IS NOT NULL
+       )
+       DELETE FROM accounting.ai_knowledge_chunks chunk
+       WHERE chunk.organization_id = $1 AND chunk.dossier_id = $2
+         AND chunk.source_type = 'REVIEWED_EXTRACTION'
+         AND chunk.source_id IN (
+           SELECT id::text FROM ancestors WHERE id IS NOT NULL
+         )`,
+      [organizationId, dossierId, documentId],
+    );
+  }
+
+  private approvedExtractions(
+    organizationId: string,
+    dossierId: string,
+    documentId: string | null = null,
+  ) {
     return this.dataSource.query<ApprovedExtractionForIndex[]>(
       `
         SELECT job.document_id, document.original_name, document.category,
@@ -495,9 +666,29 @@ export class AssistantService {
           AND job.status = 'VALIDEE'
           AND job.normalized_data IS NOT NULL
           AND document.deleted_at_utc IS NULL
+          AND ($3::uuid IS NULL OR document.id = $3)
+          AND NOT EXISTS (
+            WITH RECURSIVE replacements AS (
+              SELECT replacement.id, replacement.deleted_at_utc
+              FROM accounting.accounting_documents replacement
+              WHERE replacement.replaces_document_id = document.id
+              UNION ALL
+              SELECT replacement.id, replacement.deleted_at_utc
+              FROM accounting.accounting_documents replacement
+              INNER JOIN replacements previous
+                ON replacement.replaces_document_id = previous.id
+            )
+            SELECT 1
+            FROM replacements
+            INNER JOIN accounting.document_extraction_jobs replacement_job
+              ON replacement_job.document_id = replacements.id
+            WHERE replacements.deleted_at_utc IS NULL
+              AND replacement_job.status = 'VALIDEE'
+              AND replacement_job.normalized_data IS NOT NULL
+          )
         ORDER BY job.reviewed_at_utc DESC NULLS LAST, job.created_at_utc DESC
       `,
-      [organizationId, dossierId],
+      [organizationId, dossierId, documentId],
     );
   }
 

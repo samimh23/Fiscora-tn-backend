@@ -13,13 +13,18 @@ export interface AccountingKnowledgeChunk {
     | 'FINANCIAL_TOTALS'
     | 'PARTIES'
     | 'LINE_ITEMS'
+    | 'BANK_ACCOUNT'
+    | 'BANK_TRANSACTIONS'
     | 'STRUCTURED_DATA';
   content: string;
   metadata: Record<string, unknown>;
 }
 
 const financialFields: Array<[string, string]> = [
-  ['subtotal_excl_tax', 'Montant HT'],
+  ['gross_subtotal_excl_tax', 'Total HT avant remise'],
+  ['global_discount_amount', 'Remise globale'],
+  ['global_discount_rate', 'Taux de remise globale'],
+  ['subtotal_excl_tax', 'Base HT après remise'],
   ['tax_amount', 'TVA'],
   ['fodec_amount', 'FODEC'],
   ['stamp_tax', 'Timbre fiscal'],
@@ -104,7 +109,7 @@ export function buildAccountingChunks(
     if (customer) {
       lines.push(
         `Client: ${display(customer.name, 'non renseigné')}`,
-        `Identifiant client: ${display(customer.customer_id, 'non renseigné')}`,
+        `Matricule fiscal client: ${display(customer.tax_id, 'non renseigné')}`,
         `Adresse client: ${display(customer.address, 'non renseignée')}`,
       );
     }
@@ -156,8 +161,10 @@ export function buildAccountingChunks(
         [
           `Ligne ${offset + index + 1}`,
           `description=${display(item.description, 'non renseignée')}`,
+          `référence=${display(item.reference, 'non renseignée')}`,
           `quantité=${display(item.quantity, 'non renseignée')}`,
           `prix unitaire=${display(item.unit_price, 'non renseigné')}`,
+          `remise=${display(item.discount_rate, 'non renseignée')}`,
           `TVA=${display(item.tax_rate, 'non renseignée')}`,
           `total=${display(item.line_total, 'non renseigné')}`,
         ].join(' | '),
@@ -173,6 +180,64 @@ export function buildAccountingChunks(
         lineEnd: Math.min(offset + group.length, lineItems.length),
       },
     });
+  }
+
+  const bankStatement = record(data.bank_statement);
+  if (bankStatement) {
+    const bankLines = [
+      ...identity.slice(0, 3),
+      `Banque: ${display(bankStatement.bank_name, 'non renseignée')}`,
+      `IBAN / RIB: ${display(bankStatement.iban, 'non renseigné')}`,
+      `Numéro de compte: ${display(bankStatement.account_number, 'non renseigné')}`,
+      `Début de période: ${display(bankStatement.period_start, 'non renseigné')}`,
+      `Fin de période: ${display(bankStatement.period_end, 'non renseignée')}`,
+      `Solde initial: ${display(bankStatement.opening_balance, 'non renseigné')}`,
+      `Solde final: ${display(bankStatement.closing_balance, 'non renseigné')}`,
+    ];
+    chunks.push({
+      kind: 'BANK_ACCOUNT',
+      content: bankLines.join('\n'),
+      metadata: { ...metadata, kind: 'BANK_ACCOUNT' },
+    });
+
+    const transactions = Array.isArray(bankStatement.transactions)
+      ? bankStatement.transactions
+      : [];
+    for (let offset = 0; offset < transactions.length; offset += 10) {
+      const group = transactions.slice(offset, offset + 10);
+      const lines = [
+        ...identity.slice(0, 3),
+        `Banque: ${display(bankStatement.bank_name, 'non renseignée')}`,
+        'Opérations bancaires:',
+      ];
+      group.forEach((value, index) => {
+        const transaction = record(value);
+        if (!transaction) return;
+        lines.push(
+          [
+            `Opération ${offset + index + 1}`,
+            `date=${display(transaction.transaction_date, 'non renseignée')}`,
+            `valeur=${display(transaction.value_date, 'non renseignée')}`,
+            `libellé=${display(transaction.description, 'non renseigné')}`,
+            `référence=${display(transaction.reference, 'non renseignée')}`,
+            `débit=${display(transaction.debit, 'non renseigné')}`,
+            `crédit=${display(transaction.credit, 'non renseigné')}`,
+            `montant=${display(transaction.amount, 'non renseigné')}`,
+            `solde=${display(transaction.balance, 'non renseigné')}`,
+          ].join(' | '),
+        );
+      });
+      chunks.push({
+        kind: 'BANK_TRANSACTIONS',
+        content: lines.join('\n'),
+        metadata: {
+          ...metadata,
+          kind: 'BANK_TRANSACTIONS',
+          transactionStart: offset + 1,
+          transactionEnd: Math.min(offset + group.length, transactions.length),
+        },
+      });
+    }
   }
 
   if (chunks.length === 1) {

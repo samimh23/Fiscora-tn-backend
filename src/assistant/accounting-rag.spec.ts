@@ -52,4 +52,54 @@ describe('buildAccountingChunks', () => {
     expect(chunks[1].kind).toBe('STRUCTURED_DATA');
     expect(chunks[1].content).toContain('valeur validée');
   });
+
+  it('creates searchable account and transaction chunks for bank statements', () => {
+    const chunks = buildAccountingChunks({
+      document_id: 'bank-1',
+      original_name: 'releve-avril.pdf',
+      category: 'Relevés bancaires',
+      period_year: 2026,
+      period_month: 4,
+      normalized_data: {
+        document_type: 'bank_statement',
+        currency: 'TND',
+        bank_statement: {
+          bank_name: 'AMEN BANK',
+          iban: 'TN5907050010810551405842',
+          account_number: '108105514058',
+          period_start: '2026-04-01',
+          period_end: '2026-04-30',
+          opening_balance: '2774.733',
+          closing_balance: '106.849',
+          transactions: Array.from({ length: 12 }, (_, index) => ({
+            transaction_date: `2026-04-${String(index + 1).padStart(2, '0')}`,
+            value_date: `2026-04-${String(index + 1).padStart(2, '0')}`,
+            description: `Opération ${index + 1}`,
+            reference: `REF-${index + 1}`,
+            debit: index % 2 === 0 ? '10.000' : null,
+            credit: index % 2 === 1 ? '20.000' : null,
+            amount: index % 2 === 0 ? '-10.000' : '20.000',
+            balance: String(1000 + index),
+          })),
+        },
+      },
+    });
+
+    expect(chunks.map((chunk) => chunk.kind)).toEqual([
+      'IDENTITY',
+      'BANK_ACCOUNT',
+      'BANK_TRANSACTIONS',
+      'BANK_TRANSACTIONS',
+    ]);
+    expect(chunks[1].content).toContain('AMEN BANK');
+    expect(chunks[2].content).toContain('référence=REF-1');
+    expect(chunks[2].metadata).toMatchObject({
+      transactionStart: 1,
+      transactionEnd: 10,
+    });
+    expect(chunks[3].metadata).toMatchObject({
+      transactionStart: 11,
+      transactionEnd: 12,
+    });
+  });
 });
