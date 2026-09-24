@@ -21,10 +21,10 @@ export class PermissionGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const required = this.reflector.getAllAndOverride<string>(PERMISSION_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const required = this.reflector.getAllAndOverride<string | string[]>(
+      PERMISSION_KEY,
+      [context.getHandler(), context.getClass()],
+    );
     if (!required) return true;
 
     const request = context
@@ -45,10 +45,14 @@ export class PermissionGuard implements CanActivate {
       },
       relations: { organization: true, role: { rolePermissions: true } },
     });
+    const requiredPermissions = Array.isArray(required) ? required : [required];
+    const grantedPermissions = new Set(
+      membership?.role.rolePermissions.map((item) => item.permissionName) ?? [],
+    );
     if (
       !membership ||
-      !membership.role.rolePermissions.some(
-        (item) => item.permissionName === required,
+      !requiredPermissions.every((permission) =>
+        grantedPermissions.has(permission),
       )
     ) {
       throw new ForbiddenException(

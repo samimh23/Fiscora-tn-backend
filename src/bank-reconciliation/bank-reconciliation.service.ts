@@ -18,6 +18,7 @@ import {
 import { fromMillimes, toMillimes } from '../common/money';
 import {
   AccountingJournal,
+  AuditLog,
   Bank,
   BankAccount,
   BankMatchType,
@@ -1034,6 +1035,168 @@ export class BankReconciliationService {
     return this.findTransaction(organizationId, dossierId, transaction.id);
   }
 
+  /**
+   * Completes the generated-entry workflow as one retry-safe operation.
+   *
+   * The bank screen used to post the journal entry first and match it in a
+   * second request. A draft could not be posted before submission, while an
+   * entry posted manually caused the first request to fail and prevented the
+   * match. Keeping both state transitions here makes retries safe and prevents
+   * the bank transaction from remaining stuck as ECRITURE_BROUILLON.
+   */
+  async postGeneratedEntryAndMatch(
+    organizationId: string,
+    dossierId: string,
+    transactionId: string,
+    userId: string,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const current = await this.findTransaction(
+      organizationId,
+      dossierId,
+      transactionId,
+    );
+    if (
+      current.status === BankTransactionStatus.Matched &&
+      current.matchType === BankMatchType.GeneratedEntry
+    )
+      return current;
+    await this.periodLocks.assertDateOpen(
+      organizationId,
+      dossierId,
+      current.transactionDate,
+    );
+
+    const statementId = current.statementId;
+    await this.dataSource.transaction(async (manager) => {
+      const transaction = await manager.findOne(BankTransaction, {
+        where: { id: transactionId, organizationId, dossierId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!transaction)
+        throw new NotFoundException("L'opération bancaire est introuvable.");
+      if (
+        transaction.status === BankTransactionStatus.Matched &&
+        transaction.matchType === BankMatchType.GeneratedEntry
+      )
+        return;
+      const statement = await manager.findOne(BankStatement, {
+        where: {
+          id: transaction.statementId,
+          organizationId,
+          dossierId,
+        },
+        relations: { bankAccount: true },
+      });
+      if (!statement)
+        throw new NotFoundException('Le relevé bancaire est introuvable.');
+      this.ensureOpen(statement);
+      if (
+        transaction.status !== BankTransactionStatus.DraftEntry ||
+        transaction.matchType !== BankMatchType.GeneratedEntry ||
+        !transaction.journalEntryId
+      )
+        throw new ConflictException(
+          "Cette opération n'est pas liée à une écriture générée à comptabiliser.",
+        );
+
+      const entry = await manager.findOne(JournalEntry, {
+        where: {
+          id: transaction.journalEntryId,
+          organizationId,
+          dossierId,
+        },
+        relations: { lines: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!entry)
+        throw new NotFoundException("L'écriture générée est introuvable.");
+      if (entry.status === JournalEntryStatus.Reversed)
+        throw new ConflictException(
+          "L'écriture générée a été extournée et ne peut pas être rapprochée.",
+        );
+      if (
+        toMillimes(entry.totalDebit) === 0n ||
+        toMillimes(entry.totalDebit) !== toMillimes(entry.totalCredit)
+      )
+        throw new ConflictException(
+          'Une écriture doit être équilibrée avant comptabilisation.',
+        );
+
+      const bankAmount = entry.lines
+        .filter(
+          (line) => line.accountId === statement.bankAccount.ledgerAccountId,
+        )
+        .reduce(
+          (total, line) =>
+            total + toMillimes(line.debit) - toMillimes(line.credit),
+          0n,
+        );
+      if (bankAmount !== toMillimes(transaction.amount))
+        throw new BadRequestException(
+          "Le mouvement du compte bancaire dans cette écriture ne correspond pas à l'opération.",
+        );
+
+      const now = new Date();
+      if (
+        entry.status === JournalEntryStatus.Draft ||
+        entry.status === JournalEntryStatus.Rejected
+      ) {
+        Object.assign(entry, {
+          status: JournalEntryStatus.PendingReview,
+          submittedByUserId: userId,
+          submittedAtUtc: now,
+          reviewedByUserId: null,
+          reviewedAtUtc: null,
+          reviewComment: null,
+        });
+        await manager.save(entry);
+        await this.addAudit(
+          manager,
+          organizationId,
+          userId,
+          'journal_entry.submitted',
+          entry.id,
+          { dossierId },
+        );
+      }
+      if (entry.status === JournalEntryStatus.PendingReview) {
+        Object.assign(entry, {
+          status: JournalEntryStatus.Posted,
+          postedByUserId: userId,
+          postedAtUtc: now,
+          reviewedByUserId: userId,
+          reviewedAtUtc: now,
+        });
+        await manager.save(entry);
+        await this.addAudit(
+          manager,
+          organizationId,
+          userId,
+          'journal_entry.approved',
+          entry.id,
+          { dossierId },
+        );
+      } else if (entry.status !== JournalEntryStatus.Posted) {
+        throw new ConflictException(
+          "L'écriture générée ne peut pas être comptabilisée.",
+        );
+      }
+
+      Object.assign(transaction, {
+        status: BankTransactionStatus.Matched,
+        matchType: BankMatchType.GeneratedEntry,
+        matchConfidence: 100,
+        matchedPaymentId: null,
+        matchedByUserId: userId,
+        matchedAtUtc: now,
+      });
+      await manager.save(transaction);
+    });
+    await this.refreshStatementStatus(statementId);
+    return this.findTransaction(organizationId, dossierId, transactionId);
+  }
+
   async generateEntry(
     organizationId: string,
     dossierId: string,
@@ -1214,6 +1377,27 @@ export class BankReconciliationService {
     if (!statement)
       throw new NotFoundException('Le relevé bancaire est introuvable.');
     return statement;
+  }
+
+  private async addAudit(
+    manager: EntityManager,
+    organizationId: string,
+    actorUserId: string,
+    action: string,
+    entityId: string,
+    details: Record<string, unknown>,
+  ) {
+    const repository = manager.getRepository(AuditLog);
+    await repository.save(
+      repository.create({
+        organizationId,
+        actorUserId,
+        action,
+        entityType: 'JournalEntry',
+        entityId,
+        detailsJson: details,
+      }),
+    );
   }
 
   /**

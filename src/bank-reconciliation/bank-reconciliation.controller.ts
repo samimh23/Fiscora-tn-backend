@@ -16,7 +16,10 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import type { JwtUser } from '../common/auth.types';
 import { CurrentUser } from '../common/current-user.decorator';
-import { RequirePermission } from '../common/permission.decorator';
+import {
+  RequireAllPermissions,
+  RequirePermission,
+} from '../common/permission.decorator';
 import { PermissionGuard } from '../common/permission.guard';
 import { PermissionNames } from '../database/permissions';
 import { BankReconciliationService } from './bank-reconciliation.service';
@@ -288,6 +291,25 @@ export class BankReconciliationController {
       dossierId,
       transactionId,
       dto.journalEntryId,
+      user.userId,
+    );
+  }
+
+  @Post('transactions/:transactionId/post-generated-entry')
+  @RequireAllPermissions(
+    PermissionNames.BankReconciliationManage,
+    PermissionNames.AccountingPost,
+  )
+  postGeneratedEntry(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('transactionId', ParseUUIDPipe) transactionId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.postGeneratedEntryAndMatch(
+      organizationId,
+      dossierId,
+      transactionId,
       user.userId,
     );
   }

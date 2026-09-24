@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { PermissionGuard } from '../common/permission.guard';
 import {
   AccountingJournal,
+  AuditLog,
   Bank,
   BankAccount,
   BankReconciliationRule,
@@ -30,6 +31,7 @@ import { PeriodClosingModule } from '../period-closing/period-closing.module';
       BankStatement,
       BankTransaction,
       AccountingJournal,
+      AuditLog,
       LedgerAccount,
       ThirdPartyPayment,
       JournalEntry,
