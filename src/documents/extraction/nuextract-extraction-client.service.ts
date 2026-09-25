@@ -350,6 +350,8 @@ export function nuextractInstructions(
 - Dates printed as DD/MM/YYYY are day/month/year.
 - For bank transactions, never put the same printed amount in both debit and credit.
 - For invoice lines, distinguish HT from TTC using the printed column heading.
+- supplier.tax_id and customer.tax_id must come only from labels such as MF, matricule fiscal or tax ID.
+- Never use an IBAN, RIB, bank account, phone, barcode, RC or registration number as a tax_id.
 - Return JSON only.${corrections}`;
 }
 

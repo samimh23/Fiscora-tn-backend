@@ -70,4 +70,11 @@ describe('NuExtract extraction contract', () => {
     expect(prompt).toContain('transactions.0');
     expect(prompt).toContain('Debit and credit both present');
   });
+
+  it('prevents bank identifiers from being mapped as fiscal identifiers', () => {
+    const prompt = nuextractInstructions('invoice');
+
+    expect(prompt).toContain('matricule fiscal');
+    expect(prompt).toContain('Never use an IBAN, RIB');
+  });
 });
