@@ -21,6 +21,8 @@ import { DOCUMENT_OBJECT_STORAGE } from './object-storage/object-storage';
 import { DocumentExtractionService } from './extraction/document-extraction.service';
 import { GoogleWifTokenService } from './extraction/google-wif-token.service';
 import { QwenExtractionClientService } from './extraction/qwen-extraction-client.service';
+import { NuExtractExtractionClientService } from './extraction/nuextract-extraction-client.service';
+import { DocumentExtractionProviderService } from './extraction/document-extraction-provider.service';
 import { PaddleOcrClientService } from './extraction/paddle-ocr-client.service';
 import { BankReconciliationModule } from '../bank-reconciliation/bank-reconciliation.module';
 import { PublicDocumentRequestsController } from './public-document-requests.controller';
@@ -49,6 +51,8 @@ import { PublicDocumentRequestsController } from './public-document-requests.con
     documentObjectStorageProvider,
     GoogleWifTokenService,
     QwenExtractionClientService,
+    NuExtractExtractionClientService,
+    DocumentExtractionProviderService,
     PaddleOcrClientService,
     DocumentExtractionService,
   ],

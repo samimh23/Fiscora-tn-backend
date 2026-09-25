@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleWifTokenService } from './google-wif-token.service';
+import type {
+  DocumentExtractionClient,
+  FinancialDocumentKind,
+} from './document-extraction-client';
 import type { OcrDocument, OcrToken } from './ocr-evidence-matcher';
 
 interface ChatCompletionResponse {
@@ -12,7 +16,8 @@ interface ChatCompletionResponse {
 }
 
 @Injectable()
-export class QwenExtractionClientService {
+export class QwenExtractionClientService implements DocumentExtractionClient {
+  readonly provider = 'qwen' as const;
   readonly modelName: string;
   private activeRequests = 0;
   private readonly requestWaiters: Array<() => void> = [];
@@ -31,7 +36,9 @@ export class QwenExtractionClientService {
     content: Buffer,
     mimeType: string,
     correctionIssues: Array<Record<string, unknown>> = [],
+    documentKind: FinancialDocumentKind = 'auto',
   ) {
+    void documentKind;
     return this.complete([
       {
         role: 'user',
@@ -54,7 +61,9 @@ export class QwenExtractionClientService {
   async extractFromOcr(
     document: OcrDocument,
     correctionIssues: Array<Record<string, unknown>> = [],
+    documentKind: FinancialDocumentKind = 'auto',
   ) {
+    void documentKind;
     const batches = ocrTokenBatches(
       document.tokens,
       this.configuredInteger('DOCUMENT_EXTRACTION_OCR_BATCH_PAGES', 4, 10),
@@ -89,7 +98,11 @@ export class QwenExtractionClientService {
     const data = mergeExtractionBatches(extracted.map((item) => item.data));
     return {
       data,
+      modelName: this.modelName,
+      provider: this.provider,
       rawResponse: {
+        provider: this.provider,
+        modelName: this.modelName,
         content: JSON.stringify(data),
         batches: extracted.map((item, index) => ({
           index,
@@ -116,8 +129,8 @@ export class QwenExtractionClientService {
     // NUEXTRACT_SERVICE_URL remains a temporary fallback so the model can be
     // rolled out without coupling the Azure and GCP deployments.
     const serviceUrl = (
-      this.config.get<string>('DOCUMENT_EXTRACTION_SERVICE_URL') ??
-      this.config.get<string>('NUEXTRACT_SERVICE_URL')
+      this.config.get<string>('QWEN_SERVICE_URL') ??
+      this.config.get<string>('DOCUMENT_EXTRACTION_SERVICE_URL')
     )?.replace(/\/$/, '');
     if (!serviceUrl)
       throw new Error('DOCUMENT_EXTRACTION_SERVICE_URL is not configured.');
@@ -173,7 +186,11 @@ export class QwenExtractionClientService {
     const data = parseQwenExtractionJson(contentText, choice?.finish_reason);
     return {
       data,
+      modelName: this.modelName,
+      provider: this.provider,
       rawResponse: {
+        provider: this.provider,
+        modelName: this.modelName,
         content: contentText,
         usage: body.usage ?? null,
         extractedData: structuredClone(data),

@@ -30,7 +30,11 @@ import {
   ReviewExtractionDto,
 } from './extraction.dto';
 import { InvoiceExtractionValidator } from './invoice-extraction.validator';
-import { QwenExtractionClientService } from './qwen-extraction-client.service';
+import type {
+  DocumentExtractionClient,
+  FinancialDocumentKind,
+} from './document-extraction-client';
+import { DocumentExtractionProviderService } from './document-extraction-provider.service';
 import { BankReconciliationService } from '../../bank-reconciliation/bank-reconciliation.service';
 import {
   PaddleOcrClientService,
@@ -56,7 +60,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
     @Inject(DOCUMENT_OBJECT_STORAGE)
     private readonly objectStorage: DocumentObjectStorage,
     private readonly dossiers: DossiersService,
-    private readonly client: QwenExtractionClientService,
+    private readonly providers: DocumentExtractionProviderService,
     private readonly paddleOcr: PaddleOcrClientService,
     private readonly bankReconciliation: BankReconciliationService,
   ) {}
@@ -356,13 +360,29 @@ export class DocumentExtractionService implements OnModuleDestroy {
       const correctionIssues = Array.isArray(job.validationIssues)
         ? job.validationIssues
         : [];
+      const { client, documentKind } = this.providers.select(
+        document.category,
+        job.modelName,
+      );
+      if (job.modelName !== client.modelName) {
+        job.modelName = client.modelName;
+        await this.jobs.save(job);
+      }
       const [extracted, ocrDocument] =
         document.mimeType === 'application/pdf'
-          ? await this.extractPdf(job, file, correctionIssues)
+          ? await this.extractPdf(
+              job,
+              file,
+              client,
+              documentKind,
+              correctionIssues,
+            )
           : await this.extractImage(
               file,
               document.mimeType,
               document.id,
+              client,
+              documentKind,
               correctionIssues,
             );
       const extractionData = attachOcrEvidence(extracted.data, ocrDocument);
@@ -371,7 +391,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
       );
       Object.assign(job, {
         status: DocumentExtractionJobStatus.ReviewRequired,
-        modelName: this.client.modelName,
+        modelName: extracted.modelName,
         rawResponse: {
           ...extracted.rawResponse,
           extractedData: structuredClone(extractionData),
@@ -540,6 +560,8 @@ export class DocumentExtractionService implements OnModuleDestroy {
   private async extractPdf(
     job: DocumentExtractionJob,
     file: Buffer,
+    client: DocumentExtractionClient,
+    documentKind: FinancialDocumentKind,
     correctionIssues: Array<Record<string, unknown>>,
   ) {
     let ocrDocument = this.cachedOcrDocument(job);
@@ -557,9 +579,10 @@ export class DocumentExtractionService implements OnModuleDestroy {
       ocr: ocrDocument,
     };
     await this.jobs.save(job);
-    const extracted = await this.client.extractFromOcr(
+    const extracted = await client.extractFromOcr(
       ocrDocument,
       correctionIssues,
+      documentKind,
     );
     return [extracted, ocrDocument] as const;
   }
@@ -578,6 +601,8 @@ export class DocumentExtractionService implements OnModuleDestroy {
     file: Buffer,
     mimeType: string,
     documentId: string,
+    client: DocumentExtractionClient,
+    documentKind: FinancialDocumentKind,
     correctionIssues: Array<Record<string, unknown>>,
   ) {
     const ocrPromise = this.paddleOcr
@@ -588,8 +613,19 @@ export class DocumentExtractionService implements OnModuleDestroy {
         );
         return null;
       });
+    if (client.provider === 'nuextract') {
+      const ocrDocument = await ocrPromise;
+      const extracted = ocrDocument
+        ? await client.extractFromOcr(
+            ocrDocument,
+            correctionIssues,
+            documentKind,
+          )
+        : await client.extract(file, mimeType, correctionIssues, documentKind);
+      return [extracted, ocrDocument] as const;
+    }
     return Promise.all([
-      this.client.extract(file, mimeType, correctionIssues),
+      client.extract(file, mimeType, correctionIssues, documentKind),
       ocrPromise,
     ]);
   }
