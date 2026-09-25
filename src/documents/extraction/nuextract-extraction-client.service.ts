@@ -102,10 +102,7 @@ export class NuExtractExtractionClientService implements DocumentExtractionClien
     private readonly config: ConfigService,
     private readonly tokens: GoogleWifTokenService,
   ) {
-    this.modelName = this.config.get(
-      'NUEXTRACT_MODEL',
-      'numind/NuExtract-2.0-8B',
-    );
+    this.modelName = this.config.get('NUEXTRACT_MODEL', 'numind/NuExtract3');
   }
 
   async extract(
@@ -241,8 +238,13 @@ export class NuExtractExtractionClientService implements DocumentExtractionClien
             Number(this.config.get('DOCUMENT_EXTRACTION_MAX_TOKENS', 8_000)),
           ),
         ),
-        messages,
-        chat_template_kwargs: { template: JSON.stringify(template) },
+        messages: messages.filter((message) => message.role !== 'system'),
+        chat_template_kwargs: {
+          template: JSON.stringify(template),
+          instructions: messages.find((message) => message.role === 'system')
+            ?.content,
+          enable_thinking: false,
+        },
       }),
       signal: AbortSignal.timeout(
         Number(this.config.get('DOCUMENT_EXTRACTION_TIMEOUT_MS', 600_000)),

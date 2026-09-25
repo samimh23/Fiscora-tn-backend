@@ -19,7 +19,7 @@ function client(
 
 function selector(provider = 'qwen') {
   const qwen = client('qwen', 'Qwen/Qwen3.5-4B');
-  const nuextract = client('nuextract', 'numind/NuExtract-2.0-8B');
+  const nuextract = client('nuextract', 'numind/NuExtract3');
   const service = new DocumentExtractionProviderService(
     new ConfigService({ DOCUMENT_EXTRACTION_PROVIDER: provider }),
     qwen as QwenExtractionClientService,
