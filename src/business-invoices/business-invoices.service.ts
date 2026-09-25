@@ -462,6 +462,54 @@ export class BusinessInvoicesService {
     });
   }
 
+  async remove(
+    organizationId: string,
+    dossierId: string,
+    invoiceId: string,
+    userId: string,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const invoice = await this.find(organizationId, dossierId, invoiceId);
+    if (invoice.status !== BusinessInvoiceStatus.Draft)
+      throw new ConflictException(
+        'Seule une facture en brouillon peut être supprimée.',
+      );
+
+    await this.dataSource.transaction(async (manager) => {
+      if (invoice.sourceCommercialDocumentId) {
+        const source = await manager.findOne(CommercialDocument, {
+          where: {
+            id: invoice.sourceCommercialDocumentId,
+            organizationId,
+            dossierId,
+          },
+        });
+        if (source?.businessInvoiceId === invoice.id) {
+          source.businessInvoiceId = null;
+          source.status = CommercialDocumentStatus.Confirmed;
+          await manager.save(source);
+        }
+      }
+
+      if (invoice.sourceDocumentId) {
+        const source = await manager.findOne(AccountingDocument, {
+          where: {
+            id: invoice.sourceDocumentId,
+            organizationId,
+            dossierId,
+            deletedAtUtc: IsNull(),
+          },
+        });
+        if (source) {
+          source.processingStatus = DocumentProcessingStatus.ToProcess;
+          await manager.save(source);
+        }
+      }
+
+      await manager.delete(BusinessInvoice, { id: invoice.id });
+    });
+  }
+
   async post(
     organizationId: string,
     dossierId: string,

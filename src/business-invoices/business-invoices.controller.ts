@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
@@ -115,6 +117,23 @@ export class BusinessInvoicesController {
       invoiceId,
       user.userId,
       dto,
+    );
+  }
+
+  @Delete(':invoiceId')
+  @HttpCode(204)
+  @RequirePermission(PermissionNames.BusinessInvoicesManage)
+  remove(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.remove(
+      organizationId,
+      dossierId,
+      invoiceId,
+      user.userId,
     );
   }
 
