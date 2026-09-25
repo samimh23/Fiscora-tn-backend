@@ -470,12 +470,59 @@ export class BusinessInvoicesService {
   ) {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     const invoice = await this.find(organizationId, dossierId, invoiceId);
-    if (invoice.status !== BusinessInvoiceStatus.Draft)
+    if (
+      ![BusinessInvoiceStatus.Draft, BusinessInvoiceStatus.Validated].includes(
+        invoice.status,
+      )
+    )
       throw new ConflictException(
-        'Seule une facture en brouillon peut être supprimée.',
+        'Seule une facture en brouillon ou validée peut être supprimée. Une facture comptabilisée doit être corrigée par une écriture d’annulation.',
+      );
+    if (invoice.status === BusinessInvoiceStatus.Validated)
+      await this.periodLocks.assertDateOpen(
+        organizationId,
+        dossierId,
+        invoice.invoiceDate,
       );
 
     await this.dataSource.transaction(async (manager) => {
+      let journalEntry: JournalEntry | null = null;
+      if (invoice.status === BusinessInvoiceStatus.Validated) {
+        journalEntry = invoice.journalEntryId
+          ? await manager.findOneBy(JournalEntry, {
+              id: invoice.journalEntryId,
+              organizationId,
+              dossierId,
+            })
+          : null;
+        if (!journalEntry || journalEntry.status !== JournalEntryStatus.Draft)
+          throw new ConflictException(
+            'L’écriture liée à cette facture ne peut plus être supprimée.',
+          );
+
+        if (invoice.vatSuspensionCertificateId) {
+          const certificate = await manager.findOneOrFail(
+            VatSuspensionCertificate,
+            {
+              where: {
+                id: invoice.vatSuspensionCertificateId,
+                organizationId,
+                dossierId,
+              },
+              lock: { mode: 'pessimistic_write' },
+            },
+          );
+          const releasedBase =
+            toMillimes(certificate.usedBase) - toMillimes(invoice.netAmount);
+          certificate.usedBase = fromMillimes(
+            releasedBase > 0n ? releasedBase : 0n,
+          );
+          if (certificate.status === VatSuspensionStatus.Exhausted)
+            certificate.status = VatSuspensionStatus.Active;
+          await manager.save(certificate);
+        }
+      }
+
       if (invoice.sourceCommercialDocumentId) {
         const source = await manager.findOne(CommercialDocument, {
           where: {
@@ -507,6 +554,8 @@ export class BusinessInvoicesService {
       }
 
       await manager.delete(BusinessInvoice, { id: invoice.id });
+      if (journalEntry)
+        await manager.delete(JournalEntry, { id: journalEntry.id });
     });
   }
 
