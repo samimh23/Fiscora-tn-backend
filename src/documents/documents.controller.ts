@@ -9,6 +9,8 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  StreamableFile,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -17,6 +19,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
+import type { Response } from 'express';
 import type { JwtUser } from '../common/auth.types';
 import { CurrentUser } from '../common/current-user.decorator';
 import { RequirePermission } from '../common/permission.decorator';
@@ -188,6 +191,30 @@ export class DocumentsController {
       documentId,
       user.userId,
     );
+  }
+
+  @Get(':documentId/content')
+  @RequirePermission(PermissionNames.DocumentsView)
+  async content(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @CurrentUser() user: JwtUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const document = await this.service.content(
+      organizationId,
+      dossierId,
+      documentId,
+      user.userId,
+    );
+    response.set({
+      'Content-Type': document.mimeType,
+      'Content-Length': String(document.content.length),
+      'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(document.originalName)}`,
+      'Cache-Control': 'private, max-age=300',
+    });
+    return new StreamableFile(document.content);
   }
 
   @Delete(':documentId')

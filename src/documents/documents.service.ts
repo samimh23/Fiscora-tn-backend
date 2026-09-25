@@ -510,6 +510,27 @@ export class DocumentsService implements OnModuleInit {
     };
   }
 
+  async content(
+    organizationId: string,
+    dossierId: string,
+    documentId: string,
+    userId: string,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const item = await this.find(organizationId, dossierId, documentId);
+    this.ensureClientDocumentAccess(
+      await this.isClient(organizationId, userId),
+      item,
+      userId,
+    );
+    await this.ensureSafeForAccess(item, userId);
+    return {
+      originalName: item.originalName,
+      mimeType: item.mimeType,
+      content: await this.readObject(item.objectKey),
+    };
+  }
+
   async remove(
     organizationId: string,
     dossierId: string,
