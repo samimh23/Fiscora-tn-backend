@@ -5,6 +5,8 @@ export interface ApprovedExtractionForIndex {
   period_year: number | null;
   period_month: number | null;
   normalized_data: Record<string, unknown>;
+  source_kind?: 'DOCUMENT' | 'BUSINESS_INVOICE';
+  source_path?: string;
 }
 
 export interface AccountingKnowledgeChunk {

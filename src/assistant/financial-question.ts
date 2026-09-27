@@ -115,7 +115,10 @@ function matchesPeriod(
 
 function currency(row: ApprovedExtractionForIndex) {
   const value = row.normalized_data.currency;
-  return typeof value === 'string' && value.trim() ? value.trim() : 'TND';
+  if (typeof value !== 'string' || !value.trim()) return 'TND';
+  const code = normalize(value).replace(/[^a-z]/g, '');
+  if (['tnd', 'dnt', 'dt', 'dinar', 'dinars'].includes(code)) return 'TND';
+  return value.trim().toUpperCase();
 }
 
 function signedAmount(row: ApprovedExtractionForIndex, field: string) {

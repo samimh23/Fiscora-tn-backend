@@ -52,13 +52,31 @@ interface IndexStatusRow {
   last_processed_at_utc: Date | null;
 }
 
+interface StructuredSourceCountRow {
+  count: string;
+}
+
+interface BusinessInvoiceFinancialRow {
+  id: string;
+  number: string;
+  invoice_date: string;
+  kind: 'FACTURE' | 'AVOIR';
+  currency_code: string;
+  net_amount: string;
+  vat_amount: string;
+  stamp_duty: string;
+  gross_amount: string;
+  net_payable: string;
+  source_document_id: string | null;
+}
+
 export interface Citation {
   label: string;
   chunkId: string;
   sourceId: string;
   sourceName: string;
   pageNumber: number | null;
-  kind?: 'DOCUMENT' | 'PRODUCT_HELP';
+  kind?: 'DOCUMENT' | 'BUSINESS_INVOICE' | 'PRODUCT_HELP';
   path?: string;
 }
 
@@ -254,23 +272,33 @@ export class AssistantService {
   async indexStatus(organizationId: string, dossierId: string, userId: string) {
     this.ensureEnabled();
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
-    const rows = await this.dataSource.query<IndexStatusRow[]>(
-      `SELECT
-         count(*) FILTER (WHERE status = 'PENDING')::text AS pending,
-         count(*) FILTER (WHERE status = 'PROCESSING')::text AS processing,
-         count(*) FILTER (WHERE status = 'FAILED')::text AS failed,
-         count(*) FILTER (WHERE status = 'INDEXED')::text AS indexed,
-         max(processed_at_utc) AS last_processed_at_utc
-       FROM accounting.ai_indexing_jobs
-       WHERE organization_id = $1 AND dossier_id = $2`,
-      [organizationId, dossierId],
-    );
+    const [rows, structuredRows] = await Promise.all([
+      this.dataSource.query<IndexStatusRow[]>(
+        `SELECT
+           count(*) FILTER (WHERE status = 'PENDING')::text AS pending,
+           count(*) FILTER (WHERE status = 'PROCESSING')::text AS processing,
+           count(*) FILTER (WHERE status = 'FAILED')::text AS failed,
+           count(*) FILTER (WHERE status = 'INDEXED')::text AS indexed,
+           max(processed_at_utc) AS last_processed_at_utc
+         FROM accounting.ai_indexing_jobs
+         WHERE organization_id = $1 AND dossier_id = $2`,
+        [organizationId, dossierId],
+      ),
+      this.dataSource.query<StructuredSourceCountRow[]>(
+        `SELECT count(*)::text AS count
+         FROM accounting.business_invoices
+         WHERE organization_id = $1 AND dossier_id = $2
+           AND status IN ('VALIDEE', 'COMPTABILISEE')`,
+        [organizationId, dossierId],
+      ),
+    ]);
     const row = rows[0];
     return {
       pending: Number(row?.pending ?? 0),
       processing: Number(row?.processing ?? 0),
       failed: Number(row?.failed ?? 0),
       indexed: Number(row?.indexed ?? 0),
+      structuredInvoices: Number(structuredRows[0]?.count ?? 0),
       lastProcessedAtUtc: row?.last_processed_at_utc ?? null,
     };
   }
@@ -384,18 +412,22 @@ export class AssistantService {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     const intent = detectFinancialQuestion(question);
     if (intent) {
-      const approved = await this.approvedExtractions(
+      const financialSources = await this.financialSources(
         organizationId,
         dossierId,
       );
-      const aggregation = aggregateFinancialQuestion(approved, intent);
+      const aggregation = aggregateFinancialQuestion(financialSources, intent);
       if (aggregation) {
         const citations: Citation[] = aggregation.rows.map((row, index) => ({
           label: `S${index + 1}`,
-          chunkId: `deterministic:${row.document_id}`,
+          chunkId: `deterministic:${row.source_kind ?? 'DOCUMENT'}:${row.document_id}`,
           sourceId: row.document_id,
           sourceName: row.original_name,
           pageNumber: null,
+          kind: row.source_kind ?? 'DOCUMENT',
+          path:
+            row.source_path ??
+            `/documents?dossierId=${encodeURIComponent(dossierId)}`,
         }));
         const labels = citations.map((item) => `[${item.label}]`).join(' ');
         const answer = `${aggregation.answer} ${labels}`.trim();
@@ -547,6 +579,66 @@ export class AssistantService {
     const resolvedId = pathDossierId ?? dossierId;
     if (resolvedId) return path.replace(':dossierId', resolvedId);
     return path.startsWith('/portail/') ? '/portail/dossiers' : '/dossiers';
+  }
+
+  private async financialSources(
+    organizationId: string,
+    dossierId: string,
+  ): Promise<ApprovedExtractionForIndex[]> {
+    const [documents, invoices] = await Promise.all([
+      this.approvedExtractions(organizationId, dossierId),
+      this.businessInvoiceFinancialSources(organizationId, dossierId),
+    ]);
+    const invoiceDocumentIds = new Set(
+      invoices
+        .map((invoice) => invoice.source_document_id)
+        .filter((id): id is string => Boolean(id)),
+    );
+    const unconvertedDocuments = documents.filter(
+      (document) => !invoiceDocumentIds.has(document.document_id),
+    );
+    const invoiceSources: ApprovedExtractionForIndex[] = invoices.map(
+      (invoice) => {
+        const issueDate = String(invoice.invoice_date);
+        const period = /^(\d{4})-(\d{2})/.exec(issueDate);
+        return {
+          document_id: invoice.id,
+          original_name: `Facture ${invoice.number}`,
+          category: 'Facture métier',
+          period_year: period ? Number(period[1]) : null,
+          period_month: period ? Number(period[2]) : null,
+          source_kind: 'BUSINESS_INVOICE',
+          source_path: `/factures?dossierId=${encodeURIComponent(dossierId)}`,
+          normalized_data: {
+            document_type: invoice.kind === 'AVOIR' ? 'credit_note' : 'invoice',
+            document_number: invoice.number,
+            issue_date: issueDate,
+            currency: invoice.currency_code,
+            subtotal_excl_tax: invoice.net_amount,
+            tax_amount: invoice.vat_amount,
+            stamp_tax: invoice.stamp_duty,
+            total_incl_tax: invoice.gross_amount,
+            amount_due: invoice.net_payable,
+          },
+        };
+      },
+    );
+    return [...unconvertedDocuments, ...invoiceSources];
+  }
+
+  private businessInvoiceFinancialSources(
+    organizationId: string,
+    dossierId: string,
+  ) {
+    return this.dataSource.query<BusinessInvoiceFinancialRow[]>(
+      `SELECT id, number, invoice_date, kind, currency_code, net_amount,
+         vat_amount, stamp_duty, gross_amount, net_payable, source_document_id
+       FROM accounting.business_invoices
+       WHERE organization_id = $1 AND dossier_id = $2
+         AND status IN ('VALIDEE', 'COMPTABILISEE')
+       ORDER BY invoice_date DESC, created_at_utc DESC`,
+      [organizationId, dossierId],
+    );
   }
 
   private async recordTurn(

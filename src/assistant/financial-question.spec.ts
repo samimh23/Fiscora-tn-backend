@@ -61,4 +61,32 @@ describe('financial question routing', () => {
       detectFinancialQuestion('Quels fournisseurs apparaissent ?'),
     ).toBeNull();
   });
+
+  it('combines Tunisian dinar aliases from documents and structured invoices', () => {
+    const intent = detectFinancialQuestion('Quel est le total TTC ?')!;
+    const result = aggregateFinancialQuestion(
+      [
+        rows[0],
+        {
+          document_id: 'business-invoice',
+          original_name: 'Facture A-001',
+          category: 'Facture métier',
+          period_year: 2026,
+          period_month: 9,
+          source_kind: 'BUSINESS_INVOICE',
+          source_path: '/factures?dossierId=dossier',
+          normalized_data: {
+            document_type: 'invoice',
+            issue_date: '2026-09-15',
+            currency: 'Dinar',
+            total_incl_tax: 30,
+          },
+        },
+      ],
+      intent,
+    );
+
+    expect(result?.answer).toContain('150.000 TND');
+    expect(result?.rows).toHaveLength(2);
+  });
 });
