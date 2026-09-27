@@ -1106,11 +1106,18 @@ export class BankReconciliationService {
           organizationId,
           dossierId,
         },
-        relations: { lines: true },
         lock: { mode: 'pessimistic_write' },
       });
       if (!entry)
         throw new NotFoundException("L'écriture générée est introuvable.");
+      // PostgreSQL cannot apply FOR UPDATE to the nullable side of the LEFT
+      // JOIN produced by `relations: { lines: true }`. Lock the parent and its
+      // lines with two plain-table queries instead so the posting and matching
+      // operation remains atomic.
+      const entryLines = await manager.find(JournalEntryLine, {
+        where: { entryId: entry.id, organizationId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (entry.status === JournalEntryStatus.Reversed)
         throw new ConflictException(
           "L'écriture générée a été extournée et ne peut pas être rapprochée.",
@@ -1123,7 +1130,7 @@ export class BankReconciliationService {
           'Une écriture doit être équilibrée avant comptabilisation.',
         );
 
-      const bankAmount = entry.lines
+      const bankAmount = entryLines
         .filter(
           (line) => line.accountId === statement.bankAccount.ledgerAccountId,
         )
