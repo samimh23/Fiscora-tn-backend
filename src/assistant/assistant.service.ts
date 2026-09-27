@@ -25,6 +25,7 @@ import {
   isProductHelpQuestion,
   type ProductHelpMatch,
 } from './product-help';
+import type { AssistantHistoryQueryDto } from './assistant.dto';
 
 interface KnowledgeChunkRow {
   id: string;
@@ -70,6 +71,15 @@ interface BusinessInvoiceFinancialRow {
   source_document_id: string | null;
 }
 
+interface ChatTurnRow {
+  id: string;
+  created_at_utc: Date;
+  question: string;
+  answer: string;
+  citations: Citation[] | null;
+  model_name: string;
+}
+
 export interface Citation {
   label: string;
   chunkId: string;
@@ -108,6 +118,7 @@ export class AssistantService {
     question: string,
     currentPath?: string,
     dossierId?: string,
+    conversationStartedAt?: string,
   ) {
     this.ensureEnabled();
     const membership = await this.memberships.findOne({
@@ -122,6 +133,13 @@ export class AssistantService {
     const permissions = new Set(
       membership.role.rolePermissions.map((item) => item.permissionName),
     );
+    if (dossierId) {
+      await this.dossiers.getAccessibleEntity(
+        organizationId,
+        dossierId,
+        userId,
+      );
+    }
     const helpMatches = findProductHelp(question, currentPath, permissions);
     if (isProductHelpQuestion(question, helpMatches)) {
       return this.answerProductHelp(
@@ -129,10 +147,19 @@ export class AssistantService {
         currentPath,
         dossierId,
         helpMatches,
+        organizationId,
+        userId,
+        conversationStartedAt,
       );
     }
     if (dossierId) {
-      return this.ask(organizationId, dossierId, userId, question);
+      return this.ask(
+        organizationId,
+        dossierId,
+        userId,
+        question,
+        conversationStartedAt,
+      );
     }
     if (helpMatches.length) {
       return this.answerProductHelp(
@@ -140,6 +167,9 @@ export class AssistantService {
         currentPath,
         dossierId,
         helpMatches,
+        organizationId,
+        userId,
+        conversationStartedAt,
       );
     }
     throw new BadRequestException(
@@ -303,6 +333,67 @@ export class AssistantService {
     };
   }
 
+  async history(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    query: AssistantHistoryQueryDto,
+  ) {
+    this.ensureEnabled();
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const limit = query.limit ?? 20;
+    const rows = await this.dataSource.query<ChatTurnRow[]>(
+      `SELECT id, created_at_utc, question, answer, citations, model_name
+       FROM accounting.ai_chat_turns
+       WHERE organization_id = $1 AND dossier_id = $2 AND user_id = $3
+         AND ($4::timestamptz IS NULL OR created_at_utc >= $4)
+         AND (
+           $5::timestamptz IS NULL
+           OR (created_at_utc, id) < ($5::timestamptz, $6::uuid)
+         )
+       ORDER BY created_at_utc DESC, id DESC
+       LIMIT $7`,
+      [
+        organizationId,
+        dossierId,
+        userId,
+        query.after ?? null,
+        query.beforeCreatedAt ?? null,
+        query.beforeId ?? null,
+        limit + 1,
+      ],
+    );
+    const hasMore = rows.length > limit;
+    const page = rows.slice(0, limit);
+    const oldest = page.at(-1);
+    return {
+      items: page.reverse().map((row) => ({
+        id: row.id,
+        createdAtUtc: row.created_at_utc,
+        question: row.question,
+        answer: row.answer,
+        citations: row.citations ?? [],
+        model: row.model_name,
+        actions: (row.citations ?? [])
+          .filter(
+            (citation) => citation.kind === 'PRODUCT_HELP' && citation.path,
+          )
+          .slice(0, 2)
+          .map((citation) => ({
+            label: `Ouvrir « ${citation.sourceName} »`,
+            path: citation.path!,
+          })),
+      })),
+      nextCursor:
+        hasMore && oldest
+          ? {
+              beforeCreatedAt: oldest.created_at_utc,
+              beforeId: oldest.id,
+            }
+          : null,
+    };
+  }
+
   async indexDocument(
     organizationId: string,
     dossierId: string,
@@ -407,6 +498,7 @@ export class AssistantService {
     dossierId: string,
     userId: string,
     question: string,
+    conversationStartedAt?: string,
   ) {
     this.ensureEnabled();
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
@@ -512,7 +604,17 @@ export class AssistantService {
           `[S${index + 1}] ${chunk.source_name}\n${chunk.content}`,
       )
       .join('\n\n');
-    const result = await this.vertex.answer(question, context);
+    const conversationContext = await this.recentConversationContext(
+      organizationId,
+      dossierId,
+      userId,
+      conversationStartedAt,
+    );
+    const result = await this.vertex.answer(
+      question,
+      context,
+      conversationContext,
+    );
     const id = await this.recordTurn(
       organizationId,
       dossierId,
@@ -536,6 +638,9 @@ export class AssistantService {
     currentPath: string | undefined,
     dossierId: string | undefined,
     matches: ProductHelpMatch[],
+    organizationId: string,
+    userId: string,
+    conversationStartedAt?: string,
   ) {
     const citations: Citation[] = matches.map(({ entry }, index) => ({
       label: `S${index + 1}`,
@@ -552,19 +657,67 @@ export class AssistantService {
         label: `Ouvrir « ${citation.sourceName} »`,
         path: citation.path!,
       }));
+    const conversationContext = dossierId
+      ? await this.recentConversationContext(
+          organizationId,
+          dossierId,
+          userId,
+          conversationStartedAt,
+        )
+      : undefined;
     const result = await this.vertex.answerProductHelp(
       question,
       buildProductHelpContext(matches),
       currentPath,
+      conversationContext,
     );
+    const id = dossierId
+      ? await this.recordTurn(
+          organizationId,
+          dossierId,
+          userId,
+          question,
+          result.text,
+          citations,
+          result.model,
+          result.usage,
+        )
+      : `product-help:${randomUUID()}`;
     return {
-      id: `product-help:${randomUUID()}`,
+      id,
       answer: result.text,
       citations,
       actions,
       model: result.model,
       scope: 'PRODUCT_HELP',
     };
+  }
+
+  private async recentConversationContext(
+    organizationId: string,
+    dossierId: string,
+    userId: string,
+    conversationStartedAt?: string,
+  ) {
+    const rows = await this.dataSource.query<
+      Array<{ question: string; answer: string }>
+    >(
+      `SELECT question, answer
+       FROM accounting.ai_chat_turns
+       WHERE organization_id = $1 AND dossier_id = $2 AND user_id = $3
+         AND ($4::timestamptz IS NULL OR created_at_utc >= $4)
+       ORDER BY created_at_utc DESC, id DESC
+       LIMIT 8`,
+      [organizationId, dossierId, userId, conversationStartedAt ?? null],
+    );
+    if (!rows.length) return undefined;
+    return rows
+      .reverse()
+      .map(
+        (row, index) =>
+          `Tour ${index + 1}\nUtilisateur: ${row.question.slice(0, 1200)}\nAssistant: ${row.answer.slice(0, 1800)}`,
+      )
+      .join('\n\n');
   }
 
   private resolveHelpPath(

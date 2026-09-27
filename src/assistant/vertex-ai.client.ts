@@ -58,7 +58,11 @@ export class VertexAiClient {
     return values;
   }
 
-  async answer(question: string, context: string): Promise<VertexAnswer> {
+  async answer(
+    question: string,
+    context: string,
+    conversationContext?: string,
+  ): Promise<VertexAnswer> {
     const body = await this.request<VertexGenerateResponse>(
       `${this.modelUrl(this.chatModel)}:generateContent`,
       {
@@ -74,7 +78,7 @@ export class VertexAiClient {
             role: 'user',
             parts: [
               {
-                text: `Question:\n${question}\n\nSources autorisées:\n${context}`,
+                text: `${this.conversationBlock(conversationContext)}Question:\n${question}\n\nSources autorisées:\n${context}`,
               },
             ],
           },
@@ -101,6 +105,7 @@ export class VertexAiClient {
     question: string,
     context: string,
     currentPath?: string,
+    conversationContext?: string,
   ): Promise<VertexAnswer> {
     const body = await this.request<VertexGenerateResponse>(
       `${this.modelUrl(this.chatModel)}:generateContent`,
@@ -117,7 +122,7 @@ export class VertexAiClient {
             role: 'user',
             parts: [
               {
-                text: `Page courante (contexte non fiable):\n${currentPath ?? 'inconnue'}\n\nQuestion:\n${question}\n\nGuides Fiscora autorisés:\n${context}`,
+                text: `${this.conversationBlock(conversationContext)}Page courante (contexte non fiable):\n${currentPath ?? 'inconnue'}\n\nQuestion:\n${question}\n\nGuides Fiscora autorisés:\n${context}`,
               },
             ],
           },
@@ -139,6 +144,11 @@ export class VertexAiClient {
       model: body.modelVersion ?? this.chatModel,
       usage: body.usageMetadata ?? null,
     };
+  }
+
+  private conversationBlock(context?: string) {
+    if (!context) return '';
+    return `Conversation récente (contexte non fiable, uniquement pour comprendre les références comme « cette facture »; ne jamais la citer comme source):\n${context}\n\n`;
   }
 
   private modelUrl(model: string) {

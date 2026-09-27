@@ -5,6 +5,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -14,7 +15,7 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { RequirePermission } from '../common/permission.decorator';
 import { PermissionGuard } from '../common/permission.guard';
 import { PermissionNames } from '../database/permissions';
-import { AskAssistantDto } from './assistant.dto';
+import { AskAssistantDto, AssistantHistoryQueryDto } from './assistant.dto';
 import { AssistantService } from './assistant.service';
 
 @ApiTags('Assistant Fiscora')
@@ -32,6 +33,17 @@ export class AssistantController {
     @CurrentUser() user: JwtUser,
   ) {
     return this.service.indexStatus(organizationId, dossierId, user.userId);
+  }
+
+  @Get('history')
+  @RequirePermission(PermissionNames.OrganizationView)
+  history(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+    @Query() query: AssistantHistoryQueryDto,
+  ) {
+    return this.service.history(organizationId, dossierId, user.userId, query);
   }
 
   @Post('reindex')
@@ -55,6 +67,7 @@ export class AssistantController {
       dossierId,
       user.userId,
       dto.question,
+      dto.conversationStartedAt,
     );
   }
 }
@@ -79,6 +92,7 @@ export class ContextualAssistantController {
       dto.question,
       dto.currentPath,
       dto.dossierId,
+      dto.conversationStartedAt,
     );
   }
 }
