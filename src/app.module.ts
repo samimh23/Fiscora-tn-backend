@@ -98,6 +98,7 @@ import { ClientCommercialWorkflow1784387000000 } from './database/migrations/178
 import { PublicDocumentRequestLinks1784388000000 } from './database/migrations/1784388000000-public-document-request-links';
 import { UserMfa1784389000000 } from './database/migrations/1784389000000-user-mfa';
 import { AutomaticAiIndexing1784390000000 } from './database/migrations/1784390000000-automatic-ai-indexing';
+import { AssistantHistoryIndex1784391000000 } from './database/migrations/1784391000000-assistant-history-index';
 
 @Module({
   imports: [
@@ -176,6 +177,7 @@ import { AutomaticAiIndexing1784390000000 } from './database/migrations/17843900
           PublicDocumentRequestLinks1784388000000,
           UserMfa1784389000000,
           AutomaticAiIndexing1784390000000,
+          AssistantHistoryIndex1784391000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,
