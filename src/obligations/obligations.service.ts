@@ -31,6 +31,7 @@ import {
   UpdateObligationProgressDto,
 } from './dto';
 import { buildObligationPeriods } from './obligation-calendar';
+import { FiscalWorkflowService } from '../workflow/fiscal-workflow.service';
 
 @Injectable()
 export class ObligationsService {
@@ -48,6 +49,7 @@ export class ObligationsService {
     private readonly tasks: Repository<WorkTask>,
     @InjectRepository(TaskChecklistItem)
     private readonly checklistItems: Repository<TaskChecklistItem>,
+    private readonly workflow: FiscalWorkflowService,
   ) {}
 
   async getTemplates(organizationId: string) {
@@ -310,35 +312,17 @@ export class ObligationsService {
       dossierId,
       actorUserId,
     );
+    await this.workflow.transitionObligation(
+      { organizationId, dossierId, actorUserId },
+      obligationId,
+      dto.status,
+      'progress',
+      { lastComment: this.clean(dto.comment) },
+    );
     const instance = await this.getInstance(
       organizationId,
       dossierId,
       obligationId,
-    );
-    const allowed =
-      (dto.status === ObligationStatus.InProgress &&
-        [ObligationStatus.NotStarted, ObligationStatus.InProgress].includes(
-          instance.status,
-        )) ||
-      (dto.status === ObligationStatus.ReadyForReview &&
-        instance.status === ObligationStatus.InProgress);
-    if (!allowed) {
-      throw new ConflictException(
-        `Transition interdite de ${instance.status} vers ${dto.status}.`,
-      );
-    }
-    instance.status = dto.status;
-    instance.lastComment = this.clean(dto.comment);
-    await this.instances.save(instance);
-    await this.tasks.update(
-      { obligationId: instance.id },
-      {
-        status:
-          dto.status === ObligationStatus.ReadyForReview
-            ? WorkTaskStatus.ReadyForReview
-            : WorkTaskStatus.InProgress,
-        lastComment: this.clean(dto.comment),
-      },
     );
     await this.auditStatus(instance, actorUserId, 'obligation.progressed');
     return this.toInstance(instance);
@@ -355,23 +339,16 @@ export class ObligationsService {
       dossierId,
       actorUserId,
     );
+    await this.workflow.transitionObligation(
+      { organizationId, dossierId, actorUserId },
+      obligationId,
+      ObligationStatus.Validated,
+      'validate',
+    );
     const instance = await this.getInstance(
       organizationId,
       dossierId,
       obligationId,
-    );
-    this.requireStatus(instance, ObligationStatus.ReadyForReview);
-    instance.status = ObligationStatus.Validated;
-    instance.validatedAtUtc = new Date();
-    instance.validatedByUserId = actorUserId;
-    await this.instances.save(instance);
-    await this.tasks.update(
-      { obligationId: instance.id },
-      {
-        status: WorkTaskStatus.Completed,
-        completedAtUtc: new Date(),
-        completedByUserId: actorUserId,
-      },
     );
     await this.auditStatus(instance, actorUserId, 'obligation.validated');
     return this.toInstance(instance);
@@ -389,23 +366,17 @@ export class ObligationsService {
       dossierId,
       actorUserId,
     );
+    await this.workflow.transitionObligation(
+      { organizationId, dossierId, actorUserId },
+      obligationId,
+      ObligationStatus.InProgress,
+      'reject',
+      { lastComment: comment.trim() },
+    );
     const instance = await this.getInstance(
       organizationId,
       dossierId,
       obligationId,
-    );
-    this.requireStatus(instance, ObligationStatus.ReadyForReview);
-    instance.status = ObligationStatus.InProgress;
-    instance.lastComment = comment.trim();
-    await this.instances.save(instance);
-    await this.tasks.update(
-      { obligationId: instance.id },
-      {
-        status: WorkTaskStatus.InProgress,
-        lastComment: comment.trim(),
-        completedAtUtc: null,
-        completedByUserId: null,
-      },
     );
     await this.auditStatus(instance, actorUserId, 'obligation.rejected');
     return this.toInstance(instance);
@@ -428,17 +399,24 @@ export class ObligationsService {
       dossierId,
       obligationId,
     );
-    this.requireStatus(instance, ObligationStatus.Validated);
-    instance.status = ObligationStatus.Filed;
-    instance.filedAtUtc = dto.filedAtUtc
-      ? new Date(dto.filedAtUtc)
-      : new Date();
-    instance.filedByUserId = actorUserId;
-    instance.amountDue = dto.amountDue ?? instance.amountDue;
-    instance.notes = this.clean(dto.notes) ?? instance.notes;
-    await this.instances.save(instance);
-    await this.auditStatus(instance, actorUserId, 'obligation.filed');
-    return this.toInstance(instance);
+    await this.workflow.transitionObligation(
+      { organizationId, dossierId, actorUserId },
+      obligationId,
+      ObligationStatus.Filed,
+      'file',
+      {
+        filedAtUtc: dto.filedAtUtc ? new Date(dto.filedAtUtc) : new Date(),
+        amountDue: dto.amountDue ?? instance.amountDue,
+        notes: this.clean(dto.notes) ?? instance.notes,
+      },
+    );
+    const saved = await this.getInstance(
+      organizationId,
+      dossierId,
+      obligationId,
+    );
+    await this.auditStatus(saved, actorUserId, 'obligation.filed');
+    return this.toInstance(saved);
   }
 
   async pay(
@@ -453,22 +431,21 @@ export class ObligationsService {
       dossierId,
       actorUserId,
     );
+    await this.workflow.transitionObligation(
+      { organizationId, dossierId, actorUserId },
+      obligationId,
+      ObligationStatus.Paid,
+      'pay',
+      {
+        amountPaid: dto.amountPaid,
+        paymentReference: this.clean(dto.paymentReference),
+      },
+    );
     const instance = await this.getInstance(
       organizationId,
       dossierId,
       obligationId,
     );
-    if (
-      ![ObligationStatus.Filed, ObligationStatus.Paid].includes(instance.status)
-    ) {
-      throw new ConflictException(
-        "L'obligation doit être déposée avant d'enregistrer son paiement.",
-      );
-    }
-    instance.status = ObligationStatus.Paid;
-    instance.amountPaid = dto.amountPaid;
-    instance.paymentReference = this.clean(dto.paymentReference);
-    await this.instances.save(instance);
     await this.auditStatus(instance, actorUserId, 'obligation.paid');
     return this.toInstance(instance);
   }
@@ -496,17 +473,6 @@ export class ObligationsService {
     });
     if (!instance) throw new NotFoundException("L'obligation est introuvable.");
     return instance;
-  }
-
-  private requireStatus(
-    instance: ObligationInstance,
-    expected: ObligationStatus,
-  ) {
-    if (instance.status !== expected) {
-      throw new ConflictException(
-        `L'obligation doit être au statut ${expected}.`,
-      );
-    }
   }
 
   private toTemplate(item: ObligationTemplate) {

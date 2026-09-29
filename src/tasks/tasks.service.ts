@@ -10,8 +10,6 @@ import {
   AuditLog,
   DossierAssignment,
   DossierAssignmentRole,
-  ObligationInstance,
-  ObligationStatus,
   OrganizationMembership,
   TaskChecklistItem,
   TaskComment,
@@ -22,6 +20,7 @@ import {
 import { PermissionNames, SystemRoleNames } from '../database/permissions';
 import { DossiersService } from '../dossiers/dossiers.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { FiscalWorkflowService } from '../workflow/fiscal-workflow.service';
 import {
   CreateTaskDto,
   TaskQueryDto,
@@ -46,9 +45,8 @@ export class TasksService {
     private readonly memberships: Repository<OrganizationMembership>,
     @InjectRepository(AuditLog)
     private readonly auditLogs: Repository<AuditLog>,
-    @InjectRepository(ObligationInstance)
-    private readonly obligations: Repository<ObligationInstance>,
     private readonly notifications: NotificationsService,
+    private readonly workflow: FiscalWorkflowService,
   ) {}
 
   async listCabinet(
@@ -194,22 +192,14 @@ export class TasksService {
       dossierId,
       actorUserId,
     );
+    await this.workflow.transitionTask(
+      { organizationId, dossierId, actorUserId },
+      taskId,
+      dto.status,
+      'progress',
+      this.clean(dto.comment),
+    );
     const task = await this.getTaskEntity(organizationId, dossierId, taskId);
-    const allowed =
-      (dto.status === WorkTaskStatus.InProgress &&
-        [WorkTaskStatus.Todo, WorkTaskStatus.InProgress].includes(
-          task.status,
-        )) ||
-      (dto.status === WorkTaskStatus.ReadyForReview &&
-        task.status === WorkTaskStatus.InProgress);
-    if (!allowed) {
-      throw new ConflictException(
-        `Transition interdite de ${task.status} vers ${dto.status}.`,
-      );
-    }
-    task.status = dto.status;
-    task.lastComment = this.clean(dto.comment);
-    await this.tasks.save(task);
     if (dto.status === WorkTaskStatus.ReadyForReview) {
       await this.notifyOwners(
         organizationId,
@@ -217,18 +207,6 @@ export class TasksService {
         'Tâche prête pour révision',
         `La tâche « ${task.title} » attend votre validation.`,
         'TASK_READY_FOR_REVIEW',
-      );
-    }
-    if (task.obligationId) {
-      await this.obligations.update(
-        { id: task.obligationId, organizationId, dossierId },
-        {
-          status:
-            dto.status === WorkTaskStatus.ReadyForReview
-              ? ObligationStatus.ReadyForReview
-              : ObligationStatus.InProgress,
-          lastComment: this.clean(dto.comment),
-        },
       );
     }
     await this.addAudit(
@@ -252,42 +230,16 @@ export class TasksService {
       dossierId,
       actorUserId,
     );
-    const task = await this.getTaskEntity(organizationId, dossierId, taskId);
-    if (task.status !== WorkTaskStatus.ReadyForReview) {
-      throw new ConflictException(
-        'La tâche doit être prête pour révision avant sa validation.',
-      );
-    }
-    const incompleteItems = await this.checklistItems.count({
-      where: { taskId, isCompleted: false },
-    });
-    if (incompleteItems > 0) {
-      throw new ConflictException(
-        'Tous les éléments de la checklist doivent être terminés.',
-      );
-    }
-    task.status = WorkTaskStatus.Completed;
-    task.completedAtUtc = new Date();
-    task.completedByUserId = actorUserId;
-    await this.tasks.save(task);
-    if (task.obligationId) {
-      await this.obligations.update(
-        { id: task.obligationId, organizationId, dossierId },
-        {
-          status: ObligationStatus.Validated,
-          validatedAtUtc: new Date(),
-          validatedByUserId: actorUserId,
-        },
-      );
-    }
-    await this.addAudit(
-      organizationId,
-      actorUserId,
-      'task.completed',
-      task.id,
-      { dossierId },
+    await this.workflow.transitionTask(
+      { organizationId, dossierId, actorUserId },
+      taskId,
+      WorkTaskStatus.Completed,
+      'validate',
     );
-    return this.getTask(organizationId, dossierId, task.id);
+    await this.addAudit(organizationId, actorUserId, 'task.completed', taskId, {
+      dossierId,
+    });
+    return this.getTask(organizationId, dossierId, taskId);
   }
 
   async reject(
@@ -302,15 +254,14 @@ export class TasksService {
       dossierId,
       actorUserId,
     );
+    await this.workflow.transitionTask(
+      { organizationId, dossierId, actorUserId },
+      taskId,
+      WorkTaskStatus.InProgress,
+      'reject',
+      comment.trim(),
+    );
     const task = await this.getTaskEntity(organizationId, dossierId, taskId);
-    if (task.status !== WorkTaskStatus.ReadyForReview) {
-      throw new ConflictException(
-        'Seule une tâche prête pour révision peut être rejetée.',
-      );
-    }
-    task.status = WorkTaskStatus.InProgress;
-    task.lastComment = comment.trim();
-    await this.tasks.save(task);
     if (task.assigneeMembershipId) {
       const assignee = await this.memberships.findOneBy({
         id: task.assigneeMembershipId,
@@ -328,15 +279,6 @@ export class TasksService {
           deduplicationKey: `task:${task.id}:rejected:${Date.now()}`,
         });
       }
-    }
-    if (task.obligationId) {
-      await this.obligations.update(
-        { id: task.obligationId, organizationId, dossierId },
-        {
-          status: ObligationStatus.InProgress,
-          lastComment: comment.trim(),
-        },
-      );
     }
     await this.addComment(
       organizationId,
@@ -413,19 +355,24 @@ export class TasksService {
       dossierId,
       actorUserId,
     );
-    const task = await this.getTaskEntity(organizationId, dossierId, taskId);
-    this.ensureEditable(task);
-    const position = await this.checklistItems.count({ where: { taskId } });
-    const item = await this.checklistItems.save(
-      this.checklistItems.create({
-        organizationId,
-        taskId,
-        label: label.trim(),
-        position,
-        isCompleted: false,
-        completedAtUtc: null,
-        completedByUserId: null,
-      }),
+    const item = await this.workflow.editChecklist(
+      { organizationId, dossierId, actorUserId },
+      taskId,
+      async (manager) => {
+        const checklist = manager.getRepository(TaskChecklistItem);
+        const position = await checklist.count({ where: { taskId } });
+        return checklist.save(
+          checklist.create({
+            organizationId,
+            taskId,
+            label: label.trim(),
+            position,
+            isCompleted: false,
+            completedAtUtc: null,
+            completedByUserId: null,
+          }),
+        );
+      },
     );
     return this.toChecklistItem(item);
   }
@@ -443,22 +390,29 @@ export class TasksService {
       dossierId,
       actorUserId,
     );
-    const task = await this.getTaskEntity(organizationId, dossierId, taskId);
-    this.ensureEditable(task);
-    const item = await this.checklistItems.findOneBy({
-      id: itemId,
-      organizationId,
+    const item = await this.workflow.editChecklist(
+      { organizationId, dossierId, actorUserId },
       taskId,
-    });
-    if (!item)
-      throw new NotFoundException("L'élément de checklist est introuvable.");
-    if (dto.label !== undefined) item.label = dto.label.trim();
-    if (dto.isCompleted !== undefined) {
-      item.isCompleted = dto.isCompleted;
-      item.completedAtUtc = dto.isCompleted ? new Date() : null;
-      item.completedByUserId = dto.isCompleted ? actorUserId : null;
-    }
-    await this.checklistItems.save(item);
+      async (manager) => {
+        const checklist = manager.getRepository(TaskChecklistItem);
+        const item = await checklist.findOneBy({
+          id: itemId,
+          organizationId,
+          taskId,
+        });
+        if (!item)
+          throw new NotFoundException(
+            "L'élément de checklist est introuvable.",
+          );
+        if (dto.label !== undefined) item.label = dto.label.trim();
+        if (dto.isCompleted !== undefined) {
+          item.isCompleted = dto.isCompleted;
+          item.completedAtUtc = dto.isCompleted ? new Date() : null;
+          item.completedByUserId = dto.isCompleted ? actorUserId : null;
+        }
+        return checklist.save(item);
+      },
+    );
     return this.toChecklistItem(item);
   }
 

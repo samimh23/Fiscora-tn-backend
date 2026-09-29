@@ -15,12 +15,14 @@ import { DossiersModule } from '../dossiers/dossiers.module';
 import { DeclarationsController } from './declarations.controller';
 import { DeclarationsService } from './declarations.service';
 import { FiscalSettingsModule } from '../fiscal-settings/fiscal-settings.module';
+import { FiscalWorkflowModule } from '../workflow/fiscal-workflow.module';
 
 @Module({
   imports: [
     AuthModule,
     DossiersModule,
     FiscalSettingsModule,
+    FiscalWorkflowModule,
     TypeOrmModule.forFeature([
       MonthlyTaxDeclaration,
       ObligationInstance,

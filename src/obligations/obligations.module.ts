@@ -14,11 +14,13 @@ import {
 import { DossiersModule } from '../dossiers/dossiers.module';
 import { ObligationsController } from './obligations.controller';
 import { ObligationsService } from './obligations.service';
+import { FiscalWorkflowModule } from '../workflow/fiscal-workflow.module';
 
 @Module({
   imports: [
     AuthModule,
     DossiersModule,
+    FiscalWorkflowModule,
     TypeOrmModule.forFeature([
       ObligationTemplate,
       ObligationInstance,

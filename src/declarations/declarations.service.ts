@@ -21,12 +21,12 @@ import {
   MonthlyDeclarationStatus,
   MonthlyTaxDeclaration,
   ObligationInstance,
-  ObligationStatus,
   PayrollRun,
   PayrollRunStatus,
 } from '../database/entities';
 import { DossiersService } from '../dossiers/dossiers.service';
 import { FiscalSettingsService } from '../fiscal-settings/fiscal-settings.service';
+import { FiscalWorkflowService } from '../workflow/fiscal-workflow.service';
 import {
   DeclarationPeriodDto,
   FileMonthlyDeclarationDto,
@@ -63,6 +63,7 @@ export class DeclarationsService {
     private readonly auditLogs: Repository<AuditLog>,
     private readonly dossiers: DossiersService,
     private readonly fiscalSettings: FiscalSettingsService,
+    private readonly workflow: FiscalWorkflowService,
   ) {}
 
   async list(
@@ -206,11 +207,16 @@ export class DeclarationsService {
       throw new ConflictException('La déclaration n’est plus modifiable.');
     await this.ensureSourcesAreCurrent(item, userId);
     this.ensureNoBlockingChecks(item);
+    const previousStatus = item.status;
     item.status = MonthlyDeclarationStatus.ReadyForReview;
     item.reviewedByUserId = userId;
     item.reviewedAtUtc = new Date();
     item.reviewComment = comment?.trim() || null;
-    const saved = await this.declarations.save(item);
+    const saved = await this.workflow.saveDeclaration(
+      item,
+      previousStatus,
+      userId,
+    );
     await this.audit(
       organizationId,
       userId,
@@ -240,7 +246,11 @@ export class DeclarationsService {
       );
     item.status = MonthlyDeclarationStatus.Rejected;
     item.reviewComment = comment.trim();
-    const saved = await this.declarations.save(item);
+    const saved = await this.workflow.saveDeclaration(
+      item,
+      MonthlyDeclarationStatus.ReadyForReview,
+      userId,
+    );
     await this.audit(
       organizationId,
       userId,
@@ -273,18 +283,11 @@ export class DeclarationsService {
     item.validatedByUserId = userId;
     item.validatedAtUtc = new Date();
     item.snapshotJson = this.snapshot(item);
-    if (item.obligationId) {
-      await this.obligations.update(
-        { id: item.obligationId, organizationId },
-        {
-          status: ObligationStatus.Validated,
-          amountDue: item.totalDue,
-          validatedByUserId: userId,
-          validatedAtUtc: new Date(),
-        },
-      );
-    }
-    const saved = await this.declarations.save(item);
+    const saved = await this.workflow.saveDeclaration(
+      item,
+      MonthlyDeclarationStatus.ReadyForReview,
+      userId,
+    );
     await this.audit(
       organizationId,
       userId,
@@ -326,19 +329,11 @@ export class DeclarationsService {
     item.filedByUserId = userId;
     item.filingReference = dto.filingReference.trim();
     item.receiptDocumentId = dto.receiptDocumentId ?? null;
-    if (item.obligationId) {
-      await this.obligations.update(
-        { id: item.obligationId, organizationId },
-        {
-          status: ObligationStatus.Filed,
-          amountDue: item.totalDue,
-          filedByUserId: userId,
-          filedAtUtc: new Date(),
-          paymentReference: item.filingReference,
-        },
-      );
-    }
-    const saved = await this.declarations.save(item);
+    const saved = await this.workflow.saveDeclaration(
+      item,
+      MonthlyDeclarationStatus.Validated,
+      userId,
+    );
     await this.audit(
       organizationId,
       userId,
@@ -803,7 +798,7 @@ export class DeclarationsService {
         'Les factures ou la paie ont changé. Recalculez la déclaration avant de continuer.',
       );
     item.checksJson = current.checks;
-    await this.declarations.save(item);
+    // Persist these checks with the transition, not in a separate pre-validation write.
   }
 
   private ensureNoBlockingChecks(item: MonthlyTaxDeclaration) {

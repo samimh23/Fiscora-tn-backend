@@ -15,12 +15,14 @@ import { DossiersModule } from '../dossiers/dossiers.module';
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { FiscalWorkflowModule } from '../workflow/fiscal-workflow.module';
 
 @Module({
   imports: [
     AuthModule,
     DossiersModule,
     NotificationsModule,
+    FiscalWorkflowModule,
     TypeOrmModule.forFeature([
       WorkTask,
       TaskChecklistItem,
