@@ -19,6 +19,7 @@ import {
 } from '../database/entities';
 
 const money = /^\d+(\.\d{1,3})?$/;
+const signedMoney = /^-?\d+(\.\d{1,3})?$/;
 const rate = /^\d+(\.\d{1,5})?$/;
 const quantity = /^\d+(\.\d{1,3})?$/;
 
@@ -33,7 +34,10 @@ export class BusinessInvoiceLineDto {
   @Matches(quantity)
   quantity = '1.000';
 
-  @Matches(money)
+  @Matches(signedMoney, {
+    message:
+      'Le prix unitaire doit être un nombre signé avec au maximum trois décimales.',
+  })
   unitPrice!: string;
 
   @IsOptional()

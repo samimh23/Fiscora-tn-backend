@@ -23,6 +23,7 @@ interface ChatCompletionResponse {
 
 const INVOICE_TEMPLATE = {
   document_type: ['invoice', 'credit_note', 'receipt'],
+  invoice_nature: ['BIENS', 'SERVICES', 'MIXTE', 'INDETERMINE'],
   supplier: {
     name: 'verbatim-string',
     tax_id: 'verbatim-string',
@@ -54,6 +55,7 @@ const INVOICE_TEMPLATE = {
       reference: 'verbatim-string',
       barcode: 'verbatim-string',
       description: 'verbatim-string',
+      item_nature: ['BIENS', 'SERVICES', 'INDETERMINE'],
       quantity: 'verbatim-string',
       unit_price: 'verbatim-string',
       unit_price_basis: ['HT', 'TTC', 'unknown'],
@@ -359,6 +361,15 @@ export function nuextractInstructions(
         )
         .join('\n')}\n`
     : '';
+  const classification =
+    documentKind === 'invoice'
+      ? `
+- Only invoice_nature and line_items.item_nature are semantic classifications, not verbatim facts. All other fields must remain strictly extractive.
+- Classify billed descriptions: BIENS means physical products, equipment or merchandise; SERVICES means work, subscriptions, internet access, repairs, consulting or maintenance. Do not classify from the supplier name alone.
+- A negative adjustment has the same nature as the related billed item; its minus sign does not make it a different nature.
+- Classify every visible line as BIENS, SERVICES or INDETERMINE. Use INDETERMINE when the description is insufficient or ambiguous; do not guess.
+- invoice_nature is BIENS if all lines are goods, SERVICES if all lines are services, MIXTE if both are present, and INDETERMINE if any line is uncertain. Classify only the lines visible on these supplied pages.`
+      : '';
   return `Extract this ${typeLabel} into the supplied JSON template.
 - Copy only values visibly present in the source.
 - Preserve monetary strings exactly, including spaces, commas, points and leading zeros.
@@ -374,7 +385,7 @@ export function nuextractInstructions(
 - additional_fields contains only nonempty label/value pairs for useful metadata not already represented by standard fields or line_items. Exclude repeated dates, document numbers, totals, tax amounts and line-item columns. Return [] when there is no such metadata.
 - supplier.tax_id and customer.tax_id must come only from labels such as MF, matricule fiscal or tax ID.
 - Never use an IBAN, RIB, bank account, phone, barcode, RC or registration number as a tax_id.
-- Return JSON only.${corrections}`;
+- Return JSON only.${classification}${corrections}`;
 }
 
 export function nuextractOcrInstructions(

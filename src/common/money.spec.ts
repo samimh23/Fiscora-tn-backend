@@ -1,4 +1,4 @@
-import { fromMillimes, multiplyRate, toMillimes } from './money';
+import { divideRounded, fromMillimes, multiplyRate, toMillimes } from './money';
 
 describe('Calculs monétaires en millimes', () => {
   it('conserve exactement les trois décimales du TND', () => {
@@ -10,5 +10,15 @@ describe('Calculs monétaires en millimes', () => {
     expect(fromMillimes(multiplyRate(toMillimes('10000.000'), '0.02000'))).toBe(
       '200.000',
     );
+  });
+
+  it('préserve les ajustements négatifs sans perdre un millime', () => {
+    expect(toMillimes('-38.941')).toBe(-38941n);
+    expect(fromMillimes(-38941n)).toBe('-38.941');
+    expect(divideRounded(-38941n * 1000n, 1000n)).toBe(-38941n);
+    expect(multiplyRate(-38941n, '0.07000')).toBe(-2726n);
+    expect(multiplyRate(38941n, '0.07000')).toBe(2726n);
+    expect(divideRounded(-1500n, 1000n)).toBe(-2n);
+    expect(divideRounded(1500n, 1000n)).toBe(2n);
   });
 });

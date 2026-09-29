@@ -3,6 +3,66 @@ import { InvoiceExtractionValidator } from './invoice-extraction.validator';
 describe('InvoiceExtractionValidator', () => {
   const validator = new InvoiceExtractionValidator();
 
+  it.each(['BIENS', 'SERVICES', 'MIXTE'])(
+    'keeps a valid invoice nature suggestion: %s',
+    (nature) => {
+      expect(
+        validator.validate({ invoice_nature: nature }).normalizedData
+          .invoice_nature,
+      ).toBe(nature);
+    },
+  );
+
+  it('aggregates nature across merged page lines including negative adjustments', () => {
+    const input = {
+      invoice_nature: 'SERVICES',
+      line_items: [
+        {
+          description: 'Abonnement internet',
+          unit_price: '-38.941',
+          item_nature: 'SERVICES',
+        },
+        { description: 'Routeur', unit_price: '94.374', item_nature: 'BIENS' },
+      ],
+    };
+    const result = validator.validate(input);
+    expect(result.normalizedData.invoice_nature).toBe('MIXTE');
+    expect(
+      (result.normalizedData.line_items as Array<Record<string, unknown>>)[0]
+        .unit_price,
+    ).toBe(-38.941);
+    expect(input.invoice_nature).toBe('SERVICES');
+  });
+
+  it.each(['INDETERMINE', 'invalid', null])(
+    'requires manual selection for an uncertain nature: %s',
+    (nature) => {
+      const result = validator.validate({ invoice_nature: nature });
+      expect(result.normalizedData.invoice_nature).toBe('INDETERMINE');
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          code: 'INVOICE_NATURE_UNCERTAIN',
+          severity: 'WARNING',
+        }),
+      );
+    },
+  );
+
+  it('does not trust a global category when a line is ambiguous', () => {
+    const result = validator.validate({
+      invoice_nature: 'BIENS',
+      line_items: [{ item_nature: 'BIENS' }, { item_nature: null }],
+    });
+    expect(result.normalizedData.invoice_nature).toBe('INDETERMINE');
+  });
+
+  it('does not add a nature suggestion to legacy extractions', () => {
+    expect(
+      validator.validate({ line_items: [{ description: 'Ancienne pièce' }] })
+        .normalizedData,
+    ).not.toHaveProperty('invoice_nature');
+  });
+
   it.each([
     ['26/03/2024', '2024-03-26'],
     ['03/04/2024', '2024-04-03'],

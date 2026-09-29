@@ -211,6 +211,7 @@ export class InvoiceExtractionValidator {
       };
     });
     normalizedData.line_items = normalizedLines;
+    this.normalizeInvoiceNature(input, normalizedData, issues);
     this.cleanAdditionalFields(input, normalizedData);
     normalizedLines.forEach((line, index) => {
       const item = this.record(line);
@@ -427,6 +428,46 @@ export class InvoiceExtractionValidator {
     return value && typeof value === 'object' && !Array.isArray(value)
       ? (value as Record<string, unknown>)
       : null;
+  }
+
+  private normalizeInvoiceNature(
+    input: Record<string, unknown>,
+    normalizedData: Record<string, unknown>,
+    issues: ExtractionValidationIssue[],
+  ) {
+    const lines = Array.isArray(normalizedData.line_items)
+      ? normalizedData.line_items.map((line) => this.record(line) ?? {})
+      : [];
+    const hasLineClassification = lines.some((line) => 'item_nature' in line);
+    // Old extractions have no suggestion; do not manufacture a classification.
+    if (!('invoice_nature' in input) && !hasLineClassification) return;
+    const valid = (value: unknown) => value === 'BIENS' || value === 'SERVICES';
+    let nature = ['BIENS', 'SERVICES', 'MIXTE'].includes(
+      String(input.invoice_nature),
+    )
+      ? String(input.invoice_nature)
+      : 'INDETERMINE';
+    if (hasLineClassification) {
+      for (const line of lines)
+        if (!valid(line.item_nature)) line.item_nature = 'INDETERMINE';
+      // Aggregate all lines after PDF batches have been merged, not just the
+      // invoice-level suggestion from the first page.
+      nature = lines.every((line) => valid(line.item_nature))
+        ? new Set(lines.map((line) => line.item_nature)).size > 1
+          ? 'MIXTE'
+          : String(lines[0].item_nature)
+        : 'INDETERMINE';
+      normalizedData.line_items = lines;
+    }
+    normalizedData.invoice_nature = nature;
+    if (nature === 'INDETERMINE')
+      issues.push(
+        this.warning(
+          'INVOICE_NATURE_UNCERTAIN',
+          'invoice_nature',
+          'La nature biens/services est incertaine. Choisissez-la lors de la création de la facture.',
+        ),
+      );
   }
 
   private text(value: unknown) {

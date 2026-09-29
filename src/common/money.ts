@@ -28,5 +28,15 @@ export function multiplyRate(amount: bigint, rate: string): bigint {
   }
   const [whole, fraction = ''] = rate.split('.');
   const scaledRate = BigInt(whole) * 100000n + BigInt(fraction.padEnd(5, '0'));
-  return (amount * scaledRate + 50000n) / 100000n;
+  return divideRounded(amount * scaledRate, 100000n);
+}
+
+// BigInt division truncates toward zero. Round the absolute value first so
+// negative adjustment lines have exactly the same precision as positive ones.
+export function divideRounded(amount: bigint, divisor: bigint): bigint {
+  if (divisor <= 0n)
+    throw new Error('Le diviseur doit être strictement positif.');
+  const absolute = amount < 0n ? -amount : amount;
+  const rounded = (absolute + divisor / 2n) / divisor;
+  return amount < 0n ? -rounded : rounded;
 }

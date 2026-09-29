@@ -7,7 +7,12 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, IsNull, Repository } from 'typeorm';
 import PDFDocument from 'pdfkit';
-import { fromMillimes, multiplyRate, toMillimes } from '../common/money';
+import {
+  divideRounded,
+  fromMillimes,
+  multiplyRate,
+  toMillimes,
+} from '../common/money';
 import {
   AccountingDocument,
   AccountingJournal,
@@ -259,7 +264,7 @@ export class BusinessInvoicesService {
         throw new ConflictException(
           'L’attestation de suspension n’est pas valide à cette date.',
         );
-      if (toMillimes(calculation.header.vatAmount) > 0n)
+      if (toMillimes(calculation.header.vatAmount) !== 0n)
         throw new BadRequestException(
           'La TVA doit être nulle sur une facture couverte par une attestation de suspension.',
         );
@@ -380,6 +385,19 @@ export class BusinessInvoicesService {
     );
     if (invoice.status !== BusinessInvoiceStatus.Draft)
       throw new ConflictException('La facture n’est plus en brouillon.');
+    const accountingLines = this.accountingLines(invoice);
+    const totalDebit = accountingLines.reduce(
+      (sum, line) => sum + toMillimes(line.debit),
+      0n,
+    );
+    const totalCredit = accountingLines.reduce(
+      (sum, line) => sum + toMillimes(line.credit),
+      0n,
+    );
+    if (totalDebit !== totalCredit)
+      throw new BadRequestException(
+        'L’écriture de la facture n’est pas équilibrée.',
+      );
     return this.dataSource.transaction(async (manager) => {
       const entry = await manager.save(
         manager.create(JournalEntry, {
@@ -394,8 +412,8 @@ export class BusinessInvoicesService {
               300,
             ),
           status: JournalEntryStatus.Draft,
-          totalDebit: invoice.grossAmount,
-          totalCredit: invoice.grossAmount,
+          totalDebit: fromMillimes(totalDebit),
+          totalCredit: fromMillimes(totalCredit),
           sourceDocumentId: invoice.sourceDocumentId,
           createdByUserId: userId,
           postedByUserId: null,
@@ -403,7 +421,7 @@ export class BusinessInvoicesService {
           reversalEntryId: null,
         }),
       );
-      const lines = this.accountingLines(invoice).map((line) =>
+      const lines = accountingLines.map((line) =>
         manager.create(JournalEntryLine, {
           organizationId,
           entryId: entry.id,
@@ -648,7 +666,15 @@ export class BusinessInvoicesService {
       dto.lines.map(async (line) => {
         const quantity = toMillimes(line.quantity, 'Quantité');
         const unitPrice = toMillimes(line.unitPrice, 'Prix unitaire');
-        const beforeDiscount = (quantity * unitPrice + 500n) / 1000n;
+        if (quantity <= 0n)
+          throw new BadRequestException(
+            'La quantité doit être strictement positive.',
+          );
+        if (Number(line.discountRate ?? '0') > 1)
+          throw new BadRequestException(
+            'La remise ne peut pas dépasser 100 %.',
+          );
+        const beforeDiscount = divideRounded(quantity * unitPrice, 1000n);
         const discount = multiplyRate(
           beforeDiscount,
           line.discountRate ?? '0.00000',
@@ -723,6 +749,10 @@ export class BusinessInvoicesService {
       'Droit de timbre',
     );
     const gross = totalNet + totalExcise + totalVat + stampDuty;
+    if (totalNet < 0n || gross < 0n)
+      throw new BadRequestException(
+        'Les lignes négatives sont autorisées en ajustement, mais le total doit rester positif ou nul. Pour un crédit global, utilisez un avoir.',
+      );
     let withholdingRate: string | null = null;
     let withholdingAmount = 0n;
     let withholdingSnapshot: Record<string, unknown> | null = null;
@@ -820,7 +850,7 @@ export class BusinessInvoicesService {
       throw new BadRequestException(
         'Un compte comptable est inexistant, inactif ou non mouvementable.',
       );
-    if (toMillimes(calculation.header.vatAmount) > 0n && !dto.vatAccountId)
+    if (toMillimes(calculation.header.vatAmount) !== 0n && !dto.vatAccountId)
       throw new BadRequestException(
         'Le compte de TVA est obligatoire lorsque la facture contient de la TVA.',
       );
@@ -829,7 +859,7 @@ export class BusinessInvoicesService {
         'Le compte de timbre est obligatoire lorsque le timbre est appliqué.',
       );
     if (
-      toMillimes(calculation.header.exciseAmount) > 0n &&
+      toMillimes(calculation.header.exciseAmount) !== 0n &&
       !dto.exciseAccountId
     )
       throw new BadRequestException(
@@ -859,7 +889,7 @@ export class BusinessInvoicesService {
       credit: purchase ? '0.000' : line.netAmount,
       thirdPartyName: null,
     }));
-    if (toMillimes(invoice.vatAmount) > 0n)
+    if (toMillimes(invoice.vatAmount) !== 0n)
       lines.push({
         accountId: invoice.vatAccountId!,
         label: purchase ? 'TVA déductible' : 'TVA collectée',
@@ -875,7 +905,7 @@ export class BusinessInvoicesService {
         credit: purchase ? '0.000' : invoice.stampDuty,
         thirdPartyName: null,
       });
-    if (toMillimes(invoice.exciseAmount) > 0n)
+    if (toMillimes(invoice.exciseAmount) !== 0n)
       lines.push({
         accountId: invoice.exciseAccountId!,
         label: 'Droit de consommation',
@@ -898,14 +928,15 @@ export class BusinessInvoicesService {
       credit: purchase ? invoice.netPayable : '0.000',
       thirdPartyName: invoice.thirdPartyName,
     });
-    if (invoice.kind === BusinessInvoiceKind.CreditNote) {
-      return lines.map((line) => ({
+    return lines.map((line) => {
+      let balance = toMillimes(line.debit) - toMillimes(line.credit);
+      if (invoice.kind === BusinessInvoiceKind.CreditNote) balance = -balance;
+      return {
         ...line,
-        debit: line.credit,
-        credit: line.debit,
-      }));
-    }
-    return lines;
+        debit: balance > 0n ? fromMillimes(balance) : '0.000',
+        credit: balance < 0n ? fromMillimes(-balance) : '0.000',
+      };
+    });
   }
 
   private async find(

@@ -11,10 +11,12 @@ describe('NuExtract extraction contract', () => {
 
     expect(template).toMatchObject({
       document_type: ['invoice', 'credit_note', 'receipt'],
+      invoice_nature: ['BIENS', 'SERVICES', 'MIXTE', 'INDETERMINE'],
       tax_amount: 'verbatim-string',
       line_items: [
         expect.objectContaining({
           description: 'verbatim-string',
+          item_nature: ['BIENS', 'SERVICES', 'INDETERMINE'],
           tax_rate: 'verbatim-string',
         }),
       ],
@@ -38,6 +40,7 @@ describe('NuExtract extraction contract', () => {
       },
     });
     expect(template).not.toHaveProperty('line_items');
+    expect(template).not.toHaveProperty('invoice_nature');
   });
 
   it('keeps OCR coordinates in the input but not in the output template', () => {
@@ -77,6 +80,19 @@ describe('NuExtract extraction contract', () => {
 
     expect(prompt).toContain('matricule fiscal');
     expect(prompt).toContain('Never use an IBAN, RIB');
+  });
+
+  it('classifies invoice nature without relaxing extraction of printed facts', () => {
+    const instructions = nuextractInstructions('invoice');
+    expect(instructions).toContain(
+      'semantic classifications, not verbatim facts',
+    );
+    expect(instructions).toContain('internet access');
+    expect(instructions).toContain('negative adjustment');
+    expect(instructions).toContain('do not guess');
+    expect(nuextractInstructions('bank_statement')).not.toContain(
+      'item_nature',
+    );
   });
 });
 
