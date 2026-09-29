@@ -117,6 +117,51 @@ describe('PlatformAdminService', () => {
     expect(overview.totals).not.toHaveProperty('tasksOverdue');
   });
 
+  it.each([
+    {
+      provider: 'azure',
+      values: {
+        OBJECT_STORAGE_PROVIDER: 'azure',
+        AZURE_STORAGE_ACCOUNT_URL: 'https://fiscora.blob.core.windows.net/',
+        AZURE_STORAGE_CONTAINER: 'accounting-documents',
+      },
+      detail: 'Stockage Azure Blob configuré (accounting-documents).',
+    },
+    {
+      provider: 'minio',
+      values: {
+        OBJECT_STORAGE_PROVIDER: 'minio',
+        MINIO_ENDPOINT: 'localhost',
+      },
+      detail: 'Stockage MinIO configuré.',
+    },
+  ])(
+    'reports $provider document storage as configured',
+    async ({ values, detail }) => {
+      const query = jest
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{}]);
+      const service = new PlatformAdminService(
+        { query } as unknown as DataSource,
+        {
+          get: jest.fn((key: string, fallback?: string) =>
+            key in values ? values[key as keyof typeof values] : fallback,
+          ),
+        } as unknown as ConfigService,
+        { sendTestEmail: jest.fn() } as never,
+        { operationalSnapshot: jest.fn() } as never,
+      );
+
+      const overview = await service.overview();
+      const storage = overview.services.find(
+        (item) => item.code === 'OBJECT_STORAGE',
+      );
+
+      expect(storage).toMatchObject({ status: 'CONFIGURE', detail });
+    },
+  );
+
   it('prevents an administrator from disabling their own account', async () => {
     const service = new PlatformAdminService(
       {} as DataSource,

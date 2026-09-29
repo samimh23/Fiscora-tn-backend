@@ -65,6 +65,7 @@ export class PlatformAdminService {
     const totals = this.numericRow(counts);
     const backupConfigured =
       this.config.get('BACKUP_ENABLED', 'false') === 'true';
+    const objectStorage = this.objectStorageStatus();
     const alerts = [
       this.alert(
         'EXTRACTIONS_ECHEC',
@@ -143,12 +144,8 @@ export class PlatformAdminService {
         {
           code: 'OBJECT_STORAGE',
           label: 'Stockage documentaire',
-          status: this.config.get('MINIO_ENDPOINT')
-            ? 'CONFIGURE'
-            : 'NON_CONFIGURE',
-          detail: this.config.get('MINIO_ENDPOINT')
-            ? 'Un endpoint de stockage est configuré.'
-            : 'Aucun endpoint de stockage configuré.',
+          status: objectStorage.configured ? 'CONFIGURE' : 'NON_CONFIGURE',
+          detail: objectStorage.detail,
         },
         {
           code: 'EMAIL',
@@ -652,6 +649,46 @@ export class PlatformAdminService {
 
   private emailConfigured() {
     return Boolean(this.config.get<string>('SMTP_HOST'));
+  }
+
+  private objectStorageStatus() {
+    const provider = this.config
+      .get<string>('OBJECT_STORAGE_PROVIDER', 'minio')
+      .trim()
+      .toLowerCase();
+
+    if (provider === 'azure') {
+      const accountUrl = this.config
+        .get<string>('AZURE_STORAGE_ACCOUNT_URL', '')
+        .trim();
+      const container = this.config
+        .get<string>('AZURE_STORAGE_CONTAINER', 'accounting-documents')
+        .trim();
+      const configured = Boolean(accountUrl && container);
+      return {
+        configured,
+        detail: configured
+          ? `Stockage Azure Blob configuré (${container}).`
+          : 'Configuration Azure Blob incomplète.',
+      };
+    }
+
+    if (provider === 'minio') {
+      const configured = Boolean(
+        this.config.get<string>('MINIO_ENDPOINT', '').trim(),
+      );
+      return {
+        configured,
+        detail: configured
+          ? 'Stockage MinIO configuré.'
+          : 'Aucun endpoint MinIO configuré.',
+      };
+    }
+
+    return {
+      configured: false,
+      detail: `Fournisseur de stockage non pris en charge : ${provider}.`,
+    };
   }
 
   private emailProviderLabel() {
