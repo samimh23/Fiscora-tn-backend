@@ -64,6 +64,7 @@ import {
   UpdateBankAccountDto,
   UpdateBankRuleDto,
 } from './dto';
+import { isBankLedgerAccountCode } from './bank-ledger-account';
 import { PeriodLockService } from '../period-closing/period-lock.service';
 
 @Injectable()
@@ -127,9 +128,9 @@ export class BankReconciliationService {
         isActive: true,
       }),
     ]);
-    if (!account)
+    if (!account || !isBankLedgerAccountCode(account.normalizedCode))
       throw new BadRequestException(
-        'Le compte comptable de banque est invalide.',
+        'Sélectionnez un compte comptable 532 (Banques) ou une de ses subdivisions.',
       );
     if (!journal || journal.type !== JournalType.Bank)
       throw new BadRequestException('Sélectionnez un journal de banque.');
@@ -206,9 +207,9 @@ export class BankReconciliationService {
         isActive: true,
         allowsPosting: true,
       });
-      if (!account)
+      if (!account || !isBankLedgerAccountCode(account.normalizedCode))
         throw new BadRequestException(
-          'Le compte comptable de banque est invalide.',
+          'Sélectionnez un compte comptable 532 (Banques) ou une de ses subdivisions.',
         );
       bankAccount.ledgerAccountId = account.id;
     }
