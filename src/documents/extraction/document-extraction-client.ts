@@ -25,4 +25,10 @@ export interface DocumentExtractionClient {
     correctionIssues?: Array<Record<string, unknown>>,
     documentKind?: FinancialDocumentKind,
   ): Promise<ExtractionClientResult>;
+
+  extractImages?(
+    images: Array<{ content: Buffer; mimeType: string; page: number }>,
+    correctionIssues?: Array<Record<string, unknown>>,
+    documentKind?: FinancialDocumentKind,
+  ): Promise<ExtractionClientResult>;
 }

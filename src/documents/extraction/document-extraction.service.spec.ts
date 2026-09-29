@@ -8,6 +8,155 @@ import {
   postgresUpdateRows,
 } from './document-extraction.service';
 import { ExtractionReviewDecision } from './extraction.dto';
+import type { DocumentExtractionClient } from './document-extraction-client';
+
+describe('DocumentExtractionService image-first extraction', () => {
+  const file = Buffer.from('original document');
+  const ocr = {
+    width: 100,
+    height: 200,
+    tokens: [
+      {
+        id: 'p1_t1',
+        page: 1,
+        text: 'wrong OCR amount',
+        confidence: 1,
+        bbox: [0, 0, 50, 10],
+      },
+    ],
+  };
+  function setup() {
+    const client = {
+      provider: 'nuextract',
+      modelName: 'numind/NuExtract3',
+      extract: jest.fn().mockResolvedValue({
+        data: { total_incl_tax: '600,000' },
+        provider: 'nuextract',
+        modelName: 'numind/NuExtract3',
+        rawResponse: {},
+      }),
+      extractFromOcr: jest.fn(),
+      extractImages: jest.fn().mockResolvedValue({
+        data: { document_type: 'invoice', line_items: [] },
+        rawResponse: {},
+      }),
+    };
+    const paddle = {
+      extract: jest.fn().mockResolvedValue(ocr),
+      renderPdf: jest.fn(),
+    };
+    const config = {
+      get: jest.fn((_key: string, fallback: unknown) => fallback),
+    };
+    const service = new DocumentExtractionService(
+      config as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      paddle as never,
+      {} as never,
+    );
+    return { service, client, paddle };
+  }
+
+  it('sends the original image even when OCR succeeds, without waiting for OCR', async () => {
+    const { service, client, paddle } = setup();
+    let resolveOcr!: (value: typeof ocr) => void;
+    paddle.extract.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveOcr = resolve;
+        }),
+    );
+    const pending = service['extractImage'](
+      file,
+      'image/png',
+      'doc',
+      client as DocumentExtractionClient,
+      'invoice',
+      [],
+    );
+    expect(client.extract).toHaveBeenCalledWith(
+      file,
+      'image/png',
+      [],
+      'invoice',
+    );
+    expect(client.extractFromOcr).not.toHaveBeenCalled();
+    resolveOcr(ocr);
+    const [result, mapping] = await pending;
+    expect(result.data.total_incl_tax).toBe('600,000');
+    expect(result.rawResponse.inputMode).toBe('image');
+    expect(mapping).toBe(ocr);
+  });
+
+  it('keeps image extraction available when OCR mapping fails', async () => {
+    const { service, client, paddle } = setup();
+    paddle.extract.mockRejectedValue(new Error('OCR unavailable'));
+    const [result, mapping] = await service['extractImage'](
+      file,
+      'image/png',
+      'doc',
+      client as DocumentExtractionClient,
+      'invoice',
+      [],
+    );
+    expect(result.data.total_incl_tax).toBe('600,000');
+    expect(mapping).toBeNull();
+    expect(client.extractFromOcr).not.toHaveBeenCalled();
+  });
+
+  it('sends every PDF page as an image in bounded batches, not OCR tokens', async () => {
+    const { service, client, paddle } = setup();
+    const image = (page: number) => ({
+      content: Buffer.from([255, 216, 255]),
+      mimeType: 'image/jpeg',
+      page,
+    });
+    paddle.renderPdf
+      .mockResolvedValueOnce({ pageCount: 3, images: [image(1), image(2)] })
+      .mockResolvedValueOnce({ pageCount: 3, images: [image(3)] });
+    const [result, mapping] = await service['extractPdf'](
+      { documentId: 'doc', rawResponse: null } as never,
+      file,
+      client as DocumentExtractionClient,
+      'invoice',
+      [],
+    );
+    expect(paddle.renderPdf.mock.calls).toEqual([
+      [file, 1, 2],
+      [file, 3, 2],
+    ]);
+    expect(client.extractImages.mock.calls).toEqual([
+      [[image(1), image(2)], [], 'invoice'],
+      [[image(3)], [], 'invoice'],
+    ]);
+    expect(client.extractFromOcr).not.toHaveBeenCalled();
+    expect(result.rawResponse).toMatchObject({
+      inputMode: 'page_images',
+      pageCount: 3,
+    });
+    expect(mapping).toBe(ocr);
+  });
+
+  it('fails clearly if PDF rendering is unavailable instead of silently using OCR text', async () => {
+    const { service, client, paddle } = setup();
+    paddle.renderPdf.mockRejectedValue(new Error('PDF rendering failed (404)'));
+    await expect(
+      service['extractPdf'](
+        { documentId: 'doc', rawResponse: null } as never,
+        file,
+        client as DocumentExtractionClient,
+        'invoice',
+        [],
+      ),
+    ).rejects.toThrow('PDF rendering failed');
+    expect(client.extractFromOcr).not.toHaveBeenCalled();
+  });
+});
 
 describe('postgresUpdateRows', () => {
   it('unwraps TypeORM PostgreSQL UPDATE RETURNING results', () => {

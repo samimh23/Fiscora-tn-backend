@@ -1,4 +1,43 @@
-import { parsePaddleOcrResponse } from './paddle-ocr-client.service';
+import {
+  parsePaddleOcrResponse,
+  parsePdfRenderResponse,
+} from './paddle-ocr-client.service';
+
+describe('PDF page-image response parser', () => {
+  const page = (number: number) => ({
+    page: number,
+    mimeType: 'image/jpeg',
+    contentBase64: Buffer.from([255, 216, 255]).toString('base64'),
+  });
+  it('accepts ordered complete page batches and the final partial batch', () => {
+    expect(
+      parsePdfRenderResponse({ pageCount: 3, pages: [page(3)] }, 3, 2).images,
+    ).toEqual([
+      {
+        page: 3,
+        mimeType: 'image/jpeg',
+        content: Buffer.from([255, 216, 255]),
+      },
+    ]);
+  });
+  it.each([
+    { pageCount: 3, pages: [page(1)] },
+    { pageCount: 3, pages: [page(2), page(1)] },
+    {
+      pageCount: 3,
+      pages: [page(1), { ...page(2), contentBase64: 'not an image' }],
+    },
+    {
+      pageCount: 3,
+      pages: [
+        page(1),
+        { ...page(2), contentBase64: Buffer.from('text').toString('base64') },
+      ],
+    },
+  ])('rejects incomplete or invalid renderer output', (payload) => {
+    expect(() => parsePdfRenderResponse(payload, 1, 2)).toThrow();
+  });
+});
 
 describe('PaddleOCR response parser', () => {
   it('accepts the compact Fiscora OCR response', () => {

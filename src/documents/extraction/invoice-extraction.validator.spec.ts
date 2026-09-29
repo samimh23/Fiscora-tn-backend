@@ -3,6 +3,105 @@ import { InvoiceExtractionValidator } from './invoice-extraction.validator';
 describe('InvoiceExtractionValidator', () => {
   const validator = new InvoiceExtractionValidator();
 
+  it.each([
+    ['26/03/2024', '2024-03-26'],
+    ['03/04/2024', '2024-04-03'],
+    ['29/02/2024', '2024-02-29'],
+    ['2024-03-26', '2024-03-26'],
+  ])(
+    'normalizes the printed date %s without guessing month/day order',
+    (printed, expected) => {
+      const result = validator.validate({ issue_date: printed });
+      expect(result.normalizedData.issue_date).toBe(expected);
+      expect(
+        result.issues.some((issue) => issue.code === 'ISSUE_DATE_INVALID'),
+      ).toBe(false);
+    },
+  );
+
+  it.each(['31/04/2024', '29/02/2023', '2024-02-30', '13/13/2024'])(
+    'rejects an impossible date %s',
+    (printed) => {
+      expect(validator.validate({ issue_date: printed }).issues).toContainEqual(
+        expect.objectContaining({ code: 'ISSUE_DATE_INVALID' }),
+      );
+    },
+  );
+
+  it('does not turn the MYTEK stamp/subtotal difference into a discount or change printed TTC', () => {
+    const result = validator.validate({
+      document_type: 'invoice',
+      supplier: { name: 'STE MYTEK INFORMATIQUE' },
+      issue_date: '26/03/2024',
+      gross_subtotal_excl_tax: '504,361',
+      subtotal_excl_tax: '503,361',
+      global_discount_amount: null,
+      global_discount_rate: null,
+      tax_amount: '95,639',
+      stamp_tax: '1,000',
+      total_incl_tax: '600,000',
+      amount_due: null,
+    });
+    expect(result.normalizedData).toMatchObject({
+      issue_date: '2024-03-26',
+      global_discount_amount: null,
+      global_discount_rate: null,
+      total_incl_tax: 600,
+      amount_due: null,
+    });
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'SUBTOTAL_DIFFERENCE_UNEXPLAINED',
+        severity: 'WARNING',
+      }),
+    );
+    expect(result.issues.some((issue) => issue.code === 'TOTAL_MISMATCH')).toBe(
+      false,
+    );
+  });
+
+  it('does not fill missing subtotals or discount rates even when they could be calculated', () => {
+    const result = validator.validate({
+      gross_subtotal_excl_tax: '100,000',
+      global_discount_amount: '10,000',
+      global_discount_rate: null,
+      subtotal_excl_tax: null,
+    });
+    expect(result.normalizedData).toMatchObject({
+      global_discount_amount: 10,
+      global_discount_rate: null,
+      subtotal_excl_tax: null,
+    });
+  });
+
+  it('removes empty, repeated and standard additional fields and remaps remaining evidence', () => {
+    const result = validator.validate({
+      additional_fields: [
+        { label: 'Date', value: '26/03/2024' },
+        { label: 'Numéro pièce', value: 'FAC-1' },
+        { label: 'PU TTC', value: '599,000' },
+        { label: 'Code à Barre', value: '' },
+        { label: 'Mode de règlement', value: 'CAISSE' },
+        { label: 'Mode de règlement', value: 'CAISSE' },
+        { label: 'Transporteur', value: 'Par vos soins.' },
+        { label: '', value: 'junk' },
+      ],
+      _evidence: {
+        'additional_fields.0.value': { tokenIds: ['date'] },
+        'additional_fields.4.value': { tokenIds: ['payment'] },
+        issue_date: { tokenIds: ['date'] },
+      },
+    });
+    expect(result.normalizedData.additional_fields).toEqual([
+      { label: 'Mode de règlement', value: 'CAISSE' },
+      { label: 'Transporteur', value: 'Par vos soins.' },
+    ]);
+    expect(result.normalizedData._evidence).toEqual({
+      'additional_fields.0.value': { tokenIds: ['payment'] },
+      issue_date: { tokenIds: ['date'] },
+    });
+  });
+
   it('accepts a balanced Tunisian invoice without blocking issues', () => {
     const result = validator.validate({
       document_type: 'invoice',

@@ -60,8 +60,9 @@ export class InvoiceExtractionValidator {
       );
     }
 
-    const issueDate = this.text(input.issue_date);
-    if (!issueDate || Number.isNaN(Date.parse(issueDate))) {
+    const issueDate = this.isoDate(input.issue_date);
+    if (issueDate) normalizedData.issue_date = issueDate;
+    if (!issueDate) {
       issues.push(
         this.warning(
           'ISSUE_DATE_INVALID',
@@ -71,26 +72,12 @@ export class InvoiceExtractionValidator {
       );
     }
 
-    let grossSubtotal = this.amount(input.gross_subtotal_excl_tax);
-    let discountAmount = this.amount(input.global_discount_amount);
+    const grossSubtotal = this.amount(input.gross_subtotal_excl_tax);
+    const discountAmount = this.amount(input.global_discount_amount);
     let discountRate = this.amount(input.global_discount_rate);
     if (discountRate != null && discountRate > 1) discountRate /= 100;
-    let subtotal = this.amount(input.subtotal_excl_tax);
-    if (subtotal == null && grossSubtotal != null && discountAmount != null)
-      subtotal = grossSubtotal - discountAmount;
-    if (subtotal == null && grossSubtotal != null && discountRate != null)
-      subtotal = grossSubtotal * (1 - discountRate);
-    if (grossSubtotal == null && subtotal != null && discountAmount != null)
-      grossSubtotal = subtotal + discountAmount;
-    if (discountAmount == null && grossSubtotal != null && subtotal != null)
-      discountAmount = grossSubtotal - subtotal;
-    if (
-      discountRate == null &&
-      grossSubtotal != null &&
-      grossSubtotal > 0 &&
-      discountAmount != null
-    )
-      discountRate = discountAmount / grossSubtotal;
+    // Calculations are checks, not extracted facts. Missing values stay missing.
+    const subtotal = this.amount(input.subtotal_excl_tax);
     const tax = this.amount(input.tax_amount);
     const fodec = this.amount(input.fodec_amount) ?? 0;
     const stamp = this.amount(input.stamp_tax) ?? 0;
@@ -165,6 +152,20 @@ export class InvoiceExtractionValidator {
         );
       }
     }
+    if (
+      grossSubtotal != null &&
+      subtotal != null &&
+      discountAmount == null &&
+      Math.abs(grossSubtotal - subtotal) > 0.02
+    ) {
+      issues.push(
+        this.warning(
+          'SUBTOTAL_DIFFERENCE_UNEXPLAINED',
+          'gross_subtotal_excl_tax',
+          'Le HT brut diffère de la base HT sans remise globale explicite. Vérifiez les libellés et les frais ; aucune remise n’a été déduite.',
+        ),
+      );
+    }
     if (subtotal != null && tax != null && total != null) {
       const totalBeforeStamp = subtotal + tax + fodec + otherTaxTotal;
       const differenceBeforeStamp = Math.abs(totalBeforeStamp - total);
@@ -210,6 +211,7 @@ export class InvoiceExtractionValidator {
       };
     });
     normalizedData.line_items = normalizedLines;
+    this.cleanAdditionalFields(input, normalizedData);
     normalizedLines.forEach((line, index) => {
       const item = this.record(line);
       if (!item) return;
@@ -434,13 +436,100 @@ export class InvoiceExtractionValidator {
   private isoDate(value: unknown) {
     const text = this.text(value);
     if (!text) return null;
-    const candidate = text.slice(0, 10);
+    const local = text.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+    const candidate = local
+      ? `${local[3]}-${local[2].padStart(2, '0')}-${local[1].padStart(2, '0')}`
+      : text.slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return null;
     const date = new Date(`${candidate}T00:00:00Z`);
     return Number.isNaN(date.getTime()) ||
       date.toISOString().slice(0, 10) !== candidate
       ? null
       : candidate;
+  }
+
+  private cleanAdditionalFields(
+    input: Record<string, unknown>,
+    normalizedData: Record<string, unknown>,
+  ) {
+    if (!Array.isArray(input.additional_fields)) return;
+    const standardLabels = new Set([
+      'date',
+      'issuedate',
+      'datedemission',
+      'datedefacture',
+      'documentnumber',
+      'numeropiece',
+      'numerodepiece',
+      'numerofacture',
+      'numerodefacture',
+      'bon-delivraison/facture',
+      'totalht',
+      'basetva',
+      'netht',
+      'totaltva',
+      'tva',
+      'timbrefiscal',
+      'totalttc',
+      'ttc',
+      'netapayer',
+      'amountdue',
+      'totalincltax',
+      'subtotalexcltax',
+      'designation',
+      'description',
+      'codeabarre',
+      'barcode',
+      'qtite',
+      'qte',
+      'quantite',
+      'quantity',
+      'puttc',
+      'puht',
+      'prixunitaire',
+      'unitprice',
+      'montantligne',
+      'linetotal',
+      'r',
+    ]);
+    const key = (value: string) =>
+      value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
+    const standardKeys = new Set([...standardLabels].map(key));
+    const seen = new Set<string>();
+    const evidence = this.record(normalizedData._evidence);
+    const originalEvidence = evidence ? { ...evidence } : null;
+    if (evidence)
+      for (const path of Object.keys(evidence))
+        if (path.startsWith('additional_fields.')) delete evidence[path];
+    const fields: Array<{ label: string; value: string }> = [];
+    input.additional_fields.forEach((raw, index) => {
+      const field = this.record(raw);
+      const label = this.text(field?.label);
+      const value =
+        this.text(field?.value) ??
+        (typeof field?.value === 'number' && Number.isFinite(field.value)
+          ? String(field.value)
+          : null);
+      if (!label || !value || standardKeys.has(key(label))) return;
+      const identity = `${key(label)}:${value.normalize('NFC').toLowerCase().replace(/\s+/g, ' ')}`;
+      if (seen.has(identity)) return;
+      seen.add(identity);
+      const target = fields.length;
+      fields.push({ label, value });
+      if (evidence && originalEvidence) {
+        for (const property of ['label', 'value']) {
+          const source =
+            originalEvidence[`additional_fields.${index}.${property}`];
+          if (source)
+            evidence[`additional_fields.${target}.${property}`] = source;
+        }
+      }
+    });
+    normalizedData.additional_fields = fields;
   }
 
   private amount(value: unknown): number | null {

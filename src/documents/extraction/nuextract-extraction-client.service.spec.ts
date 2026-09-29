@@ -2,6 +2,7 @@ import {
   nuextractInstructions,
   nuextractOcrInstructions,
   templateFor,
+  NuExtractExtractionClientService,
 } from './nuextract-extraction-client.service';
 
 describe('NuExtract extraction contract', () => {
@@ -76,5 +77,76 @@ describe('NuExtract extraction contract', () => {
 
     expect(prompt).toContain('matricule fiscal');
     expect(prompt).toContain('Never use an IBAN, RIB');
+  });
+});
+
+describe('NuExtract visual input', () => {
+  afterEach(() => jest.restoreAllMocks());
+  it('sends page images with the fixed template, not OCR text', async () => {
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          choices: [{ message: { content: '{"document_type":"invoice"}' } }],
+        }),
+    } as Response);
+    const config = {
+      get: (name: string, fallback: unknown) =>
+        name === 'NUEXTRACT_SERVICE_URL' ? 'https://private.example' : fallback,
+    };
+    const service = new NuExtractExtractionClientService(
+      config as never,
+      { identityToken: () => Promise.resolve('test-token') } as never,
+    );
+    await service.extractImages(
+      [{ content: Buffer.from('image bytes'), mimeType: 'image/png', page: 2 }],
+      [],
+      'invoice',
+    );
+    const requestBody = fetchMock.mock.calls[0][1]?.body;
+    if (typeof requestBody !== 'string')
+      throw new Error('Expected a JSON request body');
+    const body = JSON.parse(requestBody) as {
+      messages: Array<{
+        content: Array<{
+          type: string;
+          image_url?: { url: string };
+          text?: string;
+        }>;
+      }>;
+      chat_template_kwargs: { template: string; instructions: string };
+    };
+    expect(body.messages[0].content).toContainEqual({
+      type: 'image_url',
+      image_url: {
+        url: `data:image/png;base64,${Buffer.from('image bytes').toString('base64')}`,
+      },
+    });
+    expect(body.messages[0].content[0].text).toContain('Document page 2');
+    expect(JSON.parse(body.chat_template_kwargs.template)).toEqual(
+      templateFor('invoice'),
+    );
+    expect(body.chat_template_kwargs.instructions).toContain(
+      'Never infer a discount',
+    );
+    expect(body.chat_template_kwargs.instructions).toContain(
+      'additional_fields contains only nonempty',
+    );
+    expect(JSON.stringify(body)).not.toContain('OCR_INPUT');
+  });
+  it('rejects batches beyond the deployed six-image limit before sending a request', async () => {
+    const service = new NuExtractExtractionClientService(
+      { get: (_name: string, fallback: unknown) => fallback } as never,
+      {} as never,
+    );
+    await expect(
+      service.extractImages(
+        Array.from({ length: 7 }, (_, index) => ({
+          content: Buffer.from('image'),
+          mimeType: 'image/png',
+          page: index + 1,
+        })),
+      ),
+    ).rejects.toThrow('one and six');
   });
 });

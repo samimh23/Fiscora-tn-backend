@@ -111,7 +111,21 @@ export class NuExtractExtractionClientService implements DocumentExtractionClien
     correctionIssues: Array<Record<string, unknown>> = [],
     documentKind: FinancialDocumentKind = 'invoice',
   ) {
+    return this.extractImages(
+      [{ content, mimeType, page: 1 }],
+      correctionIssues,
+      documentKind,
+    );
+  }
+
+  async extractImages(
+    images: Array<{ content: Buffer; mimeType: string; page: number }>,
+    correctionIssues: Array<Record<string, unknown>> = [],
+    documentKind: FinancialDocumentKind = 'invoice',
+  ) {
     this.assertFixedKind(documentKind);
+    if (!images.length || images.length > 6)
+      throw new Error('NuExtract requires between one and six page images.');
     return this.complete(
       [
         {
@@ -120,14 +134,18 @@ export class NuExtractExtractionClientService implements DocumentExtractionClien
         },
         {
           role: 'user',
-          content: [
+          content: images.flatMap((image) => [
+            {
+              type: 'text',
+              text: `Document page ${image.page}. Extract only information visible on these supplied pages; repeated headers are not extra line items.`,
+            },
             {
               type: 'image_url',
               image_url: {
-                url: `data:${mimeType};base64,${content.toString('base64')}`,
+                url: `data:${image.mimeType};base64,${image.content.toString('base64')}`,
               },
             },
-          ],
+          ]),
         },
       ],
       templateFor(documentKind),
@@ -350,6 +368,10 @@ export function nuextractInstructions(
 - Dates printed as DD/MM/YYYY are day/month/year.
 - For bank transactions, never put the same printed amount in both debit and credit.
 - For invoice lines, distinguish HT from TTC using the printed column heading.
+- gross_subtotal_excl_tax is an explicitly printed goods/services subtotal before a global discount, not a total including stamp duty or fees. subtotal_excl_tax is the printed taxable base or net HT.
+- Extract global_discount_amount and global_discount_rate only when explicitly labelled as a global discount. Never infer a discount from differences between totals, or use a line-item discount as a global discount.
+- total_incl_tax is the amount explicitly labelled TTC or total including tax. amount_due is an explicitly labelled net payable or amount due. Never substitute a HT amount for TTC; do not add or subtract stamp duty yourself.
+- additional_fields contains only nonempty label/value pairs for useful metadata not already represented by standard fields or line_items. Exclude repeated dates, document numbers, totals, tax amounts and line-item columns. Return [] when there is no such metadata.
 - supplier.tax_id and customer.tax_id must come only from labels such as MF, matricule fiscal or tax ID.
 - Never use an IBAN, RIB, bank account, phone, barcode, RC or registration number as a tax_id.
 - Return JSON only.${corrections}`;

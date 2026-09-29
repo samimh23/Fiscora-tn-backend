@@ -10,6 +10,39 @@ export class PaddleOcrClientService {
     private readonly tokens: GoogleWifTokenService,
   ) {}
 
+  // Rendering uses PDFium only; no recognized OCR text is passed to NuExtract.
+  async renderPdf(content: Buffer, startPage: number, pageCount: number) {
+    const serviceUrl = this.config
+      .get<string>('PADDLE_OCR_SERVICE_URL')
+      ?.replace(/\/$/, '');
+    if (!serviceUrl)
+      throw new Error(
+        'PADDLE_OCR_SERVICE_URL is required for PDF page rendering.',
+      );
+    const identityToken = await this.tokens.identityToken(serviceUrl);
+    const response = await fetch(`${serviceUrl}/render`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${identityToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        mimeType: 'application/pdf',
+        contentBase64: content.toString('base64'),
+        startPage,
+        pageCount,
+      }),
+      signal: AbortSignal.timeout(
+        Number(this.config.get('PADDLE_OCR_TIMEOUT_MS', 900_000)),
+      ),
+    });
+    if (!response.ok)
+      throw new Error(
+        `PDF rendering failed (${response.status}). Update the document-processing service to support /render.`,
+      );
+    return parsePdfRenderResponse(await response.json(), startPage, pageCount);
+  }
+
   async extract(
     content: Buffer,
     mimeType: string,
@@ -40,6 +73,44 @@ export class PaddleOcrClientService {
     }
     return parsePaddleOcrResponse(await response.json());
   }
+}
+
+export function parsePdfRenderResponse(
+  input: unknown,
+  startPage: number,
+  requestedCount: number,
+) {
+  const root = record(input);
+  const pageCount = numeric(root?.pageCount);
+  const pages = array(root?.pages);
+  if (
+    !pageCount ||
+    !Number.isInteger(pageCount) ||
+    startPage > pageCount ||
+    !pages ||
+    pages.length !== Math.min(requestedCount, pageCount - startPage + 1)
+  )
+    throw new Error('PDF renderer returned an incomplete page batch.');
+  const images = pages.map((value, index) => {
+    const page = record(value);
+    if (
+      page?.page !== startPage + index ||
+      page.mimeType !== 'image/jpeg' ||
+      typeof page.contentBase64 !== 'string' ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(page.contentBase64)
+    )
+      throw new Error('PDF renderer returned an invalid page image.');
+    const content = Buffer.from(page.contentBase64, 'base64');
+    if (
+      !content.length ||
+      content.length > 20 * 1024 * 1024 ||
+      content[0] !== 0xff ||
+      content[1] !== 0xd8
+    )
+      throw new Error('PDF renderer returned an invalid JPEG.');
+    return { content, mimeType: 'image/jpeg', page: startPage + index };
+  });
+  return { pageCount, images };
 }
 
 export function parsePaddleOcrResponse(input: unknown): OcrDocument {

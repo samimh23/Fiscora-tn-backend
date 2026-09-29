@@ -381,9 +381,9 @@ le message original et transmet une copie à l'application.
 
 ## Extraction IA et revue humaine
 
-L'API de documents possède un workflow Qwen3.5 durable et sans clé cloud :
+L'API de documents possède un workflow Qwen3.5 / NuExtract3 durable et sans clé cloud :
 
-- `POST .../documents/:documentId/extraction` met en file une image JPEG/PNG saine ;
+- `POST .../documents/:documentId/extraction` met en file une image JPEG/PNG ou un PDF sain ;
 - `GET .../documents/:documentId/extraction` retourne l'état et les contrôles ;
 - `GET .../documents/extraction/review-queue` liste les extractions à revoir ;
 - `PATCH .../documents/:documentId/extraction/review` approuve les données corrigées ou rejette le résultat.
@@ -392,6 +392,21 @@ Les tâches sont persistées dans PostgreSQL, louées avec `SKIP LOCKED`, repris
 après expiration du bail et limitées à quatre tentatives. L'API Azure appelle le
 service Cloud Run privé avec Workload Identity Federation : aucune clé de compte
 de service Google n'est conservée. Les totaux sont contrôlés, mais chaque résultat
-passe tout de même par une revue humaine. Les PDF sont rendus page par page par le
-service OCR, puis leurs jetons sont envoyés à Qwen par lots bornés et fusionnés
-avant les contrôles comptables.
+passe tout de même par une revue humaine. Avec NuExtract, les images originales
+sont envoyées directement au modèle ; PaddleOCR s'exécute indépendamment et ne
+sert qu'à localiser les valeurs pour les surlignages. Une panne OCR n'empêche pas
+l'extraction d'une image et aucune valeur n'est remplacée par un résultat OCR.
+Les PDF NuExtract sont rendus par PDFium via `POST /render` du service de
+traitement documentaire, sans reconnaissance de texte, puis envoyés par lots
+de deux images (réglage `DOCUMENT_EXTRACTION_IMAGE_BATCH_PAGES`, maximum six).
+Il faut déployer la version du service qui expose `/render` avant cette API.
+La voie Qwen pour les PDF conserve les jetons OCR par lots bornés.
+
+Les montants imprimés sont conservés dans le résultat brut. La normalisation
+convertit les nombres et les dates `JJ/MM/AAAA`, mais ne déduit pas une remise
+ou un sous-total manquant. Les calculs servent uniquement aux contrôles. Les
+champs supplémentaires vides, répétés ou correspondant aux champs standards
+sont retirés de la vue normalisée. Le résultat brut reste disponible pour audit.
+`rawResponse.inputMode` indique `image` ou `page_images` pour les nouvelles
+extractions visuelles. Les extractions anciennes ne sont pas recalculées :
+utilisez « Relire avec l'IA » pour refaire un test après déploiement.

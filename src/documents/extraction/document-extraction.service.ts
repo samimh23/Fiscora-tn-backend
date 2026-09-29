@@ -40,7 +40,8 @@ import {
   PaddleOcrClientService,
   parsePaddleOcrResponse,
 } from './paddle-ocr-client.service';
-import { attachOcrEvidence } from './ocr-evidence-matcher';
+import { attachOcrEvidence, type OcrDocument } from './ocr-evidence-matcher';
+import { mergeExtractionBatches } from './qwen-extraction-client.service';
 
 @Injectable()
 export class DocumentExtractionService implements OnModuleDestroy {
@@ -564,6 +565,17 @@ export class DocumentExtractionService implements OnModuleDestroy {
     documentKind: FinancialDocumentKind,
     correctionIssues: Array<Record<string, unknown>>,
   ) {
+    if (client.provider === 'nuextract') {
+      return Promise.all([
+        this.extractPdfImages(file, client, documentKind, correctionIssues),
+        this.mappingOcr(
+          file,
+          'application/pdf',
+          job.documentId,
+          this.cachedOcrDocument(job),
+        ),
+      ]);
+    }
     let ocrDocument = this.cachedOcrDocument(job);
     if (!ocrDocument) {
       ocrDocument = await this.paddleOcr.extract(file, 'application/pdf');
@@ -587,6 +599,75 @@ export class DocumentExtractionService implements OnModuleDestroy {
     return [extracted, ocrDocument] as const;
   }
 
+  private async extractPdfImages(
+    file: Buffer,
+    client: DocumentExtractionClient,
+    documentKind: FinancialDocumentKind,
+    correctionIssues: Array<Record<string, unknown>>,
+  ) {
+    if (!client.extractImages)
+      throw new Error(
+        'The extraction provider does not support PDF page images.',
+      );
+    const configured = Number(
+      this.config.get('DOCUMENT_EXTRACTION_IMAGE_BATCH_PAGES', 2),
+    );
+    const batchSize = Number.isFinite(configured)
+      ? Math.min(6, Math.max(1, Math.floor(configured)))
+      : 2;
+    const batches = [];
+    let pageCount = 1;
+    for (let startPage = 1; startPage <= pageCount; startPage += batchSize) {
+      const rendered = await this.paddleOcr.renderPdf(
+        file,
+        startPage,
+        batchSize,
+      );
+      if (
+        rendered.pageCount > 100 ||
+        (startPage > 1 && rendered.pageCount !== pageCount)
+      )
+        throw new Error(
+          'PDF page count exceeds the limit or changed during rendering.',
+        );
+      pageCount = rendered.pageCount;
+      batches.push(
+        await client.extractImages(
+          rendered.images,
+          correctionIssues,
+          documentKind,
+        ),
+      );
+    }
+    const data = mergeExtractionBatches(batches.map((batch) => batch.data));
+    return {
+      data,
+      modelName: client.modelName,
+      provider: client.provider,
+      rawResponse: {
+        inputMode: 'page_images',
+        pageCount,
+        batches: batches.map((batch) => batch.rawResponse),
+        extractedData: structuredClone(data),
+      },
+    };
+  }
+
+  private async mappingOcr(
+    file: Buffer,
+    mimeType: string,
+    documentId: string,
+    cached: OcrDocument | null = null,
+  ) {
+    if (cached) return cached;
+    return this.paddleOcr.extract(file, mimeType).catch((error: unknown) => {
+      this.logger.warn(
+        `PaddleOCR evidence unavailable for ${documentId}: ${this.errorMessage(error)}`,
+      );
+      return null;
+    });
+  }
+
   private cachedOcrDocument(job: DocumentExtractionJob) {
     const candidate = job.rawResponse?.ocr;
     if (!candidate) return null;
@@ -605,27 +686,14 @@ export class DocumentExtractionService implements OnModuleDestroy {
     documentKind: FinancialDocumentKind,
     correctionIssues: Array<Record<string, unknown>>,
   ) {
-    const ocrPromise = this.paddleOcr
-      .extract(file, mimeType)
-      .catch((error: unknown) => {
-        this.logger.warn(
-          `PaddleOCR evidence unavailable for ${documentId}: ${this.errorMessage(error)}`,
-        );
-        return null;
-      });
-    if (client.provider === 'nuextract') {
-      const ocrDocument = await ocrPromise;
-      const extracted = ocrDocument
-        ? await client.extractFromOcr(
-            ocrDocument,
-            correctionIssues,
-            documentKind,
-          )
-        : await client.extract(file, mimeType, correctionIssues, documentKind);
-      return [extracted, ocrDocument] as const;
-    }
+    const ocrPromise = this.mappingOcr(file, mimeType, documentId);
     return Promise.all([
-      client.extract(file, mimeType, correctionIssues, documentKind),
+      client
+        .extract(file, mimeType, correctionIssues, documentKind)
+        .then((result) => ({
+          ...result,
+          rawResponse: { ...result.rawResponse, inputMode: 'image' },
+        })),
       ocrPromise,
     ]);
   }
