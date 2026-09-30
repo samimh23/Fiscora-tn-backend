@@ -7,7 +7,7 @@ const expand =
     : modernModule.expand ?? modernModule.default;
 
 if (typeof expand !== "function") {
-  throw new TypeError("brace-expansion 5.0.9 did not expose an expand function");
+  throw new TypeError("brace-expansion did not expose an expand function");
 }
 
 module.exports = expand;
