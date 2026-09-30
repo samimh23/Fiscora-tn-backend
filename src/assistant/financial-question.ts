@@ -33,7 +33,7 @@ const fields: Array<{ field: string; label: string; patterns: RegExp[] }> = [
   {
     field: 'total_incl_tax',
     label: 'total TTC',
-    patterns: [/\bttc\b/, /total.*factur/],
+    patterns: [/\bttc\b/],
   },
   {
     field: 'subtotal_excl_tax',
@@ -48,6 +48,7 @@ const fields: Array<{ field: string; label: string; patterns: RegExp[] }> = [
     label: 'montant dû',
     patterns: [/montant.*du/, /reste.*payer/],
   },
+  { field: 'total_incl_tax', label: 'total TTC', patterns: [/total.*factur/] },
 ];
 
 function normalize(value: string) {

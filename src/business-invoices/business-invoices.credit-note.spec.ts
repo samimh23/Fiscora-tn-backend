@@ -4,6 +4,7 @@ import {
   BusinessInvoiceStatus,
   BusinessInvoiceType,
   JournalEntryStatus,
+  InvoiceSettlementStatus,
 } from '../database/entities';
 import { EntityManager } from 'typeorm';
 import { BusinessInvoicesService } from './business-invoices.service';
@@ -19,6 +20,9 @@ describe('Credit-note original invoice identity', () => {
     thirdPartyTaxIdentifier: '123/A',
     currencyCode: 'TND',
     outstandingAmount: '100.000',
+    netPayable: '100.000',
+    creditedAmount: '0.000',
+    paidAmount: '0.000',
   });
   function setup() {
     const invoices = { findOneBy: jest.fn().mockResolvedValue(original) };
@@ -107,7 +111,7 @@ describe('Credit-note original invoice identity', () => {
       'même tiers',
     );
   });
-  it('preserves the original outstanding-amount cap', async () => {
+  it('caps credits by the amount not yet credited', async () => {
     const { service } = setup();
     await expect(
       service['validateOriginalInvoice']('org', 'dossier', credit(), '100.001'),
@@ -123,6 +127,7 @@ describe('Credit-note original invoice identity', () => {
         journalEntryId: 'entry',
       });
       const manager = {
+        findOne: jest.fn().mockResolvedValue(invoice),
         findOneBy: jest.fn().mockResolvedValue({
           status: JournalEntryStatus.Draft,
           entryDate: '2026-09-30',
@@ -148,4 +153,61 @@ describe('Credit-note original invoice identity', () => {
       }
     },
   );
+
+  it('allows a credit on a fully paid invoice', async () => {
+    const { service, invoices } = setup();
+    const paid = Object.assign(new BusinessInvoice(), original, {
+      paidAmount: '100.000',
+      outstandingAmount: '0.000',
+    });
+    invoices.findOneBy.mockResolvedValue(paid);
+    await expect(
+      service['validateOriginalInvoice']('org', 'dossier', credit(), '25.000'),
+    ).resolves.toBe(paid);
+    paid.creditedAmount = '80.000';
+    await expect(
+      service['validateOriginalInvoice']('org', 'dossier', credit(), '25.000'),
+    ).rejects.toThrow('dépasse');
+  });
+
+  it('posts a paid-invoice credit as an auditable refund balance', async () => {
+    const { service, transaction } = setup();
+    const paid = Object.assign(new BusinessInvoice(), original, {
+      paidAmount: '100.000',
+      outstandingAmount: '0.000',
+    });
+    const note = Object.assign(credit(), {
+      status: BusinessInvoiceStatus.Validated,
+      journalEntryId: 'entry',
+      netPayable: '25.000',
+    });
+    const entry = { status: JournalEntryStatus.Draft, entryDate: '2026-09-30' };
+    const manager = {
+      findOne: jest.fn().mockResolvedValue(note),
+      findOneBy: jest.fn().mockResolvedValue(entry),
+      findOneOrFail: jest.fn(
+        (_entity: unknown, options: { where: { id: string } }) =>
+          Promise.resolve(options.where.id === 'original' ? paid : note),
+      ),
+      save: jest.fn().mockImplementation((value) => Promise.resolve(value)),
+    };
+    transaction.mockImplementation((run: (m: EntityManager) => unknown) =>
+      run(manager as unknown as EntityManager),
+    );
+    jest.spyOn(service as never, 'find').mockResolvedValue(note);
+    await service.post('org', 'dossier', 'credit', 'user');
+    expect(paid).toMatchObject({
+      paidAmount: '100.000',
+      creditedAmount: '25.000',
+      outstandingAmount: '-25.000',
+      settlementStatus: InvoiceSettlementStatus.RefundDue,
+    });
+    expect(note).toMatchObject({
+      status: BusinessInvoiceStatus.Posted,
+      outstandingAmount: '0.000',
+    });
+    await expect(
+      service.post('org', 'dossier', 'credit', 'user'),
+    ).rejects.toThrow();
+  });
 });

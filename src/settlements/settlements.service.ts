@@ -8,6 +8,10 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { fromMillimes, toMillimes } from '../common/money';
 import {
+  invoiceSettlementStatus,
+  paymentAllocationSign,
+} from '../common/invoice-balance';
+import {
   AccountingJournal,
   AuditLog,
   BankStatement,
@@ -17,8 +21,6 @@ import {
   BusinessInvoice,
   BusinessInvoiceKind,
   BusinessInvoiceStatus,
-  BusinessInvoiceType,
-  InvoiceSettlementStatus,
   JournalEntry,
   JournalEntryLine,
   JournalEntryStatus,
@@ -246,20 +248,18 @@ export class SettlementsService {
     let allocated = 0n;
     for (const allocation of dto.allocations) {
       const invoice = byId.get(allocation.invoiceId)!;
-      const expectedType =
-        dto.direction === PaymentDirection.Receipt
-          ? BusinessInvoiceType.Sale
-          : BusinessInvoiceType.Purchase;
-      if (invoice.type !== expectedType)
-        throw new BadRequestException(
-          'Le sens du règlement ne correspond pas au type de facture.',
-        );
+      const sign = paymentAllocationSign(invoice.type, dto.direction);
       if (invoice.thirdPartyId && invoice.thirdPartyId !== thirdParty.id)
         throw new BadRequestException(
           'Toutes les factures doivent appartenir au tiers sélectionné.',
         );
       const amount = toMillimes(allocation.amount, 'Montant affecté');
-      if (amount <= 0n || amount > toMillimes(invoice.outstandingAmount))
+      const available = toMillimes(invoice.outstandingAmount) * sign;
+      if (
+        amount <= 0n ||
+        amount > available ||
+        (sign < 0n && amount > toMillimes(invoice.paidAmount))
+      )
         throw new BadRequestException(
           `L’affectation dépasse le solde de la facture ${invoice.number}.`,
         );
@@ -397,19 +397,30 @@ export class SettlementsService {
           lock: { mode: 'pessimistic_write' },
         });
         const amount = toMillimes(allocation.amount);
-        if (!invoice || amount > toMillimes(invoice.outstandingAmount))
+        const sign = invoice
+          ? paymentAllocationSign(invoice.type, payment.direction)
+          : 1n;
+        if (
+          !invoice ||
+          amount <= 0n ||
+          amount > toMillimes(invoice.outstandingAmount) * sign ||
+          (sign < 0n && amount > toMillimes(invoice.paidAmount)) ||
+          (invoice.thirdPartyId &&
+            invoice.thirdPartyId !== payment.thirdPartyId)
+        )
           throw new ConflictException(
             'Le solde d’une facture a changé. Vérifiez les affectations.',
           );
         invoice.paidAmount = fromMillimes(
-          toMillimes(invoice.paidAmount) + amount,
+          toMillimes(invoice.paidAmount) + amount * sign,
         );
-        const outstanding = toMillimes(invoice.outstandingAmount) - amount;
+        const outstanding =
+          toMillimes(invoice.outstandingAmount) - amount * sign;
         invoice.outstandingAmount = fromMillimes(outstanding);
-        invoice.settlementStatus =
-          outstanding === 0n
-            ? InvoiceSettlementStatus.Paid
-            : InvoiceSettlementStatus.PartiallyPaid;
+        invoice.settlementStatus = invoiceSettlementStatus(
+          outstanding,
+          toMillimes(invoice.paidAmount),
+        );
         await manager.save(invoice);
       }
       const entry = await manager.findOneByOrFail(JournalEntry, {
@@ -493,22 +504,7 @@ export class SettlementsService {
           )),
         );
       } else {
-        const entry = await manager.findOne(JournalEntry, {
-          where: {
-            id: payment.journalEntryId,
-            organizationId,
-            dossierId,
-            status: JournalEntryStatus.Draft,
-          },
-          lock: { mode: 'pessimistic_write' },
-        });
-        if (entry) {
-          entry.status = JournalEntryStatus.Rejected;
-          entry.reviewedByUserId = userId;
-          entry.reviewedAtUtc = new Date();
-          entry.reviewComment = `Règlement annulé : ${reason}`;
-          await manager.save(entry);
-        }
+        await this.rejectDraftPaymentEntry(manager, payment, userId, reason);
       }
 
       const releasedTransactions = await this.releaseBankMatches(
@@ -651,20 +647,20 @@ export class SettlementsService {
         );
       const amount = toMillimes(allocation.amount);
       const paid = toMillimes(invoice.paidAmount);
-      if (amount > paid)
+      const sign = paymentAllocationSign(invoice.type, payment.direction);
+      if (sign > 0n && amount > paid)
         throw new ConflictException(
           `Le montant réglé de la facture ${invoice.number} est incohérent.`,
         );
-      const nextPaid = paid - amount;
-      const nextOutstanding = toMillimes(invoice.outstandingAmount) + amount;
+      const nextPaid = paid - amount * sign;
+      const nextOutstanding =
+        toMillimes(invoice.outstandingAmount) + amount * sign;
       invoice.paidAmount = fromMillimes(nextPaid);
       invoice.outstandingAmount = fromMillimes(nextOutstanding);
-      invoice.settlementStatus =
-        nextOutstanding === 0n
-          ? InvoiceSettlementStatus.Paid
-          : nextPaid === 0n
-            ? InvoiceSettlementStatus.Unpaid
-            : InvoiceSettlementStatus.PartiallyPaid;
+      invoice.settlementStatus = invoiceSettlementStatus(
+        nextOutstanding,
+        nextPaid,
+      );
       await manager.save(invoice);
       invoiceIds.push(invoice.id);
     }
@@ -737,20 +733,22 @@ export class SettlementsService {
     userId: string,
   ) {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
-    const payment = await this.payments.findOneBy({
-      id: paymentId,
-      organizationId,
-      dossierId,
-    });
-    if (!payment) throw new NotFoundException('Le règlement est introuvable.');
-    if (payment.instrumentStatus !== PaymentInstrumentStatus.Received)
-      throw new ConflictException(
-        'Seul un effet à l’état « Reçu » peut être déposé en banque.',
+    return this.dataSource.transaction(async (manager) => {
+      const payment = await this.lockActiveInstrument(
+        manager,
+        organizationId,
+        dossierId,
+        paymentId,
       );
-    payment.instrumentStatus = PaymentInstrumentStatus.Deposited;
-    payment.instrumentDepositedAtUtc = new Date();
-    await this.payments.save(payment);
-    return payment;
+      if (payment.instrumentStatus !== PaymentInstrumentStatus.Received)
+        throw new ConflictException(
+          'Seul un effet à l’état « Reçu » peut être déposé en banque.',
+        );
+      payment.instrumentStatus = PaymentInstrumentStatus.Deposited;
+      payment.instrumentDepositedAtUtc = new Date();
+      await manager.save(payment);
+      return payment;
+    });
   }
 
   async clearInstrument(
@@ -760,20 +758,26 @@ export class SettlementsService {
     userId: string,
   ) {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
-    const payment = await this.payments.findOneBy({
-      id: paymentId,
-      organizationId,
-      dossierId,
-    });
-    if (!payment) throw new NotFoundException('Le règlement est introuvable.');
-    if (payment.instrumentStatus !== PaymentInstrumentStatus.Deposited)
-      throw new ConflictException(
-        'Seul un effet à l’état « Déposé » peut être marqué encaissé.',
+    return this.dataSource.transaction(async (manager) => {
+      const payment = await this.lockActiveInstrument(
+        manager,
+        organizationId,
+        dossierId,
+        paymentId,
       );
-    payment.instrumentStatus = PaymentInstrumentStatus.Cleared;
-    payment.instrumentClearedAtUtc = new Date();
-    await this.payments.save(payment);
-    return payment;
+      if (payment.status !== ThirdPartyPaymentStatus.Posted)
+        throw new ConflictException(
+          'Comptabilisez le règlement avant de marquer l’effet encaissé.',
+        );
+      if (payment.instrumentStatus !== PaymentInstrumentStatus.Deposited)
+        throw new ConflictException(
+          'Seul un effet à l’état « Déposé » peut être marqué encaissé.',
+        );
+      payment.instrumentStatus = PaymentInstrumentStatus.Cleared;
+      payment.instrumentClearedAtUtc = new Date();
+      await manager.save(payment);
+      return payment;
+    });
   }
 
   async rejectInstrument(
@@ -784,12 +788,12 @@ export class SettlementsService {
   ) {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     return this.dataSource.transaction(async (manager) => {
-      const payment = await manager.findOne(ThirdPartyPayment, {
-        where: { id: paymentId, organizationId, dossierId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (!payment)
-        throw new NotFoundException('Le règlement est introuvable.');
+      const payment = await this.lockActiveInstrument(
+        manager,
+        organizationId,
+        dossierId,
+        paymentId,
+      );
       if (payment.instrumentStatus !== PaymentInstrumentStatus.Deposited)
         throw new ConflictException(
           'Seul un effet à l’état « Déposé » peut être déclaré impayé.',
@@ -811,6 +815,13 @@ export class SettlementsService {
           payment,
           organizationId,
           dossierId,
+        );
+      } else {
+        await this.rejectDraftPaymentEntry(
+          manager,
+          payment,
+          userId,
+          correctionReason,
         );
       }
       const releasedTransactions = await this.releaseBankMatches(
@@ -857,6 +868,53 @@ export class SettlementsService {
       normalized.includes('cheque') ||
       normalized.includes('traite')
     );
+  }
+
+  private async lockActiveInstrument(
+    manager: EntityManager,
+    organizationId: string,
+    dossierId: string,
+    paymentId: string,
+  ) {
+    const payment = await manager.findOne(ThirdPartyPayment, {
+      where: { id: paymentId, organizationId, dossierId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!payment) throw new NotFoundException('Le règlement est introuvable.');
+    if (payment.status === ThirdPartyPaymentStatus.Cancelled)
+      throw new ConflictException(
+        'Un règlement annulé ne peut plus changer d’état.',
+      );
+    if (!this.isInstrumentMethod(payment.method))
+      throw new ConflictException(
+        'Ce règlement n’est pas un chèque ou une traite.',
+      );
+    return payment;
+  }
+
+  private async rejectDraftPaymentEntry(
+    manager: EntityManager,
+    payment: ThirdPartyPayment,
+    userId: string,
+    reason: string,
+  ) {
+    const entry = await manager.findOne(JournalEntry, {
+      where: {
+        id: payment.journalEntryId,
+        organizationId: payment.organizationId,
+        dossierId: payment.dossierId,
+      },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!entry || entry.status !== JournalEntryStatus.Draft)
+      throw new ConflictException(
+        'L’écriture du règlement n’est plus un brouillon. Rechargez le règlement.',
+      );
+    entry.status = JournalEntryStatus.Rejected;
+    entry.reviewedByUserId = userId;
+    entry.reviewedAtUtc = new Date();
+    entry.reviewComment = `Règlement annulé : ${reason}`;
+    await manager.save(entry);
   }
 
   private async validateAccountIds(

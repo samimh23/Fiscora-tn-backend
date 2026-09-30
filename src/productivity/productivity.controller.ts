@@ -141,6 +141,7 @@ export class ProductivityController {
       sessionId,
       user.userId,
       dto.active,
+      dto.manualPause,
     );
   }
 

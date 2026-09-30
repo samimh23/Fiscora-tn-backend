@@ -56,6 +56,10 @@ export class BusinessInvoiceLineDto {
   @IsOptional()
   @Matches(rate)
   exciseRate?: string;
+
+  @IsOptional()
+  @Matches(rate)
+  fodecRate?: string;
 }
 
 export class SaveBusinessInvoiceDto {
@@ -114,6 +118,10 @@ export class SaveBusinessInvoiceDto {
   @IsOptional()
   @IsUUID()
   exciseAccountId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  fodecAccountId?: string;
 
   @IsOptional()
   @IsUUID()

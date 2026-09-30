@@ -69,6 +69,7 @@ interface BusinessInvoiceFinancialRow extends InvoiceIdentity {
   currency_code: string;
   net_amount: string;
   vat_amount: string;
+  fodec_amount: string;
   stamp_duty: string;
   gross_amount: string;
   net_payable: string;
@@ -766,6 +767,7 @@ export class AssistantService {
             currency: invoice.currency_code,
             subtotal_excl_tax: invoice.net_amount,
             tax_amount: invoice.vat_amount,
+            fodec_amount: invoice.fodec_amount,
             stamp_tax: invoice.stamp_duty,
             total_incl_tax: invoice.gross_amount,
             amount_due: invoice.net_payable,
@@ -783,7 +785,7 @@ export class AssistantService {
     return this.dataSource.query<BusinessInvoiceFinancialRow[]>(
       `SELECT id, number, invoice_date::text AS invoice_date, kind, type, third_party_name,
          third_party_tax_identifier, currency_code, net_amount,
-         vat_amount, stamp_duty, gross_amount, net_payable, source_document_id
+         vat_amount, fodec_amount, stamp_duty, gross_amount, net_payable, source_document_id
        FROM accounting.business_invoices
        WHERE organization_id = $1 AND dossier_id = $2
          AND status IN ('VALIDEE', 'COMPTABILISEE')

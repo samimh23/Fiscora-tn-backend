@@ -707,20 +707,44 @@ export class FinancialStatementExportService {
     this.pdfPageHeader(document, title, report);
     let y = 112;
     let lastGroup = '';
+    const bottom = Math.min(
+      770,
+      document.page.height - document.page.margins.bottom,
+    );
+    const newPage = () => {
+      document.addPage();
+      this.pdfPageHeader(document, title, report);
+      y = 112;
+      lastGroup = '';
+    };
     for (const line of lines) {
+      document.font('Helvetica').fontSize(9);
+      const rowHeight = Math.max(
+        22,
+        document.heightOfString(line.label, { width: 255 }) + 10,
+        document.heightOfString(this.formatMoney(line.current), { width: 88 }) +
+          10,
+        document.heightOfString(this.formatMoney(line.previous), {
+          width: 88,
+        }) + 10,
+      );
+      const groupHeight =
+        document
+          .font('Helvetica-Bold')
+          .heightOfString(line.group.toUpperCase(), { width: 495 }) + 12;
+      if (
+        y + rowHeight + (line.group !== lastGroup ? groupHeight + 4 : 0) >
+        bottom
+      )
+        newPage();
       if (line.group !== lastGroup) {
-        if (y > 700) {
-          document.addPage();
-          this.pdfPageHeader(document, title, report);
-          y = 112;
-        }
-        document.rect(42, y, 511, 22).fill('#DCFCE7');
+        document.rect(42, y, 511, groupHeight).fill('#DCFCE7');
         document
           .fillColor('#14532D')
           .font('Helvetica-Bold')
           .fontSize(9)
           .text(line.group.toUpperCase(), 50, y + 6, { width: 495 });
-        y += 26;
+        y += groupHeight + 4;
         lastGroup = line.group;
       }
       document
@@ -741,15 +765,27 @@ export class FinancialStatementExportService {
           align: 'right',
         });
       document
-        .moveTo(42, y + 20)
-        .lineTo(553, y + 20)
+        .moveTo(42, y + rowHeight - 2)
+        .lineTo(553, y + rowHeight - 2)
         .strokeColor('#E2E8F0')
         .stroke();
-      y += 22;
+      y += rowHeight;
     }
     y += 12;
     for (const [label, values] of totals) {
-      document.rect(42, y, 511, 25).fill('#F0FDF4');
+      document.font('Helvetica-Bold').fontSize(9);
+      const height = Math.max(
+        25,
+        document.heightOfString(label, { width: 300 }) + 14,
+        document.heightOfString(this.formatMoney(values.current), {
+          width: 88,
+        }) + 14,
+        document.heightOfString(this.formatMoney(values.previous), {
+          width: 88,
+        }) + 14,
+      );
+      if (y + height > bottom) newPage();
+      document.rect(42, y, 511, height).fill('#F0FDF4');
       document
         .fillColor('#0F172A')
         .font('Helvetica-Bold')
@@ -763,7 +799,7 @@ export class FinancialStatementExportService {
           width: 88,
           align: 'right',
         });
-      y += 29;
+      y += height + 4;
     }
   }
 
@@ -1047,6 +1083,8 @@ export class FinancialStatementExportService {
     return new Intl.NumberFormat('fr-TN', {
       minimumFractionDigits: 3,
       maximumFractionDigits: 3,
-    }).format(amount);
+    })
+      .format(amount)
+      .replace(/[\u00a0\u202f]/g, ' ');
   }
 }

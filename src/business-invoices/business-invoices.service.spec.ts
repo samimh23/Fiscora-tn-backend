@@ -47,6 +47,77 @@ describe('Business invoice adjustment lines', () => {
     {} as never,
   );
 
+  it.each([
+    ['0.00000', '19.190', '121.190'],
+    ['0.10000', '21.090', '133.090'],
+  ])(
+    'keeps FODEC separate from excise and includes both in VAT (%s)',
+    async (exciseRate, vat, gross) => {
+      const input = {
+        ...dto(),
+        lines: [
+          {
+            ...dto().lines[1],
+            unitPrice: '100.000',
+            vatRate: '0.19000',
+            fodecRate: '0.01000',
+            exciseRate,
+          },
+        ],
+      };
+      const result = await service['calculate']('organization', input);
+      expect(result.header.fodecAmount).toBe('1.000');
+      expect(result.header.exciseAmount).toBe(
+        exciseRate === '0.10000' ? '10.000' : '0.000',
+      );
+      expect(result.header.vatAmount).toBe(vat);
+      expect(result.header.grossAmount).toBe(gross);
+      expect(result.lines[0]).toMatchObject({
+        fodecRate: '0.01000',
+        fodecAmount: '1.000',
+      });
+      const invoice = {
+        ...input,
+        ...result.header,
+        lines: result.lines,
+        vatAccountId: 'vat',
+        stampAccountId: 'stamp',
+        exciseAccountId: 'excise',
+        fodecAccountId: 'fodec',
+      } as unknown as BusinessInvoice;
+      const posted = service['accountingLines'](invoice);
+      expect(posted).toContainEqual(
+        expect.objectContaining({
+          accountId: 'fodec',
+          label: 'FODEC',
+          debit: '1.000',
+        }),
+      );
+      expect(
+        posted.reduce(
+          (sum, line) => sum + toMillimes(line.debit) - toMillimes(line.credit),
+          0n,
+        ),
+      ).toBe(0n);
+      if (exciseRate === '0.10000')
+        expect(posted).toContainEqual(
+          expect.objectContaining({
+            accountId: 'excise',
+            label: 'Droit de consommation',
+            debit: '10.000',
+          }),
+        );
+      invoice.kind = BusinessInvoiceKind.CreditNote;
+      expect(service['accountingLines'](invoice)).toContainEqual(
+        expect.objectContaining({
+          accountId: 'fodec',
+          debit: '0.000',
+          credit: '1.000',
+        }),
+      );
+    },
+  );
+
   it('accepts signed unit prices but keeps quantities and rates unsigned', () => {
     const line = Object.assign(new BusinessInvoiceLineDto(), dto().lines[0]);
     expect(validateSync(line)).toEqual([]);

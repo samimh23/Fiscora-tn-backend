@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule, type TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { AppModule } from './app.module';
 import { SyncControlledFiscalYearClosings1790726400000 } from './database/migrations/1790726400000-sync-controlled-fiscal-year-closings';
+import { WorkflowIntegrity1790784000000 } from './database/migrations/1790784000000-workflow-integrity';
 
 describe('Runtime migration registration', () => {
   it.each(['true', 'false'])(
@@ -30,6 +31,7 @@ describe('Runtime migration registration', () => {
       expect(options.migrations).toContain(
         SyncControlledFiscalYearClosings1790726400000,
       );
+      expect(options.migrations).toContain(WorkflowIntegrity1790784000000);
       expect(options.migrationsRun).toBe(enabled === 'true');
       expect(options.synchronize).toBe(false);
     },

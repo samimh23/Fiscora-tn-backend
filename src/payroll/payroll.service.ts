@@ -598,44 +598,73 @@ export class PayrollService {
         84,
       );
 
+    const tableWidth = document.page.width - 72;
+    const bottom = () => document.page.height - 36;
     let y = 132;
     const columns: Array<{
       label: string;
       width: number;
       align?: 'left' | 'right';
     }> = [
-      { label: 'Salarié', width: 190 },
-      { label: 'CIN', width: 80 },
-      { label: 'CNSS', width: 90 },
-      { label: 'Brut annuel', width: 110, align: 'right' },
-      { label: 'CNSS salarié', width: 110, align: 'right' },
-      { label: 'Base imposable', width: 110, align: 'right' },
-      { label: 'IRPP retenu', width: 110, align: 'right' },
-      { label: 'Net annuel', width: 70, align: 'right' },
+      { label: 'Salarié', width: 160 },
+      { label: 'CIN', width: 65 },
+      { label: 'CNSS', width: 75 },
+      { label: 'Brut annuel', width: 94, align: 'right' },
+      { label: 'CNSS salarié', width: 94, align: 'right' },
+      { label: 'Base imposable', width: 94, align: 'right' },
+      { label: 'IRPP retenu', width: 94, align: 'right' },
+      { label: 'Net annuel', width: tableWidth - 676, align: 'right' },
     ];
-    document.fillColor('#14532D').font('Helvetica-Bold').fontSize(9);
-    let x = 36;
-    for (const column of columns) {
-      document.text(column.label, x, y, {
-        width: column.width,
-        align: column.align ?? 'left',
-      });
-      x += column.width;
-    }
-    y += 18;
-    document.font('Helvetica').fontSize(8.5).fillColor('#0F172A');
-    for (const employee of report.employees) {
-      if (y > 520) {
-        document.addPage({
-          size: 'A4',
-          layout: 'landscape',
-          margins: { top: 36, right: 36, bottom: 36, left: 36 },
+    const header = () => {
+      document.fillColor('#14532D').font('Helvetica-Bold').fontSize(8.5);
+      let x = 36;
+      for (const column of columns) {
+        document.text(column.label, x + 4, y, {
+          width: column.width - 8,
+          align: column.align ?? 'left',
         });
-        y = 36;
+        x += column.width;
       }
-      document.rect(36, y - 4, 770, 20).fill('#F8FAFC');
-      document.fillColor('#0F172A');
-      x = 36;
+      y += 26;
+      document.font('Helvetica').fontSize(8).fillColor('#0F172A');
+    };
+    const nextPage = () => {
+      document.addPage();
+      y = 36;
+      header();
+    };
+    const row = (values: string[], total = false) => {
+      document.font(total ? 'Helvetica-Bold' : 'Helvetica').fontSize(8);
+      const height = Math.max(
+        22,
+        ...values.map(
+          (value, index) =>
+            document.heightOfString(value, {
+              width: columns[index].width - 8,
+              align: columns[index].align ?? 'left',
+            }) + 10,
+        ),
+      );
+      if (y + height > bottom()) nextPage();
+      document
+        .rect(36, y, tableWidth, height)
+        .fill(total ? '#DCFCE7' : '#F8FAFC');
+      document
+        .fillColor(total ? '#14532D' : '#0F172A')
+        .font(total ? 'Helvetica-Bold' : 'Helvetica')
+        .fontSize(8);
+      let x = 36;
+      for (let index = 0; index < columns.length; index++) {
+        document.text(values[index], x + 4, y + 5, {
+          width: columns[index].width - 8,
+          align: columns[index].align ?? 'left',
+        });
+        x += columns[index].width;
+      }
+      y += height + 2;
+    };
+    header();
+    for (const employee of report.employees) {
       const values = [
         employee.fullName,
         employee.cin ?? '—',
@@ -646,19 +675,9 @@ export class PayrollService {
         `${employee.incomeTaxAnnual} TND`,
         `${employee.netAnnual} TND`,
       ];
-      for (let index = 0; index < columns.length; index++) {
-        document.text(values[index], x, y, {
-          width: columns[index].width,
-          align: columns[index].align ?? 'left',
-        });
-        x += columns[index].width;
-      }
-      y += 20;
+      row(values);
     }
     y += 6;
-    document.rect(36, y - 4, 770, 22).fillAndStroke('#DCFCE7', '#16A34A');
-    document.fillColor('#14532D').font('Helvetica-Bold').fontSize(9);
-    x = 36;
     const totalValues = [
       'TOTAL',
       '',
@@ -669,20 +688,20 @@ export class PayrollService {
       `${report.totals.incomeTaxAnnual} TND`,
       `${report.totals.netAnnual} TND`,
     ];
-    for (let index = 0; index < columns.length; index++) {
-      document.text(totalValues[index], x, y, {
-        width: columns[index].width,
-        align: columns[index].align ?? 'left',
-      });
-      x += columns[index].width;
-    }
+    row(totalValues, true);
+    document.font('Helvetica').fontSize(8);
+    const warningHeight = Math.max(
+      40,
+      document.heightOfString(report.warning, { width: tableWidth - 20 }) + 20,
+    );
+    if (y + warningHeight + 16 > bottom()) nextPage();
     document
-      .roundedRect(36, y + 34, 770, 40, 6)
+      .roundedRect(36, y + 12, tableWidth, warningHeight, 6)
       .fillAndStroke('#FEF3C7', '#F59E0B')
       .fillColor('#78350F')
       .font('Helvetica')
       .fontSize(8)
-      .text(report.warning, 46, y + 46, { width: 750 });
+      .text(report.warning, 46, y + 22, { width: tableWidth - 20 });
     document.end();
     return done;
   }

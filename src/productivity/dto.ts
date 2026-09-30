@@ -91,6 +91,10 @@ export class StartWorkSessionDto {
 export class WorkSessionHeartbeatDto {
   @IsBoolean()
   active!: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  manualPause = false;
 }
 
 export enum TimeEntryReviewDecision {

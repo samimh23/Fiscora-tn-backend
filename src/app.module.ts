@@ -100,6 +100,7 @@ import { UserMfa1784389000000 } from './database/migrations/1784389000000-user-m
 import { AutomaticAiIndexing1784390000000 } from './database/migrations/1784390000000-automatic-ai-indexing';
 import { AssistantHistoryIndex1784391000000 } from './database/migrations/1784391000000-assistant-history-index';
 import { SyncControlledFiscalYearClosings1790726400000 } from './database/migrations/1790726400000-sync-controlled-fiscal-year-closings';
+import { WorkflowIntegrity1790784000000 } from './database/migrations/1790784000000-workflow-integrity';
 
 @Module({
   imports: [
@@ -180,6 +181,7 @@ import { SyncControlledFiscalYearClosings1790726400000 } from './database/migrat
           AutomaticAiIndexing1784390000000,
           AssistantHistoryIndex1784391000000,
           SyncControlledFiscalYearClosings1790726400000,
+          WorkflowIntegrity1790784000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,

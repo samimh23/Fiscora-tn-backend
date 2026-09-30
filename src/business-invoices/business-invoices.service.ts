@@ -7,6 +7,7 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, IsNull, Repository } from 'typeorm';
 import PDFDocument from 'pdfkit';
+import { invoiceSettlementStatus } from '../common/invoice-balance';
 import {
   divideRounded,
   fromMillimes,
@@ -320,6 +321,7 @@ export class BusinessInvoicesService {
         vatAccountId: dto.vatAccountId ?? null,
         stampAccountId: dto.stampAccountId ?? null,
         exciseAccountId: dto.exciseAccountId ?? null,
+        fodecAccountId: dto.fodecAccountId ?? null,
         withholdingAccountId: dto.withholdingAccountId ?? null,
         vatSuspensionCertificateId: vatSuspensionCertificate?.id ?? null,
         sourceDocumentId: dto.sourceDocumentId ?? null,
@@ -601,6 +603,19 @@ export class BusinessInvoicesService {
         'Validez la facture avant sa comptabilisation.',
       );
     return this.dataSource.transaction(async (manager) => {
+      const current = await manager.findOne(BusinessInvoice, {
+        where: { id: invoiceId, organizationId, dossierId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (
+        !current ||
+        current.status !== BusinessInvoiceStatus.Validated ||
+        !current.journalEntryId
+      )
+        throw new ConflictException(
+          'Cette facture ne peut plus être comptabilisée.',
+        );
+      Object.assign(invoice, current);
       const entry = await manager.findOneBy(JournalEntry, {
         id: invoice.journalEntryId!,
         organizationId,
@@ -634,11 +649,12 @@ export class BusinessInvoicesService {
           lock: { mode: 'pessimistic_write' },
         });
         this.assertCreditNoteIdentity(invoice, original);
-        const outstanding = toMillimes(original.outstandingAmount);
+        const availableCredit =
+          toMillimes(original.netPayable) - toMillimes(original.creditedAmount);
         const credit = toMillimes(invoice.netPayable);
-        if (credit > outstanding)
+        if (credit > availableCredit)
           throw new ConflictException(
-            'Le montant de l’avoir dépasse le solde actuel de la facture.',
+            'Le montant de l’avoir dépasse le montant non encore crédité de la facture.',
           );
       }
       entry.status = JournalEntryStatus.Posted;
@@ -653,7 +669,10 @@ export class BusinessInvoicesService {
           toMillimes(original.creditedAmount) + credit,
         );
         original.outstandingAmount = fromMillimes(outstanding - credit);
-        original.settlementStatus = this.settlementStatus(outstanding - credit);
+        original.settlementStatus = invoiceSettlementStatus(
+          outstanding - credit,
+          toMillimes(original.paidAmount),
+        );
         await manager.save(original);
         invoice.outstandingAmount = '0.000';
         invoice.settlementStatus = InvoiceSettlementStatus.Paid;
@@ -681,6 +700,7 @@ export class BusinessInvoicesService {
     let totalNet = 0n;
     let totalVat = 0n;
     let totalExcise = 0n;
+    let totalFodec = 0n;
     let foreignGross = 0n;
     const taxLines: Record<string, unknown>[] = [];
     const lines = await Promise.all(
@@ -703,6 +723,8 @@ export class BusinessInvoicesService {
         const net = beforeDiscount - discount;
         const exciseRate = line.exciseRate ?? null;
         const excise = exciseRate ? multiplyRate(net, exciseRate) : 0n;
+        const fodecRate = line.fodecRate ?? null;
+        const fodec = fodecRate ? multiplyRate(net, fodecRate) : 0n;
         let vatRate = line.vatRate ?? '0.00000';
         let vatSource: Record<string, unknown> = {
           source: line.vatRate ? 'SAISIE_MANUELLE' : 'EXONEREE_OU_HORS_CHAMP',
@@ -723,23 +745,26 @@ export class BusinessInvoicesService {
             sourceUrl: setting.sourceUrl,
           };
         }
-        // Le droit de consommation est inclus dans la base de la TVA.
-        const vat = multiplyRate(net + excise, vatRate);
-        foreignGross += net + excise + vat;
+        // La base TVA inclut les taxes indirectes saisies (consommation et FODEC).
+        const vat = multiplyRate(net + excise + fodec, vatRate);
+        foreignGross += net + excise + fodec + vat;
         // Les montants sont convertis en TND ; la devise et le taux
         // saisis restent la référence pour retrouver le montant d’origine.
         const netTnd = multiplyRate(net, exchangeRate);
         const exciseTnd = multiplyRate(excise, exchangeRate);
+        const fodecTnd = multiplyRate(fodec, exchangeRate);
         const vatTnd = multiplyRate(vat, exchangeRate);
         totalNet += netTnd;
         totalVat += vatTnd;
         totalExcise += exciseTnd;
+        totalFodec += fodecTnd;
         taxLines.push({
           description: line.description,
           vatCode: line.vatCode ?? null,
           vatRate,
           exciseRate,
           ...vatSource,
+          fodecRate,
         });
         return {
           accountId: line.accountId,
@@ -751,9 +776,11 @@ export class BusinessInvoicesService {
           vatRate,
           exciseRate,
           exciseAmount: fromMillimes(exciseTnd),
+          fodecRate,
+          fodecAmount: fromMillimes(fodecTnd),
           netAmount: fromMillimes(netTnd),
           vatAmount: fromMillimes(vatTnd),
-          grossAmount: fromMillimes(netTnd + exciseTnd + vatTnd),
+          grossAmount: fromMillimes(netTnd + exciseTnd + fodecTnd + vatTnd),
         };
       }),
     );
@@ -769,7 +796,7 @@ export class BusinessInvoicesService {
       this.moneyValue(dto.stampDuty ?? stampSetting!.value),
       'Droit de timbre',
     );
-    const gross = totalNet + totalExcise + totalVat + stampDuty;
+    const gross = totalNet + totalExcise + totalFodec + totalVat + stampDuty;
     if (totalNet < 0n || gross < 0n)
       throw new BadRequestException(
         'Les lignes négatives sont autorisées en ajustement, mais le total doit rester positif ou nul. Pour un crédit global, utilisez un avoir.',
@@ -812,6 +839,7 @@ export class BusinessInvoicesService {
           currencyCode === 'TND' ? null : fromMillimes(foreignGross),
         netAmount: fromMillimes(totalNet),
         exciseAmount: fromMillimes(totalExcise),
+        fodecAmount: fromMillimes(totalFodec),
         vatAmount: fromMillimes(totalVat),
         stampDuty: fromMillimes(stampDuty),
         withholdingBase: fromMillimes(withholdingBase),
@@ -846,6 +874,7 @@ export class BusinessInvoicesService {
       header: {
         vatAmount: string;
         exciseAmount: string;
+        fodecAmount: string;
         stampDuty: string;
         withholdingAmount: string;
       };
@@ -857,6 +886,7 @@ export class BusinessInvoicesService {
       ...(dto.vatAccountId ? [dto.vatAccountId] : []),
       ...(dto.stampAccountId ? [dto.stampAccountId] : []),
       ...(dto.exciseAccountId ? [dto.exciseAccountId] : []),
+      ...(dto.fodecAccountId ? [dto.fodecAccountId] : []),
       ...(dto.withholdingAccountId ? [dto.withholdingAccountId] : []),
     ];
     const unique = [...new Set(ids)];
@@ -892,6 +922,13 @@ export class BusinessInvoicesService {
     )
       throw new BadRequestException(
         'Le compte de retenue est obligatoire lorsqu’une retenue est calculée.',
+      );
+    if (
+      toMillimes(calculation.header.fodecAmount) !== 0n &&
+      !dto.fodecAccountId
+    )
+      throw new BadRequestException(
+        'Le compte FODEC est obligatoire lorsqu’il est appliqué.',
       );
   }
 
@@ -932,6 +969,14 @@ export class BusinessInvoicesService {
         label: 'Droit de consommation',
         debit: purchase ? invoice.exciseAmount : '0.000',
         credit: purchase ? '0.000' : invoice.exciseAmount,
+        thirdPartyName: null,
+      });
+    if (toMillimes(invoice.fodecAmount ?? '0.000') !== 0n)
+      lines.push({
+        accountId: invoice.fodecAccountId!,
+        label: 'FODEC',
+        debit: purchase ? invoice.fodecAmount : '0.000',
+        credit: purchase ? '0.000' : invoice.fodecAmount,
         thirdPartyName: null,
       });
     if (toMillimes(invoice.withholdingAmount) > 0n)
@@ -1016,9 +1061,12 @@ export class BusinessInvoicesService {
         'La facture d’origine comptabilisée est introuvable.',
       );
     this.assertCreditNoteIdentity(dto, original);
-    if (toMillimes(creditAmount) > toMillimes(original.outstandingAmount))
+    if (
+      toMillimes(creditAmount) >
+      toMillimes(original.netPayable) - toMillimes(original.creditedAmount)
+    )
       throw new BadRequestException(
-        'Le montant de l’avoir dépasse le solde de la facture d’origine.',
+        'Le montant de l’avoir dépasse le montant non encore crédité de la facture d’origine.',
       );
     return original;
   }
@@ -1304,11 +1352,5 @@ export class BusinessInvoicesService {
 
     document.end();
     return done;
-  }
-
-  private settlementStatus(outstanding: bigint) {
-    return outstanding === 0n
-      ? InvoiceSettlementStatus.Paid
-      : InvoiceSettlementStatus.PartiallyPaid;
   }
 }

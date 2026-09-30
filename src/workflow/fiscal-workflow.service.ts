@@ -13,6 +13,8 @@ import {
   TaskChecklistItem,
   WorkTask,
   WorkTaskStatus,
+  WorkTaskType,
+  AuditLog,
 } from '../database/entities';
 
 interface Scope {
@@ -37,6 +39,115 @@ type ObligationChanges = Partial<
 @Injectable()
 export class FiscalWorkflowService {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+
+  async reconcileGeneratedDeclaration(scope: Scope, obligationId: string) {
+    return this.dataSource.transaction(async (manager) => {
+      const obligation = await this.lockObligation(
+        manager,
+        scope,
+        obligationId,
+      );
+      const task = await this.lockLinkedTask(manager, scope, obligation.id);
+      const declaration = await manager.findOne(MonthlyTaxDeclaration, {
+        where: {
+          organizationId: scope.organizationId,
+          dossierId: scope.dossierId,
+          periodYear: obligation.periodYear,
+          periodMonth: obligation.periodMonth!,
+        },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!declaration) return obligation.status;
+      if (
+        declaration.obligationId &&
+        declaration.obligationId !== obligation.id
+      )
+        throw new ConflictException(
+          'La déclaration est déjà liée à une autre obligation. Vérifiez le calendrier.',
+        );
+      const targets: Record<MonthlyDeclarationStatus, ObligationStatus> = {
+        [MonthlyDeclarationStatus.Draft]: ObligationStatus.InProgress,
+        [MonthlyDeclarationStatus.Rejected]: ObligationStatus.InProgress,
+        [MonthlyDeclarationStatus.ReadyForReview]:
+          ObligationStatus.ReadyForReview,
+        [MonthlyDeclarationStatus.Validated]: ObligationStatus.Validated,
+        [MonthlyDeclarationStatus.Filed]: ObligationStatus.Filed,
+      };
+      const ranks = [
+        ObligationStatus.NotStarted,
+        ObligationStatus.InProgress,
+        ObligationStatus.ReadyForReview,
+        ObligationStatus.Validated,
+        ObligationStatus.Filed,
+        ObligationStatus.Paid,
+      ];
+      const target = targets[declaration.status];
+      const previous = obligation.status;
+      const linked = !declaration.obligationId;
+      let retiredTaskId: string | null = null;
+      if (linked) {
+        declaration.obligationId = obligation.id;
+        await manager.save(MonthlyTaxDeclaration, declaration);
+      }
+      if (ranks.indexOf(target) > ranks.indexOf(previous)) {
+        obligation.status = target;
+        obligation.lastComment = declaration.reviewComment;
+        if (
+          [ObligationStatus.Validated, ObligationStatus.Filed].includes(target)
+        ) {
+          obligation.validatedAtUtc = declaration.validatedAtUtc;
+          obligation.validatedByUserId = declaration.validatedByUserId;
+          obligation.amountDue = declaration.totalDue;
+        }
+        if (target === ObligationStatus.Filed) {
+          obligation.filedAtUtc = declaration.filedAtUtc;
+          obligation.filedByUserId = declaration.filedByUserId;
+          obligation.paymentReference = declaration.filingReference;
+        }
+        await manager.save(ObligationInstance, obligation);
+      }
+      // Retire only untouched auto-generated preparation tasks. Do not invent
+      // checklist completion or overwrite work someone has already started.
+      if (
+        [
+          ObligationStatus.Validated,
+          ObligationStatus.Filed,
+          ObligationStatus.Paid,
+        ].includes(obligation.status) &&
+        task?.type === WorkTaskType.Obligation &&
+        task.status === WorkTaskStatus.Todo &&
+        (await manager.count(TaskChecklistItem, {
+          where: { taskId: task.id, isCompleted: true },
+        })) === 0
+      ) {
+        task.status = WorkTaskStatus.Cancelled;
+        task.lastComment =
+          'Préparation déjà validée dans la déclaration liée ; tâche automatique devenue redondante.';
+        await manager.save(WorkTask, task);
+        retiredTaskId = task.id;
+      }
+      if (linked || previous !== obligation.status || retiredTaskId)
+        await manager.save(
+          AuditLog,
+          manager.create(AuditLog, {
+            organizationId: scope.organizationId,
+            actorUserId: scope.actorUserId,
+            action: 'obligation.declaration_reconciled',
+            entityType: 'ObligationInstance',
+            entityId: obligation.id,
+            detailsJson: {
+              dossierId: scope.dossierId,
+              declarationId: declaration.id,
+              previousStatus: previous,
+              status: obligation.status,
+              checklistUnchanged: true,
+              retiredTaskId,
+            },
+          }),
+        );
+      return obligation.status;
+    });
+  }
 
   async editChecklist<T>(
     scope: Scope,
@@ -360,7 +471,15 @@ export class FiscalWorkflowService {
         ObligationStatus.Filed,
         ObligationStatus.Paid,
       ].includes(status) &&
-      task
+      task &&
+      !(
+        task.status === WorkTaskStatus.Cancelled &&
+        [
+          ObligationStatus.Validated,
+          ObligationStatus.Filed,
+          ObligationStatus.Paid,
+        ].includes(item.status)
+      )
     ) {
       await this.requireChecklist(manager, task);
     }
@@ -413,7 +532,7 @@ export class FiscalWorkflowService {
       item.validatedByUserId = null;
     }
     await manager.save(ObligationInstance, item);
-    if (task) {
+    if (task && task.status !== WorkTaskStatus.Cancelled) {
       const taskStatus = [
         ObligationStatus.Validated,
         ObligationStatus.Filed,

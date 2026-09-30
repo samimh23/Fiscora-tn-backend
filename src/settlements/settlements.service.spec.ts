@@ -19,6 +19,8 @@ import {
   ThirdPartyPayment,
   ThirdPartyPaymentCorrectionType,
   ThirdPartyPaymentStatus,
+  BusinessInvoiceType,
+  PaymentDirection,
 } from '../database/entities';
 import type { DossiersService } from '../dossiers/dossiers.service';
 import type { PeriodLockService } from '../period-closing/period-lock.service';
@@ -85,6 +87,7 @@ describe('SettlementsService payment corrections', () => {
       organizationId,
       dossierId,
       number: 'FV-001',
+      type: BusinessInvoiceType.Sale,
       paidAmount: '100.000',
       outstandingAmount: '0.000',
       settlementStatus: InvoiceSettlementStatus.Paid,
@@ -151,6 +154,7 @@ describe('SettlementsService payment corrections', () => {
       create: jest.fn((_entity: unknown, value: unknown) => value),
       save,
       findOneOrFail: jest.fn().mockResolvedValue(payment),
+      findOneByOrFail: jest.fn().mockResolvedValue(entry),
       getRepository: jest.fn((entity: unknown) => {
         if (entity !== AuditLog) throw new Error('Unexpected repository');
         return { create: (value: AuditLog) => value, save: auditSave };
@@ -185,6 +189,8 @@ describe('SettlementsService payment corrections', () => {
       auditSave,
       getSavedAudit: () => savedAudit,
       assertDateOpen,
+      manager,
+      save,
     };
   };
 
@@ -195,6 +201,8 @@ describe('SettlementsService payment corrections', () => {
       dossierId,
       paymentDate: '2026-09-01',
       amount: '100.000',
+      method: 'Chèque',
+      direction: PaymentDirection.Receipt,
       journalEntryId: entryId,
       status: ThirdPartyPaymentStatus.Posted,
       correctionType: null,
@@ -311,4 +319,142 @@ describe('SettlementsService payment corrections', () => {
       entityId: paymentId,
     });
   });
+
+  it.each([
+    'depositInstrument',
+    'clearInstrument',
+    'rejectInstrument',
+  ] as const)(
+    'blocks %s on cancelled payments before any write',
+    async (action) => {
+      const payment = postedPayment();
+      payment.status = ThirdPartyPaymentStatus.Cancelled;
+      payment.instrumentStatus =
+        action === 'depositInstrument'
+          ? PaymentInstrumentStatus.Received
+          : PaymentInstrumentStatus.Deposited;
+      const context = makeService(payment);
+      await expect(
+        context.service[action](organizationId, dossierId, paymentId, userId),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(context.save).not.toHaveBeenCalled();
+      expect(context.manager.findOne).toHaveBeenCalledWith(
+        ThirdPartyPayment,
+        expect.objectContaining({ lock: { mode: 'pessimistic_write' } }),
+      );
+    },
+  );
+  it('retires a rejected draft cheque entry without restoring unposted allocations', async () => {
+    const payment = postedPayment();
+    payment.status = ThirdPartyPaymentStatus.Draft;
+    payment.instrumentStatus = PaymentInstrumentStatus.Deposited;
+    const context = makeService(payment);
+    context.entry.status = JournalEntryStatus.Draft;
+    await context.service.rejectInstrument(
+      organizationId,
+      dossierId,
+      paymentId,
+      userId,
+    );
+    expect(context.entry.status).toBe(JournalEntryStatus.Rejected);
+    expect(payment.status).toBe(ThirdPartyPaymentStatus.Cancelled);
+    expect(context.invoice.paidAmount).toBe('100.000');
+    expect(payment.reversalJournalEntryId).toBeNull();
+  });
+  it('requires accounting posting before clearing a deposited draft', async () => {
+    const payment = postedPayment();
+    payment.status = ThirdPartyPaymentStatus.Draft;
+    payment.instrumentStatus = PaymentInstrumentStatus.Deposited;
+    const context = makeService(payment);
+    await expect(
+      context.service.clearInstrument(
+        organizationId,
+        dossierId,
+        paymentId,
+        userId,
+      ),
+    ).rejects.toThrow('Comptabilisez');
+    expect(context.save).not.toHaveBeenCalled();
+  });
+  it('does not advance a transfer through the cheque lifecycle', async () => {
+    const payment = postedPayment();
+    payment.method = 'Virement';
+    payment.instrumentStatus = PaymentInstrumentStatus.Received;
+    const context = makeService(payment);
+    await expect(
+      context.service.depositInstrument(
+        organizationId,
+        dossierId,
+        paymentId,
+        userId,
+      ),
+    ).rejects.toThrow('chèque');
+    expect(context.save).not.toHaveBeenCalled();
+  });
+
+  it('cancelling a refund restores the credit due instead of reopening an invoice debt', async () => {
+    const payment = postedPayment();
+    payment.direction = PaymentDirection.Disbursement;
+    const context = makeService(payment);
+    context.invoice.paidAmount = '0.000';
+    await context.service.correctPayment(
+      organizationId,
+      dossierId,
+      paymentId,
+      userId,
+      {
+        correctionType: ThirdPartyPaymentCorrectionType.EntryReversal,
+        correctionDate: '2026-09-05',
+        reason: 'Remboursement saisi en double',
+      },
+    );
+    expect(context.invoice.paidAmount).toBe('100.000');
+    expect(context.invoice.outstandingAmount).toBe('-100.000');
+    expect(context.invoice.settlementStatus).toBe(
+      InvoiceSettlementStatus.RefundDue,
+    );
+  });
+
+  it('posts a customer refund against a credit balance, then rejects duplicate posting', async () => {
+    const payment = postedPayment();
+    payment.status = ThirdPartyPaymentStatus.Draft;
+    payment.direction = PaymentDirection.Disbursement;
+    const context = makeService(payment);
+    context.entry.status = JournalEntryStatus.Draft;
+    context.invoice.outstandingAmount = '-100.000';
+    await context.service.postPayment(
+      organizationId,
+      dossierId,
+      paymentId,
+      userId,
+    );
+    expect(context.invoice).toMatchObject({
+      paidAmount: '0.000',
+      outstandingAmount: '0.000',
+      settlementStatus: InvoiceSettlementStatus.Paid,
+    });
+    await expect(
+      context.service.postPayment(organizationId, dossierId, paymentId, userId),
+    ).rejects.toThrow('déjà comptabilisé');
+  });
+
+  it.each(['0.000', '-99.000'])(
+    'rejects a refund exceeding the available credit (%s)',
+    async (balance) => {
+      const payment = postedPayment();
+      payment.status = ThirdPartyPaymentStatus.Draft;
+      payment.direction = PaymentDirection.Disbursement;
+      const context = makeService(payment);
+      context.invoice.outstandingAmount = balance;
+      await expect(
+        context.service.postPayment(
+          organizationId,
+          dossierId,
+          paymentId,
+          userId,
+        ),
+      ).rejects.toThrow('solde');
+      expect(context.save).not.toHaveBeenCalled();
+    },
+  );
 });

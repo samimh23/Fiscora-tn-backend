@@ -7,6 +7,9 @@ import {
   ObligationStatus,
   WorkTask,
   WorkTaskStatus,
+  WorkTaskType,
+  AuditLog,
+  TaskChecklistItem,
 } from '../database/entities';
 import { FiscalWorkflowService } from './fiscal-workflow.service';
 
@@ -24,6 +27,7 @@ describe('FiscalWorkflowService', () => {
     findOneBy: jest.Mock;
     count: jest.Mock;
     save: jest.Mock;
+    create: jest.Mock;
   };
   let transaction: jest.Mock;
   let service: FiscalWorkflowService;
@@ -54,6 +58,7 @@ describe('FiscalWorkflowService', () => {
       findOneBy: jest.fn(() => Promise.resolve(task)),
       count: jest.fn(() => Promise.resolve(0)),
       save: jest.fn((_entity: unknown, item: unknown) => Promise.resolve(item)),
+      create: jest.fn((_entity: unknown, item: unknown) => item),
     };
     transaction = jest.fn((work: (em: EntityManager) => Promise<unknown>) =>
       work(manager as unknown as EntityManager),
@@ -326,4 +331,73 @@ describe('FiscalWorkflowService', () => {
       expect(edit).not.toHaveBeenCalled();
     },
   );
+  it('links a previously filed declaration without inventing checklist completion', async () => {
+    obligation.status = ObligationStatus.NotStarted;
+    obligation.periodYear = 2026;
+    obligation.periodMonth = 9;
+    task.type = WorkTaskType.Obligation;
+    task.status = WorkTaskStatus.Todo;
+    declaration = monthly(MonthlyDeclarationStatus.Filed);
+    declaration.obligationId = null;
+    declaration.filingReference = 'TEST-FILED-001';
+    await service.reconcileGeneratedDeclaration(scope, obligation.id);
+    expect(obligation.status).toBe(ObligationStatus.Filed);
+    expect(obligation.paymentReference).toBe('TEST-FILED-001');
+    expect(declaration.obligationId).toBe(obligation.id);
+    expect(task.status).toBe(WorkTaskStatus.Cancelled);
+    expect(manager.save).not.toHaveBeenCalledWith(
+      TaskChecklistItem,
+      expect.anything(),
+    );
+    expect(manager.save).toHaveBeenCalledWith(
+      AuditLog,
+      expect.objectContaining({ action: 'obligation.declaration_reconciled' }),
+    );
+  });
+  it('does not regress a paid obligation or retire started preparation work', async () => {
+    obligation.status = ObligationStatus.Paid;
+    task.type = WorkTaskType.Obligation;
+    task.status = WorkTaskStatus.InProgress;
+    declaration = monthly(MonthlyDeclarationStatus.Validated);
+    await service.reconcileGeneratedDeclaration(scope, obligation.id);
+    expect(obligation.status).toBe(ObligationStatus.Paid);
+    expect(task.status).toBe(WorkTaskStatus.InProgress);
+  });
+  it('refuses to relink another obligation’s declaration', async () => {
+    declaration = monthly(MonthlyDeclarationStatus.Filed);
+    declaration.obligationId = 'other';
+    await expect(
+      service.reconcileGeneratedDeclaration(scope, obligation.id),
+    ).rejects.toThrow('autre obligation');
+    expect(manager.save).not.toHaveBeenCalled();
+  });
+  it('does not bypass initial approval by cancelling an incomplete task', async () => {
+    task.status = WorkTaskStatus.Cancelled;
+    obligation.status = ObligationStatus.ReadyForReview;
+    manager.count.mockResolvedValue(1);
+    await expect(
+      service.transitionObligation(
+        scope,
+        obligation.id,
+        ObligationStatus.Validated,
+        'validate',
+      ),
+    ).rejects.toThrow(ConflictException);
+    expect(manager.save).not.toHaveBeenCalled();
+  });
+  it('can record payment for a filed declaration after retiring redundant preparation', async () => {
+    task.status = WorkTaskStatus.Cancelled;
+    obligation.status = ObligationStatus.Filed;
+    declaration = monthly(MonthlyDeclarationStatus.Filed);
+    manager.count.mockResolvedValue(3);
+    await service.transitionObligation(
+      scope,
+      obligation.id,
+      ObligationStatus.Paid,
+      'pay',
+      { amountPaid: '100.000' },
+    );
+    expect(obligation.status).toBe(ObligationStatus.Paid);
+    expect(task.status).toBe(WorkTaskStatus.Cancelled);
+  });
 });

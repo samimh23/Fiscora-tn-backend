@@ -330,6 +330,7 @@ export class ProductivityService {
         WHERE ${activeDossierFilter}
           AND inv.status = 'COMPTABILISEE'
           AND inv.settlement_status <> 'REGLEE'
+          AND inv.outstanding_amount > 0
           AND inv.due_date IS NOT NULL
           AND inv.due_date <= CURRENT_DATE
         ORDER BY inv.due_date ASC, inv.outstanding_amount DESC
@@ -883,6 +884,7 @@ export class ProductivityService {
     sessionId: string,
     actorUserId: string,
     active: boolean,
+    manualPause = false,
   ) {
     const actor = await this.getActor(organizationId, actorUserId);
     const session = await this.getOwnedOpenSession(
@@ -890,7 +892,11 @@ export class ProductivityService {
       sessionId,
       actor.membership.id,
     );
-    this.accrueSession(session, new Date(), active);
+    if (manualPause && active)
+      throw new BadRequestException(
+        'Une pause manuelle ne peut pas être active.',
+      );
+    this.accrueSession(session, new Date(), active, manualPause);
     await this.workSessions.save(session);
     return this.toWorkSession(session);
   }
@@ -1442,6 +1448,7 @@ export class ProductivityService {
     session: WorkSession,
     now: Date,
     clientIsActive: boolean,
+    manualPause = false,
   ) {
     const elapsedSeconds = Math.max(
       0,
@@ -1450,7 +1457,7 @@ export class ProductivityService {
       ),
     );
     const canAccrue =
-      clientIsActive &&
+      (clientIsActive || manualPause) &&
       session.status === WorkSessionStatus.Active &&
       elapsedSeconds <= session.idleTimeoutSeconds;
     if (canAccrue) session.activeSeconds += elapsedSeconds;

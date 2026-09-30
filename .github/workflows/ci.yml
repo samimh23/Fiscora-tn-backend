@@ -20,6 +20,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_test_only
+          POSTGRES_DB: fiscora_migration_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fiscora_migration_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -44,6 +59,18 @@ jobs:
 
       - name: Build application
         run: npm run build
+
+      - name: Verify all migrations on disposable PostgreSQL
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: ci_test_only
+          DB_NAME: fiscora_migration_test
+          DB_SSL: 'false'
+        run: |
+          npm run migration:run
+          node scripts/verify-workflow-migration.cjs
 
       - name: Build production container
         run: docker build --tag fiscora-backend:${{ github.sha }} .

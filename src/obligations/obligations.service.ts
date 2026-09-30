@@ -188,12 +188,18 @@ export class ObligationsService {
         continue;
       }
       for (const period of buildObligationPeriods(template, dossier, year)) {
-        const exists = await this.instances.existsBy({
+        const exists = await this.instances.findOneBy({
+          organizationId,
           dossierId,
           templateId: template.id,
           periodStartsOn: period.periodStartsOn,
         });
         if (exists) {
+          if (template.code === 'DECLARATION_MENSUELLE_REEL')
+            await this.workflow.reconcileGeneratedDeclaration(
+              { organizationId, dossierId, actorUserId },
+              exists.id,
+            );
           existing++;
           continue;
         }
@@ -216,6 +222,22 @@ export class ObligationsService {
             lastComment: null,
           }),
         );
+        if (template.code === 'DECLARATION_MENSUELLE_REEL') {
+          const status = await this.workflow.reconcileGeneratedDeclaration(
+            { organizationId, dossierId, actorUserId },
+            instance.id,
+          );
+          if (
+            [
+              ObligationStatus.Validated,
+              ObligationStatus.Filed,
+              ObligationStatus.Paid,
+            ].includes(status)
+          ) {
+            created++;
+            continue;
+          }
+        }
         const task = await this.tasks.save(
           this.tasks.create({
             organizationId,

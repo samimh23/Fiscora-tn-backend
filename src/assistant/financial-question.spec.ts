@@ -36,6 +36,19 @@ const rows: ApprovedExtractionForIndex[] = [
 ];
 
 describe('financial question routing', () => {
+  it.each([
+    ['FODEC', 'fodec_amount'],
+    ['TVA', 'tax_amount'],
+    ['HT', 'subtotal_excl_tax'],
+  ])(
+    'does not replace explicit %s with the generic invoice total',
+    (label, field) => {
+      expect(
+        detectFinancialQuestion(`Quel est le total ${label} des factures ?`)
+          ?.field,
+      ).toBe(field);
+    },
+  );
   it('detects a period-specific TTC aggregation', () => {
     expect(
       detectFinancialQuestion('Quel est le total TTC de septembre 2026 ?'),

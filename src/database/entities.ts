@@ -3525,6 +3525,7 @@ export enum InvoiceSettlementStatus {
   Unpaid = 'NON_REGLEE',
   PartiallyPaid = 'PARTIELLEMENT_REGLEE',
   Paid = 'REGLEE',
+  RefundDue = 'A_REMBOURSER',
 }
 
 export enum BusinessInvoiceStatus {
@@ -3618,6 +3619,9 @@ export class BusinessInvoice extends AuditableEntity {
   @Column({ name: 'excise_account_id', type: 'uuid', nullable: true })
   exciseAccountId!: string | null;
 
+  @Column({ name: 'fodec_account_id', type: 'uuid', nullable: true })
+  fodecAccountId!: string | null;
+
   @Column({ name: 'withholding_account_id', type: 'uuid', nullable: true })
   withholdingAccountId!: string | null;
 
@@ -3665,6 +3669,15 @@ export class BusinessInvoice extends AuditableEntity {
     default: 0,
   })
   exciseAmount!: string;
+
+  @Column({
+    name: 'fodec_amount',
+    type: 'decimal',
+    precision: 15,
+    scale: 3,
+    default: 0,
+  })
+  fodecAmount!: string;
 
   @Column({ name: 'vat_amount', type: 'decimal', precision: 15, scale: 3 })
   vatAmount!: string;
@@ -3835,6 +3848,15 @@ export class BusinessInvoiceLine extends AuditableEntity {
   exciseRate!: string | null;
 
   @Column({
+    name: 'fodec_rate',
+    type: 'decimal',
+    precision: 8,
+    scale: 5,
+    nullable: true,
+  })
+  fodecRate!: string | null;
+
+  @Column({
     name: 'excise_amount',
     type: 'decimal',
     precision: 15,
@@ -3842,6 +3864,15 @@ export class BusinessInvoiceLine extends AuditableEntity {
     default: 0,
   })
   exciseAmount!: string;
+
+  @Column({
+    name: 'fodec_amount',
+    type: 'decimal',
+    precision: 15,
+    scale: 3,
+    default: 0,
+  })
+  fodecAmount!: string;
 
   @Column({ name: 'net_amount', type: 'decimal', precision: 15, scale: 3 })
   netAmount!: string;
