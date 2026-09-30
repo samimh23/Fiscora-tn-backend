@@ -116,7 +116,7 @@ describe('AssistantService financial source deduplication', () => {
             issue_date: '2026-09-01',
             currency: 'TND',
             total_incl_tax: '119.000',
-            supplier: { name: 'Supplier SARL', tax_id: '123/A' },
+            supplier: { name: 'Supplier SARL', tax_id: 'MF 123/A' },
           },
         },
       ])

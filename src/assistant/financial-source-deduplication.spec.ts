@@ -37,6 +37,57 @@ describe('Financial source identity', () => {
   it('counts an unlinked PDF and a matching manual invoice only once', () => {
     expect(uniqueFinancialDocuments([document()], [invoice])).toEqual([]);
   });
+  it.each([
+    'MF 9000931/A/M/000',
+    'MF:9000931/A/M/000',
+    'M.F. : 9000931/A/M/000',
+    'Matricule fiscal - 9000931/A/M/000',
+  ])('ignores a delimited OCR tax-ID label: %s', (taxId) => {
+    const manual = {
+      ...invoice,
+      number: 'AUD-S-001',
+      gross_amount: '108.000',
+      third_party_tax_identifier: '9000931/A/M/000',
+    };
+    const pdf = document({
+      document_number: 'AUD-S-001',
+      total_incl_tax: '108.000',
+      supplier: { name: 'Supplier SARL', tax_id: taxId },
+    });
+    expect(uniqueFinancialDocuments([pdf], [manual])).toEqual([]);
+  });
+  it('normalizes tax-ID labels on either source', () => {
+    expect(
+      uniqueFinancialDocuments(
+        [document()],
+        [{ ...invoice, third_party_tax_identifier: 'MF 123/A' }],
+      ),
+    ).toEqual([]);
+  });
+  it.each(['MF123/A', 'MF 999/B', 'OTHER 123/A'])(
+    'preserves genuine or conflicting tax IDs despite equal names: %s',
+    (taxId) => {
+      expect(
+        uniqueFinancialDocuments(
+          [document({ supplier: { name: 'Supplier SARL', tax_id: taxId } })],
+          [invoice],
+        ),
+      ).toHaveLength(1);
+    },
+  );
+  it('still rejects amount conflicts after removing a tax-ID label', () => {
+    expect(() =>
+      uniqueFinancialDocuments(
+        [
+          document({
+            supplier: { name: 'Supplier SARL', tax_id: 'MF 123/A' },
+            total_incl_tax: '120.000',
+          }),
+        ],
+        [invoice],
+      ),
+    ).toThrow('ambiguë');
+  });
   it('prefers an explicit document link and removes repeated extraction jobs', () => {
     expect(
       uniqueFinancialDocuments(

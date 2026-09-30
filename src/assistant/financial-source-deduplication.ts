@@ -23,6 +23,15 @@ const identity = (value: unknown) =>
     .normalize('NFKD')
     .replace(/\p{M}/gu, '')
     .replace(/[^A-Z0-9]/g, '');
+// OCR may include the field label in the value. Strip only recognized,
+// delimited labels before a numeric ID; do not alter genuine ID prefixes.
+const taxIdentity = (value: unknown) =>
+  identity(
+    text(value).replace(
+      /^(?:M\.?\s*F\.?|MATRICULE FISCAL)(?:\s*[:-]\s*|\s+)(?=\d)/u,
+      '',
+    ),
+  );
 const currency = (value: unknown) => {
   const normalized = text(value);
   return ['DT', 'DNT', 'DINAR', 'DINARS', 'TND'].includes(normalized)
@@ -69,8 +78,8 @@ export function uniqueFinancialDocuments(
         partyValue && typeof partyValue === 'object'
           ? (partyValue as Record<string, unknown>)
           : {};
-      const invoiceTax = identity(invoice.third_party_tax_identifier);
-      const documentTax = identity(party.tax_id);
+      const invoiceTax = taxIdentity(invoice.third_party_tax_identifier);
+      const documentTax = taxIdentity(party.tax_id);
       if (invoiceTax && documentTax) return invoiceTax === documentTax;
       const name = identity(party.name);
       return Boolean(name) && name === identity(invoice.third_party_name);
