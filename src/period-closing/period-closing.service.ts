@@ -15,6 +15,8 @@ import {
   AuditLog,
   ClientDossier,
   ClosingAdjustment,
+  FiscalYear,
+  FiscalYearStatus,
   JournalEntry,
   JournalEntryLine,
   JournalEntryStatus,
@@ -620,6 +622,20 @@ export class PeriodClosingService {
           closedByUserId: userId,
           closedAtUtc: new Date(),
         }),
+      );
+      await manager.update(
+        FiscalYear,
+        {
+          organizationId,
+          dossierId,
+          startsOn: readiness.startsOn,
+          endsOn: readiness.endsOn,
+        },
+        {
+          status: FiscalYearStatus.Closed,
+          closedAtUtc: closing.closedAtUtc,
+          closedByUserId: userId,
+        },
       );
       await this.audit(
         manager,

@@ -385,6 +385,14 @@ export class BusinessInvoicesService {
     );
     if (invoice.status !== BusinessInvoiceStatus.Draft)
       throw new ConflictException('La facture n’est plus en brouillon.');
+    if (invoice.kind === BusinessInvoiceKind.CreditNote) {
+      await this.validateOriginalInvoice(
+        organizationId,
+        dossierId,
+        invoice,
+        invoice.netPayable,
+      );
+    }
     const accountingLines = this.accountingLines(invoice);
     const totalDebit = accountingLines.reduce(
       (sum, line) => sum + toMillimes(line.debit),
@@ -608,26 +616,39 @@ export class BusinessInvoicesService {
         entry.entryDate,
         manager,
       );
-      entry.status = JournalEntryStatus.Posted;
-      entry.postedByUserId = userId;
-      entry.postedAtUtc = new Date();
-      await manager.save(entry);
-      invoice.status = BusinessInvoiceStatus.Posted;
-      if (
-        invoice.kind === BusinessInvoiceKind.CreditNote &&
-        invoice.originalInvoiceId
-      ) {
-        const original = await manager.findOneByOrFail(BusinessInvoice, {
-          id: invoice.originalInvoiceId,
-          organizationId,
-          dossierId,
+      let original: BusinessInvoice | null = null;
+      if (invoice.kind === BusinessInvoiceKind.CreditNote) {
+        if (!invoice.originalInvoiceId)
+          throw new BadRequestException(
+            'La facture d’origine est obligatoire pour un avoir.',
+          );
+        original = await manager.findOneOrFail(BusinessInvoice, {
+          where: {
+            id: invoice.originalInvoiceId,
+            organizationId,
+            dossierId,
+            type: invoice.type,
+            kind: BusinessInvoiceKind.Invoice,
+            status: BusinessInvoiceStatus.Posted,
+          },
+          lock: { mode: 'pessimistic_write' },
         });
+        this.assertCreditNoteIdentity(invoice, original);
         const outstanding = toMillimes(original.outstandingAmount);
         const credit = toMillimes(invoice.netPayable);
         if (credit > outstanding)
           throw new ConflictException(
             'Le montant de l’avoir dépasse le solde actuel de la facture.',
           );
+      }
+      entry.status = JournalEntryStatus.Posted;
+      entry.postedByUserId = userId;
+      entry.postedAtUtc = new Date();
+      await manager.save(entry);
+      invoice.status = BusinessInvoiceStatus.Posted;
+      if (original) {
+        const outstanding = toMillimes(original.outstandingAmount);
+        const credit = toMillimes(invoice.netPayable);
         original.creditedAmount = fromMillimes(
           toMillimes(original.creditedAmount) + credit,
         );
@@ -975,7 +996,7 @@ export class BusinessInvoicesService {
   private async validateOriginalInvoice(
     organizationId: string,
     dossierId: string,
-    dto: SaveBusinessInvoiceDto,
+    dto: SaveBusinessInvoiceDto | BusinessInvoice,
     creditAmount: string,
   ) {
     if (!dto.originalInvoiceId)
@@ -994,11 +1015,41 @@ export class BusinessInvoicesService {
       throw new NotFoundException(
         'La facture d’origine comptabilisée est introuvable.',
       );
+    this.assertCreditNoteIdentity(dto, original);
     if (toMillimes(creditAmount) > toMillimes(original.outstandingAmount))
       throw new BadRequestException(
         'Le montant de l’avoir dépasse le solde de la facture d’origine.',
       );
     return original;
+  }
+
+  private assertCreditNoteIdentity(
+    credit: SaveBusinessInvoiceDto | BusinessInvoice,
+    original: BusinessInvoice,
+  ) {
+    const normalize = (value: string | null | undefined) =>
+      (value ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ').toUpperCase();
+    const sameParty =
+      (credit.thirdPartyId ?? null) === (original.thirdPartyId ?? null) &&
+      (original.thirdPartyId ||
+        normalize(credit.thirdPartyName) ===
+          normalize(original.thirdPartyName));
+    const taxMismatch =
+      credit.thirdPartyTaxIdentifier &&
+      original.thirdPartyTaxIdentifier &&
+      normalize(credit.thirdPartyTaxIdentifier) !==
+        normalize(original.thirdPartyTaxIdentifier);
+    if (!sameParty || taxMismatch)
+      throw new BadRequestException(
+        'L’avoir doit concerner le même tiers que la facture d’origine.',
+      );
+    if (
+      normalize(credit.currencyCode ?? 'TND') !==
+      normalize(original.currencyCode ?? 'TND')
+    )
+      throw new BadRequestException(
+        'L’avoir doit utiliser la même devise que la facture d’origine.',
+      );
   }
 
   async matchReceipt(

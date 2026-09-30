@@ -502,35 +502,37 @@ export class AuthService {
 
   async refresh(dto: RefreshDto) {
     const tokenHash = this.hashToken(dto.refreshToken);
-    const current = await this.refreshTokens.findOne({
-      where: { tokenHash },
-      relations: { user: true },
-    });
-    if (
-      !current ||
-      current.revokedAtUtc ||
-      current.expiresAtUtc <= new Date() ||
-      !current.user.isActive
-    ) {
-      throw new UnauthorizedException(
-        'Le jeton de renouvellement est invalide ou expiré.',
-      );
-    }
-
     return this.dataSource.transaction(async (manager) => {
+      const current = await manager.findOne(RefreshToken, {
+        where: { tokenHash },
+        lock: { mode: 'pessimistic_write' },
+      });
+      const user = current
+        ? await manager.findOneBy(User, { id: current.userId })
+        : null;
+      if (
+        !current ||
+        current.revokedAtUtc ||
+        current.expiresAtUtc <= new Date() ||
+        !user?.isActive
+      ) {
+        throw new UnauthorizedException(
+          'Le jeton de renouvellement est invalide ou expiré.',
+        );
+      }
       const { rawToken, entity } = this.createRefreshToken(current.userId);
+      const replacement = await manager.save(entity);
       const updated = await manager.update(
         RefreshToken,
-        { id: current.id, revokedAtUtc: null },
-        { revokedAtUtc: new Date(), replacedByTokenId: entity.id },
+        { id: current.id, revokedAtUtc: IsNull() },
+        { revokedAtUtc: new Date(), replacedByTokenId: replacement.id },
       );
       if (!updated.affected) {
         throw new UnauthorizedException(
           'Le jeton de renouvellement est invalide ou expiré.',
         );
       }
-      await manager.save(entity);
-      return this.buildResponse(manager, current.user, rawToken);
+      return this.buildResponse(manager, user, rawToken);
     });
   }
 

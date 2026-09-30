@@ -212,25 +212,9 @@ export class AccountingService {
       );
     if (fiscalYear.status === FiscalYearStatus.Closed)
       throw new ConflictException("L'exercice est déjà clôturé.");
-    if (fiscalYear.endsOn > new Date().toISOString().slice(0, 10))
-      throw new ConflictException(
-        'Un exercice ne peut pas être clôturé avant sa date de fin.',
-      );
-    Object.assign(fiscalYear, {
-      status: FiscalYearStatus.Closed,
-      closedAtUtc: new Date(),
-      closedByUserId: actorUserId,
-    });
-    await this.fiscalYears.save(fiscalYear);
-    await this.addAudit(
-      organizationId,
-      actorUserId,
-      'fiscal_year.closed',
-      'FiscalYear',
-      fiscalYear.id,
-      { dossierId, name: fiscalYear.name },
+    throw new ConflictException(
+      'Utilisez Comptabilité → Clôture pour contrôler les périodes et générer les écritures de clôture et les à-nouveaux.',
     );
-    return this.toFiscalYear(fiscalYear);
   }
 
   async getLedgerAccounts(

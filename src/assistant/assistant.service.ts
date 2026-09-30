@@ -26,6 +26,10 @@ import {
   type ProductHelpMatch,
 } from './product-help';
 import type { AssistantHistoryQueryDto } from './assistant.dto';
+import {
+  uniqueFinancialDocuments,
+  type InvoiceIdentity,
+} from './financial-source-deduplication';
 
 interface KnowledgeChunkRow {
   id: string;
@@ -57,7 +61,7 @@ interface StructuredSourceCountRow {
   count: string;
 }
 
-interface BusinessInvoiceFinancialRow {
+interface BusinessInvoiceFinancialRow extends InvoiceIdentity {
   id: string;
   number: string;
   invoice_date: string;
@@ -742,14 +746,7 @@ export class AssistantService {
       this.approvedExtractions(organizationId, dossierId),
       this.businessInvoiceFinancialSources(organizationId, dossierId),
     ]);
-    const invoiceDocumentIds = new Set(
-      invoices
-        .map((invoice) => invoice.source_document_id)
-        .filter((id): id is string => Boolean(id)),
-    );
-    const unconvertedDocuments = documents.filter(
-      (document) => !invoiceDocumentIds.has(document.document_id),
-    );
+    const unconvertedDocuments = uniqueFinancialDocuments(documents, invoices);
     const invoiceSources: ApprovedExtractionForIndex[] = invoices.map(
       (invoice) => {
         const issueDate = String(invoice.invoice_date);
@@ -784,7 +781,8 @@ export class AssistantService {
     dossierId: string,
   ) {
     return this.dataSource.query<BusinessInvoiceFinancialRow[]>(
-      `SELECT id, number, invoice_date, kind, currency_code, net_amount,
+      `SELECT id, number, invoice_date::text AS invoice_date, kind, type, third_party_name,
+         third_party_tax_identifier, currency_code, net_amount,
          vat_amount, stamp_duty, gross_amount, net_payable, source_document_id
        FROM accounting.business_invoices
        WHERE organization_id = $1 AND dossier_id = $2
