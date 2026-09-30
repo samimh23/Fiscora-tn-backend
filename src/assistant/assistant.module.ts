@@ -5,6 +5,8 @@ import { PermissionGuard } from '../common/permission.guard';
 import { OrganizationMembership } from '../database/entities';
 import { DossiersModule } from '../dossiers/dossiers.module';
 import { DocumentsModule } from '../documents/documents.module';
+import { FinancialStatementsModule } from '../financial-statements/financial-statements.module';
+import { LiveFinancialService } from './live-financial.service';
 import {
   AssistantController,
   ContextualAssistantController,
@@ -18,12 +20,14 @@ import { VertexAiClient } from './vertex-ai.client';
     AuthModule,
     DossiersModule,
     DocumentsModule,
+    FinancialStatementsModule,
     TypeOrmModule.forFeature([OrganizationMembership]),
   ],
   controllers: [AssistantController, ContextualAssistantController],
   providers: [
     AssistantService,
     AssistantIndexingService,
+    LiveFinancialService,
     VertexAiClient,
     PermissionGuard,
   ],

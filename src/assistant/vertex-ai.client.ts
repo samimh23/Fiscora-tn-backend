@@ -1,6 +1,13 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleWifTokenService } from '../documents/extraction/google-wif-token.service';
+import {
+  assertRouteReferencesQuestion,
+  LIVE_FINANCIAL_ROUTE_INSTRUCTIONS,
+  LIVE_FINANCIAL_ROUTE_SCHEMA,
+  parseLiveFinancialIntent,
+  type LiveFinancialIntent,
+} from './live-financial-intent';
 
 interface VertexEmbeddingResponse {
   predictions?: Array<{ embeddings?: { values?: number[] } }>;
@@ -56,6 +63,51 @@ export class VertexAiClient {
         'Vertex AI n’a retourné aucun vecteur.',
       );
     return values;
+  }
+
+  async routeLiveFinancialQuestion(
+    question: string,
+    conversationContext?: string,
+  ): Promise<LiveFinancialIntent> {
+    const body = await this.request<VertexGenerateResponse>(
+      `${this.modelUrl(this.chatModel)}:generateContent`,
+      {
+        systemInstruction: {
+          parts: [{ text: LIVE_FINANCIAL_ROUTE_INSTRUCTIONS }],
+        },
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: `${this.conversationBlock(conversationContext)}Question actuelle:\n${question}`,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 1000,
+          responseMimeType: 'application/json',
+          responseSchema: LIVE_FINANCIAL_ROUTE_SCHEMA,
+        },
+      },
+    );
+    const text = body.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text ?? '')
+      .join('')
+      .trim();
+    try {
+      const intent = parseLiveFinancialIntent(
+        JSON.parse(text ?? '') as unknown,
+      );
+      assertRouteReferencesQuestion(intent, question);
+      return intent;
+    } catch {
+      throw new ServiceUnavailableException(
+        'Impossible de déterminer la demande financière. Précisez le tiers, le numéro de facture ou l’année.',
+      );
+    }
   }
 
   async answer(

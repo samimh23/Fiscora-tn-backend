@@ -72,4 +72,65 @@ describe('VertexAiClient', () => {
       usage: { totalTokenCount: 42 },
     });
   });
+
+  it('routes a live-data question with a constrained JSON schema, not SQL', async () => {
+    const intent = {
+      operation: 'BALANCES',
+      partyName: 'MYTEK',
+      partyType: 'SUPPLIER',
+      invoiceNumber: null,
+      paymentReference: null,
+      year: null,
+      unsupportedPeriod: false,
+    };
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          candidates: [
+            { content: { parts: [{ text: JSON.stringify(intent) }] } },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    await expect(
+      client.routeLiveFinancialQuestion('How much do we owe MYTEK?'),
+    ).resolves.toEqual(intent);
+    const body = fetchMock.mock.calls[0][1]?.body;
+    if (typeof body !== 'string') throw new Error('Expected JSON request body');
+    const payload = JSON.parse(body) as {
+      generationConfig: {
+        responseMimeType: string;
+        responseSchema: { properties: { operation: { enum: string[] } } };
+      };
+    };
+    expect(payload.generationConfig.responseMimeType).toBe('application/json');
+    expect(
+      payload.generationConfig.responseSchema.properties.operation.enum,
+    ).toEqual(['BALANCES', 'INVOICE_DETAILS', 'FINANCIAL_SUMMARY', 'NONE']);
+  });
+
+  it.each([
+    'not JSON',
+    JSON.stringify({ operation: 'EXECUTE_SQL' }),
+    JSON.stringify({
+      operation: 'BALANCES',
+      partyName: 'Invented supplier',
+      partyType: 'SUPPLIER',
+      invoiceNumber: null,
+      paymentReference: null,
+      year: null,
+      unsupportedPeriod: false,
+    }),
+  ])('rejects invalid or hallucinated routes: %s', async (text) => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }),
+        { status: 200 },
+      ),
+    );
+    await expect(
+      client.routeLiveFinancialQuestion('How much do we owe MYTEK?'),
+    ).rejects.toThrow('Impossible de déterminer');
+  });
 });

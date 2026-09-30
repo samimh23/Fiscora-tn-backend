@@ -19,6 +19,11 @@ import {
   detectFinancialQuestion,
 } from './financial-question';
 import { VertexAiClient } from './vertex-ai.client';
+import { LiveFinancialService } from './live-financial.service';
+import {
+  isLiveFinancialCandidate,
+  isLiveFinancialFollowUp,
+} from './live-financial-intent';
 import {
   buildProductHelpContext,
   findProductHelp,
@@ -91,7 +96,13 @@ export interface Citation {
   sourceId: string;
   sourceName: string;
   pageNumber: number | null;
-  kind?: 'DOCUMENT' | 'BUSINESS_INVOICE' | 'PRODUCT_HELP';
+  kind?:
+    | 'DOCUMENT'
+    | 'BUSINESS_INVOICE'
+    | 'PRODUCT_HELP'
+    | 'PAYMENT'
+    | 'FINANCIAL_REPORT'
+    | 'PARTY_BALANCE';
   path?: string;
 }
 
@@ -111,6 +122,7 @@ export class AssistantService {
     private readonly vertex: VertexAiClient,
     @InjectRepository(OrganizationMembership)
     private readonly memberships: Repository<OrganizationMembership>,
+    private readonly liveFinancial: LiveFinancialService,
   ) {
     this.embeddingDimensions = Number(
       this.config.get<string>('VERTEX_AI_EMBEDDING_DIMENSIONS') ?? '768',
@@ -143,6 +155,19 @@ export class AssistantService {
         organizationId,
         dossierId,
         userId,
+      );
+    }
+    // "How much do we owe X?" is a data question, not a how-to guide.
+    if (
+      dossierId &&
+      (isLiveFinancialCandidate(question) || isLiveFinancialFollowUp(question))
+    ) {
+      return this.ask(
+        organizationId,
+        dossierId,
+        userId,
+        question,
+        conversationStartedAt,
       );
     }
     const helpMatches = findProductHelp(question, currentPath, permissions);
@@ -507,6 +532,62 @@ export class AssistantService {
   ) {
     this.ensureEnabled();
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const clarificationContext = isLiveFinancialFollowUp(question)
+      ? await this.recentConversationContext(
+          organizationId,
+          dossierId,
+          userId,
+          conversationStartedAt,
+        )
+      : undefined;
+    if (isLiveFinancialCandidate(question) || clarificationContext) {
+      const route = await this.vertex.routeLiveFinancialQuestion(
+        question,
+        clarificationContext,
+      );
+      if (route.operation !== 'NONE') {
+        const result = await this.liveFinancial.answer(
+          organizationId,
+          dossierId,
+          userId,
+          route,
+        );
+        const model = 'live-financial-readonly-v1';
+        const id = await this.recordTurn(
+          organizationId,
+          dossierId,
+          userId,
+          question,
+          result.answer,
+          result.citations,
+          model,
+          null,
+        );
+        return { id, ...result, model, scope: 'LIVE_FINANCIAL' };
+      }
+      // Never let an unsupported party-filtered total become a dossier-wide sum.
+      if (
+        detectFinancialQuestion(question) &&
+        (route.partyName ||
+          route.invoiceNumber ||
+          /\b(supplier|customer|fournisseur|client)\b/i.test(question))
+      ) {
+        const answer =
+          'Les totaux filtrés par tiers ne sont pas disponibles ici. Demandez le solde actuel du client/fournisseur, les détails d’une facture précise ou un total global du dossier.';
+        const model = 'live-financial-readonly-v1';
+        const id = await this.recordTurn(
+          organizationId,
+          dossierId,
+          userId,
+          question,
+          answer,
+          [],
+          model,
+          null,
+        );
+        return { id, answer, citations: [], model, scope: 'LIVE_FINANCIAL' };
+      }
+    }
     const intent = detectFinancialQuestion(question);
     if (intent) {
       const financialSources = await this.financialSources(

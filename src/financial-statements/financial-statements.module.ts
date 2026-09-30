@@ -48,5 +48,6 @@ import { TejExportService } from './tej/tej-export.service';
     TejExportService,
     PermissionGuard,
   ],
+  exports: [FinancialStatementsService],
 })
 export class FinancialStatementsModule {}

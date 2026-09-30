@@ -61,6 +61,7 @@ describe('AssistantService history', () => {
       dossiers,
       {} as VertexAiClient,
       {} as Repository<OrganizationMembership>,
+      {} as never,
     );
 
     const result = await service.history('organization', 'dossier', 'user', {
@@ -144,6 +145,7 @@ describe('AssistantService financial source deduplication', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
     const sources = await service['financialSources']('org', 'dossier');
     expect(sources).toHaveLength(1);
@@ -165,5 +167,200 @@ describe('AssistantService financial source deduplication', () => {
     expect(query.mock.calls[1][0]).toContain(
       "status IN ('VALIDEE', 'COMPTABILISEE')",
     );
+  });
+});
+
+describe('AssistantService live financial integration', () => {
+  function setup() {
+    const query = jest
+      .fn<Promise<unknown[]>, [string, unknown[]]>()
+      .mockResolvedValue([{ id: 'turn' }]);
+    const getAccessibleEntity = jest.fn().mockResolvedValue({ id: 'dossier' });
+    const routeLiveFinancialQuestion = jest.fn().mockResolvedValue({
+      operation: 'BALANCES',
+      partyName: 'MYTEK',
+      partyType: 'SUPPLIER',
+      invoiceNumber: null,
+      paymentReference: null,
+      year: null,
+      unsupportedPeriod: false,
+    });
+    const embed = jest.fn();
+    const answerProductHelp = jest.fn();
+    const liveAnswer = jest.fn().mockResolvedValue({
+      answer: 'À payer : 60.000 TND [S1]',
+      citations: [
+        {
+          label: 'S1',
+          chunkId: 'live:invoice',
+          sourceId: 'invoice',
+          sourceName: 'Facture A-001',
+          pageNumber: null,
+          kind: 'BUSINESS_INVOICE',
+          path: '/factures?dossierId=dossier',
+        },
+      ],
+    });
+    const memberships = {
+      findOne: jest.fn().mockResolvedValue({
+        organization: { isActive: true },
+        role: {
+          rolePermissions: [{ permissionName: 'business_invoices.view' }],
+        },
+      }),
+    };
+    const service = new AssistantService(
+      {
+        get: jest.fn((name: string) =>
+          name === 'AI_ASSISTANT_ENABLED' ? 'true' : undefined,
+        ),
+      } as never,
+      { query } as never,
+      { getAccessibleEntity } as never,
+      { routeLiveFinancialQuestion, embed, answerProductHelp } as never,
+      memberships as never,
+      { answer: liveAnswer } as never,
+    );
+    return {
+      service,
+      query,
+      routeLiveFinancialQuestion,
+      embed,
+      answerProductHelp,
+      liveAnswer,
+    };
+  }
+  it('routes how-much questions before app guides and saves source-linked history', async () => {
+    const test = setup();
+    const result = await test.service.askContextual(
+      'org',
+      'user',
+      'How much do we owe MYTEK?',
+      '/factures',
+      'dossier',
+    );
+    expect(result).toMatchObject({
+      id: 'turn',
+      scope: 'LIVE_FINANCIAL',
+      model: 'live-financial-readonly-v1',
+    });
+    expect(test.liveAnswer).toHaveBeenCalledWith(
+      'org',
+      'dossier',
+      'user',
+      expect.objectContaining({ operation: 'BALANCES' }),
+    );
+    expect(test.embed).not.toHaveBeenCalled();
+    expect(test.answerProductHelp).not.toHaveBeenCalled();
+    expect(test.query.mock.calls[0][0]).toContain(
+      'INSERT INTO accounting.ai_chat_turns',
+    );
+    expect(test.query.mock.calls[0][1].slice(0, 3)).toEqual([
+      'org',
+      'dossier',
+      'user',
+    ]);
+  });
+  it('does not fall back to document guesses after a live-tool permission error', async () => {
+    const test = setup();
+    test.liveAnswer.mockRejectedValue(new Error('permissions denied'));
+    await expect(
+      test.service.ask('org', 'dossier', 'user', 'How much do we owe MYTEK?'),
+    ).rejects.toThrow('permissions denied');
+    expect(test.embed).not.toHaveBeenCalled();
+    expect(test.query).not.toHaveBeenCalled();
+  });
+  it('interprets a short clarification using only this user/dossier conversation', async () => {
+    const test = setup();
+    test.query
+      .mockResolvedValueOnce([
+        { question: 'Financial summary', answer: 'Pour quel exercice ?' },
+      ])
+      .mockResolvedValueOnce([{ id: 'turn' }]);
+    test.routeLiveFinancialQuestion.mockResolvedValueOnce({
+      operation: 'FINANCIAL_SUMMARY',
+      partyName: null,
+      partyType: 'ANY',
+      invoiceNumber: null,
+      paymentReference: null,
+      year: 2026,
+      unsupportedPeriod: false,
+    });
+    await test.service.ask(
+      'org',
+      'dossier',
+      'user',
+      '2026',
+      '2026-09-30T00:00:00Z',
+    );
+    expect(test.query.mock.calls[0][1]).toEqual([
+      'org',
+      'dossier',
+      'user',
+      '2026-09-30T00:00:00Z',
+    ]);
+    expect(test.routeLiveFinancialQuestion).toHaveBeenCalledWith(
+      '2026',
+      expect.stringContaining('Pour quel exercice'),
+    );
+    expect(test.liveAnswer).toHaveBeenCalledWith(
+      'org',
+      'dossier',
+      'user',
+      expect.objectContaining({ year: 2026 }),
+    );
+  });
+  it('does not answer a supplier-filtered total with an unfiltered dossier sum', async () => {
+    const test = setup();
+    test.routeLiveFinancialQuestion.mockResolvedValueOnce({
+      operation: 'NONE',
+      partyName: 'MYTEK',
+      partyType: 'SUPPLIER',
+      invoiceNumber: null,
+      paymentReference: null,
+      year: null,
+      unsupportedPeriod: false,
+    });
+    const result = await test.service.ask(
+      'org',
+      'dossier',
+      'user',
+      'Quel est le total TTC du fournisseur MYTEK ?',
+    );
+    expect(result.answer).toContain('totaux filtrés par tiers');
+    expect(test.embed).not.toHaveBeenCalled();
+    expect(test.liveAnswer).not.toHaveBeenCalled();
+    expect(test.query).toHaveBeenCalledTimes(1);
+  });
+  it('preserves the exact calculator without an AI-routing call for ordinary totals', async () => {
+    const test = setup();
+    test.query
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 'i',
+          number: 'I-1',
+          invoice_date: '2026-09-01',
+          kind: 'FACTURE',
+          currency_code: 'TND',
+          net_amount: '100.000',
+          vat_amount: '19.000',
+          fodec_amount: '0.000',
+          stamp_duty: '1.000',
+          gross_amount: '120.000',
+          net_payable: '120.000',
+          source_document_id: null,
+        },
+      ])
+      .mockResolvedValueOnce([{ id: 'turn' }]);
+    const result = await test.service.ask(
+      'org',
+      'dossier',
+      'user',
+      'Quel est le total TTC pour 2026 ?',
+    );
+    expect(result.answer).toContain('120.000 TND');
+    expect(test.routeLiveFinancialQuestion).not.toHaveBeenCalled();
+    expect(test.liveAnswer).not.toHaveBeenCalled();
   });
 });
