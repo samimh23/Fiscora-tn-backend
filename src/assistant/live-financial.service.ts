@@ -228,7 +228,7 @@ export class LiveFinancialService {
             AND COALESCE(third_party_tax_identifier,'')=$6))
          AND ($7='ANY' OR type=CASE WHEN $7='SUPPLIER' THEN 'ACHAT' ELSE 'VENTE' END)
          AND outstanding_amount<>0
-       ORDER BY due_date ASC NULLS LAST, invoice_date ASC, id LIMIT 31`,
+       ORDER BY i.due_date ASC NULLS LAST, i.invoice_date ASC, i.id LIMIT 31`,
       [
         organizationId,
         dossierId,
@@ -307,7 +307,7 @@ export class LiveFinancialService {
     const invoices = await this.dataSource.query<InvoiceRow[]>(
       `SELECT i.*, i.invoice_date::text AS invoice_date, i.due_date::text AS due_date FROM accounting.business_invoices i WHERE organization_id=$1 AND dossier_id=$2
         AND UPPER(number)=UPPER($3) AND ($4='ANY' OR type=CASE WHEN $4='SUPPLIER' THEN 'ACHAT' ELSE 'VENTE' END)
-      ORDER BY id LIMIT 3`,
+      ORDER BY i.id LIMIT 3`,
       [organizationId, dossierId, intent.invoiceNumber, intent.partyType],
     );
     if (invoices.length !== 1)
@@ -327,7 +327,7 @@ export class LiveFinancialService {
       ),
       this.dataSource.query<InvoiceRow[]>(
         `SELECT i.*, i.invoice_date::text AS invoice_date FROM accounting.business_invoices i WHERE organization_id=$1 AND dossier_id=$2
-          AND original_invoice_id=$3 ORDER BY invoice_date, id LIMIT 51`,
+          AND original_invoice_id=$3 ORDER BY i.invoice_date, i.id LIMIT 51`,
         [organizationId, dossierId, invoice.id],
       ),
     ]);

@@ -134,6 +134,44 @@ describe('LiveFinancialService permissions and scope', () => {
 });
 
 describe('LiveFinancialService balances', () => {
+  it('returns the Carthage supplier balance with unambiguous invoice-date sorting', async () => {
+    const test = setup();
+    test.query
+      .mockResolvedValueOnce([
+        {
+          id: 'carthage',
+          name: 'CARTHAGE EQUIPEMENTS TEST SARL',
+          tax_identifier: 'MF123',
+          type: 'FOURNISSEUR',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          ...balance,
+          number: 'A-TEST-001',
+          third_party_name: 'CARTHAGE EQUIPEMENTS TEST SARL',
+          net_payable: '1191.000',
+          paid_amount: '700.000',
+          credited_amount: '0.000',
+          outstanding_amount: '491.000',
+          supplier_due: '491.000',
+          supplier_refund: '0.000',
+        },
+      ]);
+
+    const result = await test.ask({
+      partyName: 'CARTHAGE EQUIPEMENTS TEST SARL',
+      partyType: 'SUPPLIER',
+    });
+
+    expect(result.answer).toContain('À payer aux fournisseurs : 491.000 TND');
+    expect(result.answer).toContain('A-TEST-001');
+    // i.* and the date-to-text projections expose duplicate output names.
+    // Sorting must refer to the table columns, not those output names.
+    expect(test.query.mock.calls[1][0]).toContain(
+      'ORDER BY i.due_date ASC NULLS LAST, i.invoice_date ASC, i.id LIMIT 31',
+    );
+  });
   it('uses current outstanding amounts, separates refunds, and cites records', async () => {
     const test = setup();
     test.query.mockResolvedValueOnce([balance]);
@@ -303,6 +341,10 @@ describe('LiveFinancialService invoice/payment details', () => {
     for (const call of test.query.mock.calls)
       expect(call[1].slice(0, 2)).toEqual(['org', 'dossier']);
     expect(test.query.mock.calls[1][1][2]).toBe('invoice');
+    expect(test.query.mock.calls[0][0]).toContain('ORDER BY i.id LIMIT 3');
+    expect(test.query.mock.calls[2][0]).toContain(
+      'ORDER BY i.invoice_date, i.id LIMIT 51',
+    );
   });
   it('labels draft invoice balances as unpublished', async () => {
     const test = setup();
