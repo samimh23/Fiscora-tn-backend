@@ -19,6 +19,7 @@ import {
   CorrectThirdPartyPaymentDto,
   CreateThirdPartyDto,
   CreateThirdPartyPaymentDto,
+  UpdateThirdPartyPaymentDraftDto,
 } from './dto';
 import { SettlementsService } from './settlements.service';
 
@@ -98,6 +99,24 @@ export class SettlementsController {
     return this.service.createPayment(
       organizationId,
       dossierId,
+      user.userId,
+      dto,
+    );
+  }
+
+  @Put('payments/:paymentId')
+  @RequirePermission(PermissionNames.PaymentsManage)
+  updatePaymentDraft(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('paymentId', ParseUUIDPipe) paymentId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: UpdateThirdPartyPaymentDraftDto,
+  ) {
+    return this.service.updatePaymentDraft(
+      organizationId,
+      dossierId,
+      paymentId,
       user.userId,
       dto,
     );

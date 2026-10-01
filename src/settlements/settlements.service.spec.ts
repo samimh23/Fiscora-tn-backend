@@ -1,4 +1,8 @@
-import { ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import type { DataSource, Repository } from 'typeorm';
 import {
   AccountingJournal,
@@ -286,6 +290,235 @@ describe('SettlementsService payment corrections', () => {
       ),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(context.assertDateOpen).not.toHaveBeenCalled();
+  });
+
+  it('updates a draft date and reference together with its accounting entry', async () => {
+    const payment = postedPayment();
+    payment.status = ThirdPartyPaymentStatus.Draft;
+    payment.paymentDate = '2027-09-18';
+    payment.reference = 'DEC-SEP-001';
+    const context = makeService(payment);
+    context.entry.status = JournalEntryStatus.Draft;
+    context.entry.entryDate = payment.paymentDate;
+    await context.service.updatePaymentDraft(
+      organizationId,
+      dossierId,
+      paymentId,
+      userId,
+      {
+        paymentDate: '2026-09-18',
+        reference: ' DEC-SEP-002 ',
+      },
+    );
+    expect(payment).toMatchObject({
+      paymentDate: '2026-09-18',
+      reference: 'DEC-SEP-002',
+      amount: '100.000',
+      status: ThirdPartyPaymentStatus.Draft,
+    });
+    expect(context.entry).toMatchObject({
+      entryDate: '2026-09-18',
+      pieceReference: 'DEC-SEP-002',
+      status: JournalEntryStatus.Draft,
+    });
+    expect(context.invoice.paidAmount).toBe('100.000');
+    expect(context.assertDateOpen).toHaveBeenNthCalledWith(
+      1,
+      organizationId,
+      dossierId,
+      '2027-09-18',
+      context.manager,
+    );
+    expect(context.assertDateOpen).toHaveBeenNthCalledWith(
+      2,
+      organizationId,
+      dossierId,
+      '2026-09-18',
+      context.manager,
+    );
+    expect(context.manager.findOne).toHaveBeenCalledWith(
+      ThirdPartyPayment,
+      expect.objectContaining({
+        where: { id: paymentId, organizationId, dossierId },
+        lock: { mode: 'pessimistic_write' },
+      }),
+    );
+    expect(context.getSavedAudit()).toMatchObject({
+      action: 'third_party_payment.draft_updated',
+      detailsJson: {
+        before: { paymentDate: '2027-09-18', reference: 'DEC-SEP-001' },
+        after: { paymentDate: '2026-09-18', reference: 'DEC-SEP-002' },
+      },
+    });
+  });
+
+  it.each([ThirdPartyPaymentStatus.Posted, ThirdPartyPaymentStatus.Cancelled])(
+    'blocks draft editing for %s payments',
+    async (status) => {
+      const payment = postedPayment();
+      payment.status = status;
+      const context = makeService(payment);
+      await expect(
+        context.service.updatePaymentDraft(
+          organizationId,
+          dossierId,
+          paymentId,
+          userId,
+          { paymentDate: '2026-09-18' },
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(context.save).not.toHaveBeenCalled();
+      expect(context.auditSave).not.toHaveBeenCalled();
+    },
+  );
+
+  it('blocks draft editing if the associated entry is already posted', async () => {
+    const payment = postedPayment();
+    payment.status = ThirdPartyPaymentStatus.Draft;
+    const context = makeService(payment);
+    await expect(
+      context.service.updatePaymentDraft(
+        organizationId,
+        dossierId,
+        paymentId,
+        userId,
+        { paymentDate: '2026-09-18' },
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(context.save).not.toHaveBeenCalled();
+  });
+
+  it.each([1, 2])(
+    'does not edit a draft when period check %s fails',
+    async (check) => {
+      const payment = postedPayment();
+      payment.status = ThirdPartyPaymentStatus.Draft;
+      const context = makeService(payment);
+      context.entry.status = JournalEntryStatus.Draft;
+      if (check === 2) context.assertDateOpen.mockResolvedValueOnce(undefined);
+      context.assertDateOpen.mockRejectedValueOnce(
+        new ConflictException('Période clôturée'),
+      );
+      await expect(
+        context.service.updatePaymentDraft(
+          organizationId,
+          dossierId,
+          paymentId,
+          userId,
+          { paymentDate: '2026-09-18' },
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(payment.paymentDate).toBe('2026-09-01');
+      expect(context.entry.entryDate).toBe('2026-09-01');
+      expect(context.save).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not edit a payment outside the accessible dossier', async () => {
+    const context = makeService(postedPayment());
+    context.manager.findOne.mockResolvedValueOnce(null);
+    await expect(
+      context.service.updatePaymentDraft(
+        organizationId,
+        dossierId,
+        paymentId,
+        userId,
+        { paymentDate: '2026-09-18' },
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(context.save).not.toHaveBeenCalled();
+  });
+
+  it('preserves the reference when only the date is submitted', async () => {
+    const payment = postedPayment();
+    payment.status = ThirdPartyPaymentStatus.Draft;
+    payment.reference = 'REG-001';
+    const context = makeService(payment);
+    context.entry.status = JournalEntryStatus.Draft;
+    await context.service.updatePaymentDraft(
+      organizationId,
+      dossierId,
+      paymentId,
+      userId,
+      { paymentDate: '2026-09-18' },
+    );
+    expect(payment.reference).toBe('REG-001');
+    expect(context.entry.pieceReference).toBe('REG-001');
+  });
+
+  it('rejects editing when the payment has no associated draft entry', async () => {
+    const payment = postedPayment();
+    payment.status = ThirdPartyPaymentStatus.Draft;
+    payment.journalEntryId = null;
+    const context = makeService(payment);
+    await expect(
+      context.service.updatePaymentDraft(
+        organizationId,
+        dossierId,
+        paymentId,
+        userId,
+        { paymentDate: '2026-09-18' },
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(context.save).not.toHaveBeenCalled();
+  });
+
+  it('can clear a draft reference while retaining a valid accounting piece reference', async () => {
+    const payment = postedPayment();
+    payment.status = ThirdPartyPaymentStatus.Draft;
+    payment.reference = 'REG-001';
+    const context = makeService(payment);
+    context.entry.status = JournalEntryStatus.Draft;
+    await context.service.updatePaymentDraft(
+      organizationId,
+      dossierId,
+      paymentId,
+      userId,
+      { paymentDate: '2026-09-18', reference: ' ' },
+    );
+    expect(payment.reference).toBeNull();
+    expect(context.entry.pieceReference).toBe(`REG-${paymentId}`);
+  });
+
+  it('can cancel a future-dated draft on an earlier correction date without changing invoice balances', async () => {
+    const payment = postedPayment();
+    payment.status = ThirdPartyPaymentStatus.Draft;
+    payment.paymentDate = '2027-09-18';
+    const context = makeService(payment);
+    context.entry.status = JournalEntryStatus.Draft;
+    await context.service.correctPayment(
+      organizationId,
+      dossierId,
+      paymentId,
+      userId,
+      {
+        correctionType: ThirdPartyPaymentCorrectionType.EntryReversal,
+        correctionDate: '2026-10-01',
+        reason: 'Année saisie par erreur',
+      },
+    );
+    expect(payment.status).toBe(ThirdPartyPaymentStatus.Cancelled);
+    expect(context.entry.status).toBe(JournalEntryStatus.Rejected);
+    expect(payment.reversalJournalEntryId).toBeNull();
+    expect(context.invoice.paidAmount).toBe('100.000');
+  });
+
+  it('still refuses to reverse a posted payment before its original date', async () => {
+    const context = makeService(postedPayment());
+    await expect(
+      context.service.correctPayment(
+        organizationId,
+        dossierId,
+        paymentId,
+        userId,
+        {
+          correctionType: ThirdPartyPaymentCorrectionType.EntryReversal,
+          correctionDate: '2026-08-31',
+          reason: 'Annulation demandée',
+        },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(context.save).not.toHaveBeenCalled();
   });
 
   it('uses the same auditable reversal when a deposited instrument is unpaid', async () => {

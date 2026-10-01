@@ -39,6 +39,7 @@ import {
   CorrectThirdPartyPaymentDto,
   CreateThirdPartyDto,
   CreateThirdPartyPaymentDto,
+  UpdateThirdPartyPaymentDraftDto,
 } from './dto';
 import { PeriodLockService } from '../period-closing/period-lock.service';
 
@@ -450,6 +451,87 @@ export class SettlementsService {
     });
   }
 
+  async updatePaymentDraft(
+    organizationId: string,
+    dossierId: string,
+    paymentId: string,
+    userId: string,
+    dto: UpdateThirdPartyPaymentDraftDto,
+  ) {
+    await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    return this.dataSource.transaction(async (manager) => {
+      const payment = await manager.findOne(ThirdPartyPayment, {
+        where: { id: paymentId, organizationId, dossierId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!payment)
+        throw new NotFoundException('Le règlement est introuvable.');
+      if (payment.status !== ThirdPartyPaymentStatus.Draft)
+        throw new ConflictException(
+          'Seul un règlement non comptabilisé peut être modifié.',
+        );
+      if (!payment.journalEntryId)
+        throw new ConflictException('L’écriture du règlement est introuvable.');
+      const entry = await manager.findOne(JournalEntry, {
+        where: { id: payment.journalEntryId, organizationId, dossierId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!entry || entry.status !== JournalEntryStatus.Draft)
+        throw new ConflictException(
+          'L’écriture du règlement doit également être en brouillon.',
+        );
+      await this.periodLocks.assertDateOpen(
+        organizationId,
+        dossierId,
+        entry.entryDate,
+        manager,
+      );
+      await this.periodLocks.assertDateOpen(
+        organizationId,
+        dossierId,
+        dto.paymentDate,
+        manager,
+      );
+      const before = {
+        paymentDate: payment.paymentDate,
+        reference: payment.reference,
+      };
+      payment.paymentDate = dto.paymentDate;
+      entry.entryDate = dto.paymentDate;
+      if (dto.reference !== undefined) {
+        payment.reference = dto.reference?.trim() || null;
+        entry.pieceReference = (payment.reference || `REG-${payment.id}`).slice(
+          0,
+          100,
+        );
+      }
+      await manager.save(entry);
+      await manager.save(payment);
+      const audits = manager.getRepository(AuditLog);
+      await audits.save(
+        audits.create({
+          organizationId,
+          actorUserId: userId,
+          action: 'third_party_payment.draft_updated',
+          entityType: 'ThirdPartyPayment',
+          entityId: payment.id,
+          detailsJson: {
+            dossierId,
+            before,
+            after: {
+              paymentDate: payment.paymentDate,
+              reference: payment.reference,
+            },
+          },
+        }),
+      );
+      return manager.findOneOrFail(ThirdPartyPayment, {
+        where: { id: payment.id },
+        relations: { thirdParty: true, allocations: { invoice: true } },
+      });
+    });
+  }
+
   async correctPayment(
     organizationId: string,
     dossierId: string,
@@ -473,7 +555,10 @@ export class SettlementsService {
         throw new NotFoundException('Le règlement est introuvable.');
       if (payment.status === ThirdPartyPaymentStatus.Cancelled)
         throw new ConflictException('Ce règlement a déjà été corrigé.');
-      if (dto.correctionDate < payment.paymentDate)
+      if (
+        payment.status === ThirdPartyPaymentStatus.Posted &&
+        dto.correctionDate < payment.paymentDate
+      )
         throw new BadRequestException(
           'La date de correction ne peut pas précéder le règlement.',
         );

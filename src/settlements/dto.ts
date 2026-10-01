@@ -121,6 +121,17 @@ export class CreateThirdPartyPaymentDto {
   instrumentDueDate?: string;
 }
 
+export class UpdateThirdPartyPaymentDraftDto {
+  @IsDateString({ strict: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  paymentDate!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  reference?: string;
+}
+
 export class CorrectThirdPartyPaymentDto {
   @IsEnum(ThirdPartyPaymentCorrectionType)
   correctionType!: ThirdPartyPaymentCorrectionType;
