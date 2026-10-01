@@ -29,6 +29,7 @@ import {
 import type { DossiersService } from '../dossiers/dossiers.service';
 import type { PeriodLockService } from '../period-closing/period-lock.service';
 import { SettlementsService } from './settlements.service';
+import * as invoiceLettrage from '../common/invoice-lettrage';
 
 describe('SettlementsService payment corrections', () => {
   const organizationId = '11111111-1111-4111-8111-111111111111';
@@ -669,6 +670,43 @@ describe('SettlementsService payment corrections', () => {
     await expect(
       context.service.postPayment(organizationId, dossierId, paymentId, userId),
     ).rejects.toThrow('déjà comptabilisé');
+  });
+
+  it('runs automatic lettrage only after payment and accounting entry are posted', async () => {
+    const payment = postedPayment();
+    payment.status = ThirdPartyPaymentStatus.Draft;
+    const context = makeService(payment);
+    context.entry.status = JournalEntryStatus.Draft;
+    context.invoice.outstandingAmount = '100.000';
+    context.invoice.paidAmount = '0.000';
+    const autoLetter = jest
+      .spyOn(invoiceLettrage, 'autoLetterInvoice')
+      .mockImplementation((_manager, invoice) => {
+        expect(payment.status).toBe(ThirdPartyPaymentStatus.Posted);
+        expect(context.entry.status).toBe(JournalEntryStatus.Posted);
+        expect(invoice.outstandingAmount).toBe('0.000');
+        return Promise.resolve();
+      });
+    try {
+      await context.service.postPayment(
+        organizationId,
+        dossierId,
+        paymentId,
+        userId,
+      );
+      expect(autoLetter).toHaveBeenCalledTimes(1);
+      await expect(
+        context.service.postPayment(
+          organizationId,
+          dossierId,
+          paymentId,
+          userId,
+        ),
+      ).rejects.toThrow('déjà comptabilisé');
+      expect(autoLetter).toHaveBeenCalledTimes(1);
+    } finally {
+      autoLetter.mockRestore();
+    }
   });
 
   it.each(['0.000', '-99.000'])(

@@ -23,6 +23,9 @@ describe('Credit-note original invoice identity', () => {
     netPayable: '100.000',
     creditedAmount: '0.000',
     paidAmount: '0.000',
+    thirdPartyAccountId: 'party-account',
+    vatAccountId: null,
+    lines: [],
   });
   function setup() {
     const invoices = { findOneBy: jest.fn().mockResolvedValue(original) };
@@ -31,7 +34,11 @@ describe('Credit-note original invoice identity', () => {
       { transaction } as never,
       invoices as never,
       {} as never,
-      {} as never,
+      {
+        findBy: jest
+          .fn()
+          .mockResolvedValue([{ id: 'party-account', code: '4011' }]),
+      } as never,
       {} as never,
       {} as never,
       {} as never,

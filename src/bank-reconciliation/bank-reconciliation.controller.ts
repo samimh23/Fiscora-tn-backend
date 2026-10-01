@@ -33,6 +33,7 @@ import {
   MatchPaymentDto,
   UpdateBankAccountDto,
   UpdateBankRuleDto,
+  UnmatchBankTransactionDto,
 } from './dto';
 
 @ApiTags('Rapprochement bancaire')
@@ -274,6 +275,24 @@ export class BankReconciliationController {
       transactionId,
       dto.paymentId,
       user.userId,
+    );
+  }
+
+  @Post('transactions/:transactionId/unmatch')
+  @RequirePermission(PermissionNames.BankReconciliationManage)
+  unmatch(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('transactionId', ParseUUIDPipe) transactionId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: UnmatchBankTransactionDto,
+  ) {
+    return this.service.unmatch(
+      organizationId,
+      dossierId,
+      transactionId,
+      user.userId,
+      dto,
     );
   }
 

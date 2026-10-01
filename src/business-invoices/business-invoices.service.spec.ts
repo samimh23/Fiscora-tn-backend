@@ -5,6 +5,7 @@ import {
   BusinessInvoiceNature,
   BusinessInvoiceStatus,
   BusinessInvoiceType,
+  LedgerAccount,
 } from '../database/entities';
 import { toMillimes } from '../common/money';
 import { BusinessInvoiceLineDto, SaveBusinessInvoiceDto } from './dto';
@@ -45,6 +46,52 @@ describe('Business invoice adjustment lines', () => {
     {} as never,
     {} as never,
     {} as never,
+  );
+
+  it.each([
+    [BusinessInvoiceType.Sale, '604', '411', '436711'],
+    [BusinessInvoiceType.Purchase, '705', '4011', '43666'],
+    [BusinessInvoiceType.Sale, '705', '4011', '436711'],
+    [BusinessInvoiceType.Purchase, '604', '411', '43666'],
+    [BusinessInvoiceType.Sale, '705', '411', '43666'],
+    [BusinessInvoiceType.Purchase, '604', '4011', '436711'],
+  ])(
+    'rejects incompatible %s account roles (%s, %s, %s)',
+    (type, lineCode, partyCode, vatCode) => {
+      const input = {
+        ...dto(),
+        type,
+        thirdPartyAccountId: 'party',
+        vatAccountId: 'vat',
+      };
+      const accounts = [
+        { id: accountId, code: lineCode },
+        { id: 'party', code: partyCode },
+        { id: 'vat', code: vatCode },
+      ] as LedgerAccount[];
+      expect(() => service['assertAccountRoles'](input, accounts)).toThrow();
+    },
+  );
+  it.each([BusinessInvoiceType.Sale, BusinessInvoiceType.Purchase])(
+    'accepts compatible %s roles including credit notes',
+    (type) => {
+      const sale = type === BusinessInvoiceType.Sale;
+      const input = {
+        ...dto(),
+        type,
+        kind: BusinessInvoiceKind.CreditNote,
+        thirdPartyAccountId: 'party',
+        vatAccountId: 'vat',
+      };
+      const accounts = [
+        { id: accountId, code: sale ? '705' : '604' },
+        { id: 'party', code: sale ? '411' : '4011' },
+        { id: 'vat', code: sale ? '436711' : '43666' },
+      ] as LedgerAccount[];
+      expect(() =>
+        service['assertAccountRoles'](input, accounts),
+      ).not.toThrow();
+    },
   );
 
   it.each([
@@ -203,6 +250,7 @@ describe('Business invoice adjustment lines', () => {
       lines: result.lines,
       id: 'invoice',
       status: BusinessInvoiceStatus.Draft,
+      thirdPartyAccountId: 'party',
       vatAccountId: 'vat',
       stampAccountId: 'stamp',
     } as unknown as BusinessInvoice;
@@ -218,7 +266,13 @@ describe('Business invoice adjustment lines', () => {
       { transaction } as never,
       { findOne: jest.fn().mockResolvedValue(invoice) } as never,
       {} as never,
-      {} as never,
+      {
+        findBy: jest.fn().mockResolvedValue([
+          { id: accountId, code: '604' },
+          { id: 'party', code: '4011' },
+          { id: 'vat', code: '43666' },
+        ]),
+      } as never,
       {} as never,
       {} as never,
       {} as never,

@@ -29,6 +29,7 @@ import {
   BankStatementStatus,
   BankTransaction,
   BankTransactionStatus,
+  DossierStatus,
   JournalEntry,
   JournalEntryLine,
   JournalEntryStatus,
@@ -63,6 +64,7 @@ import {
   ImportBankStatementDto,
   UpdateBankAccountDto,
   UpdateBankRuleDto,
+  UnmatchBankTransactionDto,
 } from './dto';
 import { isBankLedgerAccountCode } from './bank-ledger-account';
 import { PeriodLockService } from '../period-closing/period-lock.service';
@@ -970,6 +972,112 @@ export class BankReconciliationService {
     await this.transactions.save(transaction);
     await this.refreshStatementStatus(transaction.statementId);
     return this.findTransaction(organizationId, dossierId, transaction.id);
+  }
+
+  async unmatch(
+    organizationId: string,
+    dossierId: string,
+    transactionId: string,
+    userId: string,
+    dto: UnmatchBankTransactionDto,
+  ) {
+    const dossier = await this.dossiers.getAccessibleEntity(
+      organizationId,
+      dossierId,
+      userId,
+    );
+    if (dossier.status === DossierStatus.Archived)
+      throw new ConflictException('Un dossier archivé est en lecture seule.');
+    const reason = dto.reason?.trim();
+    if (!reason || reason.length < 3 || reason.length > 500)
+      throw new BadRequestException('Indiquez un motif de 3 à 500 caractères.');
+    const current = await this.findTransaction(
+      organizationId,
+      dossierId,
+      transactionId,
+    );
+    await this.dataSource.transaction(async (manager) => {
+      // Lock the statement first, as final validation does, so undo and validation
+      // cannot both commit against the same previously-open statement.
+      const statement = await manager.findOne(BankStatement, {
+        where: { id: current.statementId, organizationId, dossierId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!statement)
+        throw new NotFoundException('Le relevé bancaire est introuvable.');
+      this.ensureOpen(statement);
+      const transaction = await manager.findOne(BankTransaction, {
+        where: {
+          id: transactionId,
+          statementId: statement.id,
+          organizationId,
+          dossierId,
+        },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!transaction)
+        throw new NotFoundException('L’opération bancaire est introuvable.');
+      await this.periodLocks.assertDateOpen(
+        organizationId,
+        dossierId,
+        transaction.transactionDate,
+        manager,
+      );
+      if (transaction.status !== BankTransactionStatus.Matched)
+        throw new ConflictException(
+          'Cette opération n’est plus rapprochée. Actualisez le relevé.',
+        );
+      if (
+        transaction.journalEntryId !== dto.journalEntryId ||
+        transaction.matchedPaymentId !== (dto.paymentId ?? null)
+      )
+        throw new ConflictException(
+          'Le rapprochement a changé. Actualisez le relevé avant de l’annuler.',
+        );
+      const previous = {
+        matchType: transaction.matchType,
+        matchConfidence: transaction.matchConfidence,
+        matchedPaymentId: transaction.matchedPaymentId,
+        journalEntryId: transaction.journalEntryId,
+        matchedByUserId: transaction.matchedByUserId,
+        matchedAtUtc: transaction.matchedAtUtc,
+      };
+      Object.assign(transaction, {
+        status: BankTransactionStatus.Unmatched,
+        matchType: null,
+        matchConfidence: null,
+        matchedPaymentId: null,
+        journalEntryId: null,
+        matchedByUserId: null,
+        matchedAtUtc: null,
+      });
+      await manager.save(transaction);
+      const remaining = await manager.count(BankTransaction, {
+        where: {
+          statementId: statement.id,
+          status: BankTransactionStatus.Matched,
+        },
+      });
+      statement.status =
+        remaining > 0
+          ? BankStatementStatus.PartiallyMatched
+          : BankStatementStatus.Imported;
+      await manager.save(statement);
+      await this.addAudit(
+        manager,
+        organizationId,
+        userId,
+        'bank_transaction.unmatched',
+        transaction.id,
+        {
+          dossierId,
+          statementId: statement.id,
+          reason,
+          previous,
+        },
+      );
+    });
+    return this.findTransaction(organizationId, dossierId, transactionId);
   }
 
   async matchEntry(

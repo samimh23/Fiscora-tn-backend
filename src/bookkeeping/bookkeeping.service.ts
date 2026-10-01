@@ -26,6 +26,7 @@ import {
   ReportQueryDto,
 } from './dto';
 import { PeriodLockService } from '../period-closing/period-lock.service';
+import { releaseEntryLettrage } from '../common/invoice-lettrage';
 import {
   BookkeepingExportService,
   ExportColumn,
@@ -528,6 +529,20 @@ export class BookkeepingService {
       reversalDate,
     );
     return this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        `lettrage:${dossierId}`,
+      ]);
+      const currentLines = await manager.find(JournalEntryLine, {
+        where: { organizationId, entryId: original.id },
+      });
+      await releaseEntryLettrage(
+        manager,
+        organizationId,
+        dossierId,
+        currentLines,
+        userId,
+        this.periodLocks,
+      );
       const reversal = await manager.save(
         manager.create(JournalEntry, {
           organizationId,
@@ -918,9 +933,12 @@ export class BookkeepingService {
         (SUM(l.debit)-SUM(l.credit))::numeric(15,3) AS balance
        FROM accounting.journal_entry_lines l
        JOIN accounting.journal_entries e ON e.id=l.entry_id
+       JOIN accounting.ledger_accounts a ON a.id=l.account_id
        WHERE e.organization_id=$1 AND e.dossier_id=$2
          AND e.entry_date BETWEEN $3 AND $4 AND e.status IN ('COMPTABILISEE','EXTOURNEE')
          AND l.third_party_name IS NOT NULL
+         AND a.organization_id=$1 AND a.dossier_id=$2
+         AND (a.code LIKE '401%' OR a.code LIKE '411%')
        GROUP BY l.third_party_name ORDER BY l.third_party_name`,
       [organizationId, dossierId, query.from, query.to],
     );
@@ -992,6 +1010,13 @@ export class BookkeepingService {
         throw new ConflictException(
           'Seules les écritures comptabilisées peuvent être lettrées.',
         );
+      for (const line of lines)
+        await this.periodLocks.assertDateOpen(
+          organizationId,
+          dossierId,
+          line.entry.entryDate,
+          manager,
+        );
       const debit = lines.reduce(
         (sum, line) => sum + toMillimes(line.debit),
         0n,
@@ -1059,11 +1084,21 @@ export class BookkeepingService {
   ) {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     return this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        `lettrage:${dossierId}`,
+      ]);
       const item = await manager.findOne(AccountReconciliation, {
         where: { id: reconciliationId, organizationId, dossierId },
-        relations: { lines: true },
+        relations: { lines: { entry: true } },
       });
       if (!item) throw new NotFoundException('Le lettrage est introuvable.');
+      for (const line of item.lines)
+        await this.periodLocks.assertDateOpen(
+          organizationId,
+          dossierId,
+          line.entry.entryDate,
+          manager,
+        );
       item.lines.forEach((line) => {
         line.reconciliationId = null;
         line.letterCode = null;

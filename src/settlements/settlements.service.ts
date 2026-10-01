@@ -42,6 +42,10 @@ import {
   UpdateThirdPartyPaymentDraftDto,
 } from './dto';
 import { PeriodLockService } from '../period-closing/period-lock.service';
+import {
+  autoLetterInvoice,
+  releaseEntryLettrage,
+} from '../common/invoice-lettrage';
 
 @Injectable()
 export class SettlementsService {
@@ -387,6 +391,7 @@ export class SettlementsService {
       const allocations = await manager.find(PaymentAllocation, {
         where: { paymentId: payment.id, organizationId },
       });
+      const settledInvoices: BusinessInvoice[] = [];
       for (const allocation of allocations) {
         const invoice = await manager.findOne(BusinessInvoice, {
           where: {
@@ -423,6 +428,7 @@ export class SettlementsService {
           toMillimes(invoice.paidAmount),
         );
         await manager.save(invoice);
+        settledInvoices.push(invoice);
       }
       const entry = await manager.findOneByOrFail(JournalEntry, {
         id: payment.journalEntryId,
@@ -444,6 +450,8 @@ export class SettlementsService {
       payment.postedByUserId = userId;
       payment.postedAtUtc = new Date();
       await manager.save(payment);
+      for (const invoice of settledInvoices)
+        await autoLetterInvoice(manager, invoice, userId, this.periodLocks);
       return manager.findOneOrFail(ThirdPartyPayment, {
         where: { id: payment.id },
         relations: { thirdParty: true, allocations: { invoice: true } },
@@ -665,6 +673,14 @@ export class SettlementsService {
       throw new ConflictException(
         'L’écriture du règlement ne contient aucune ligne à extourner.',
       );
+    await releaseEntryLettrage(
+      manager,
+      payment.organizationId,
+      payment.dossierId,
+      originalLines,
+      userId,
+      this.periodLocks,
+    );
     const reversal = await manager.save(
       manager.create(JournalEntry, {
         organizationId: payment.organizationId,

@@ -45,6 +45,7 @@ import { FiscalSettingsService } from '../fiscal-settings/fiscal-settings.servic
 import { SaveBusinessInvoiceDto } from './dto';
 import { PeriodLockService } from '../period-closing/period-lock.service';
 import { SystemRoleNames } from '../database/permissions';
+import { autoLetterInvoice } from '../common/invoice-lettrage';
 
 @Injectable()
 export class BusinessInvoicesService {
@@ -395,6 +396,7 @@ export class BusinessInvoicesService {
         invoice.netPayable,
       );
     }
+    await this.validateStoredAccountRoles(invoice);
     const accountingLines = this.accountingLines(invoice);
     const totalDebit = accountingLines.reduce(
       (sum, line) => sum + toMillimes(line.debit),
@@ -657,6 +659,7 @@ export class BusinessInvoicesService {
             'Le montant de l’avoir dépasse le montant non encore crédité de la facture.',
           );
       }
+      await this.validateStoredAccountRoles(invoice);
       entry.status = JournalEntryStatus.Posted;
       entry.postedByUserId = userId;
       entry.postedAtUtc = new Date();
@@ -678,6 +681,8 @@ export class BusinessInvoicesService {
         invoice.settlementStatus = InvoiceSettlementStatus.Paid;
       }
       await manager.save(invoice);
+      if (original)
+        await autoLetterInvoice(manager, original, userId, this.periodLocks);
       return manager.findOneOrFail(BusinessInvoice, {
         where: { id: invoice.id },
         relations: {
@@ -901,6 +906,7 @@ export class BusinessInvoicesService {
       throw new BadRequestException(
         'Un compte comptable est inexistant, inactif ou non mouvementable.',
       );
+    this.assertAccountRoles(dto, accounts);
     if (toMillimes(calculation.header.vatAmount) !== 0n && !dto.vatAccountId)
       throw new BadRequestException(
         'Le compte de TVA est obligatoire lorsque la facture contient de la TVA.',
@@ -930,6 +936,69 @@ export class BusinessInvoicesService {
       throw new BadRequestException(
         'Le compte FODEC est obligatoire lorsqu’il est appliqué.',
       );
+  }
+
+  private assertAccountRoles(
+    invoice: {
+      type: BusinessInvoiceType;
+      thirdPartyAccountId: string;
+      vatAccountId?: string | null;
+      lines: Array<{ accountId: string }>;
+    },
+    accounts: LedgerAccount[],
+  ) {
+    const sale = invoice.type === BusinessInvoiceType.Sale;
+    const byId = new Map(accounts.map((account) => [account.id, account]));
+    const party = byId.get(invoice.thirdPartyAccountId);
+    if (
+      party &&
+      !(sale ? party.code.startsWith('411') : party.code.startsWith('401'))
+    )
+      throw new BadRequestException(
+        'Le compte tiers ne correspond pas au flux achat/vente.',
+      );
+    const vat = invoice.vatAccountId ? byId.get(invoice.vatAccountId) : null;
+    if (
+      vat &&
+      !(sale ? vat.code.startsWith('43671') : vat.code.startsWith('4366'))
+    )
+      throw new BadRequestException(
+        sale
+          ? 'Une vente doit utiliser un compte de TVA collectée (43671), pas de TVA déductible.'
+          : 'Un achat doit utiliser un compte de TVA déductible (4366), pas de TVA collectée.',
+      );
+    for (const line of invoice.lines) {
+      const account = byId.get(line.accountId);
+      if (
+        account &&
+        !(sale ? account.code.startsWith('7') : /^[236]/.test(account.code))
+      )
+        throw new BadRequestException(
+          'Le compte de ligne ne correspond pas au flux achat/vente.',
+        );
+    }
+  }
+
+  private async validateStoredAccountRoles(invoice: BusinessInvoice) {
+    const ids = [
+      ...new Set([
+        invoice.thirdPartyAccountId,
+        ...invoice.lines.map((line) => line.accountId),
+        ...(invoice.vatAccountId ? [invoice.vatAccountId] : []),
+      ]),
+    ];
+    const accounts = await this.accounts.findBy({
+      id: In(ids),
+      organizationId: invoice.organizationId,
+      dossierId: invoice.dossierId,
+      isActive: true,
+      allowsPosting: true,
+    });
+    if (accounts.length !== ids.length)
+      throw new BadRequestException(
+        'Un compte de la facture est inexistant, inactif ou non mouvementable.',
+      );
+    this.assertAccountRoles(invoice, accounts);
   }
 
   private accountingLines(invoice: BusinessInvoice) {

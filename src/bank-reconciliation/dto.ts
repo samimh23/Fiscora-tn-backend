@@ -9,11 +9,30 @@ import {
   IsUUID,
   Matches,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 import { BankRuleDirection, BankRuleMatchType } from '../database/entities';
 
 const signedMoney = /^-?\d+(\.\d{1,3})?$/;
 const tunisianIbanOrRib = /^(TN\d{22}|\d{20})$/i;
+
+export class UnmatchBankTransactionDto {
+  @Transform(({ value }: TransformFnParams): unknown => {
+    const input: unknown = value;
+    return typeof input === 'string' ? input.trim() : input;
+  })
+  @IsString()
+  @MinLength(3)
+  @MaxLength(500)
+  reason!: string;
+
+  @IsUUID()
+  journalEntryId!: string;
+
+  @IsOptional()
+  @IsUUID()
+  paymentId?: string | null;
+}
 
 export class CreateBankDto {
   @IsString()
