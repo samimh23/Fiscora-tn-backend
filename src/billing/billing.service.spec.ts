@@ -10,6 +10,15 @@ import type { DossiersService } from '../dossiers/dossiers.service';
 import { BillingService } from './billing.service';
 
 describe('BillingService edit flows', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-09-06T12:00:00Z'));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   const organizationId = '11111111-1111-4111-8111-111111111111';
   const dossierId = '22222222-2222-4222-8222-222222222222';
   const invoiceId = '33333333-3333-4333-8333-333333333333';
@@ -148,49 +157,57 @@ describe('BillingService edit flows', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('keeps a payment and records its correction trail', async () => {
-    const invoice = makeInvoice({
-      status: InvoiceStatus.Paid,
-      totalAmount: '120.000',
-      paidAmount: '120.000',
-      dueDate: '2026-09-30',
-    });
-    const payment = {
-      id: '55555555-5555-4555-8555-555555555555',
-      organizationId,
-      invoiceId,
-      paymentDate: '2026-09-05',
-      amount: '120.000',
-      correctionType: null,
-    } as CabinetPayment;
-    const { service, save } = setupCorrection(invoice, payment);
+  it.each([
+    ['2026-09-06', InvoiceStatus.Sent],
+    ['2026-09-30', InvoiceStatus.Sent],
+    ['2026-10-01', InvoiceStatus.Overdue],
+  ])(
+    'keeps a payment and restores invoice status on %s',
+    async (today, expectedStatus) => {
+      jest.setSystemTime(new Date(`${today}T12:00:00Z`));
+      const invoice = makeInvoice({
+        status: InvoiceStatus.Paid,
+        totalAmount: '120.000',
+        paidAmount: '120.000',
+        dueDate: '2026-09-30',
+      });
+      const payment = {
+        id: '55555555-5555-4555-8555-555555555555',
+        organizationId,
+        invoiceId,
+        paymentDate: '2026-09-05',
+        amount: '120.000',
+        correctionType: null,
+      } as CabinetPayment;
+      const { service, save } = setupCorrection(invoice, payment);
 
-    const result = await service.correctPayment(
-      organizationId,
-      dossierId,
-      invoiceId,
-      payment.id,
-      userId,
-      {
+      const result = await service.correctPayment(
+        organizationId,
+        dossierId,
+        invoiceId,
+        payment.id,
+        userId,
+        {
+          correctionType: 'ANNULATION_SAISIE',
+          correctionDate: '2026-09-06',
+          reason: 'Doublon de saisie',
+        },
+      );
+
+      expect(result).toMatchObject({
         correctionType: 'ANNULATION_SAISIE',
         correctionDate: '2026-09-06',
-        reason: 'Doublon de saisie',
-      },
-    );
-
-    expect(result).toMatchObject({
-      correctionType: 'ANNULATION_SAISIE',
-      correctionDate: '2026-09-06',
-      correctionReason: 'Doublon de saisie',
-      correctedByUserId: userId,
-    });
-    expect(invoice).toMatchObject({
-      paidAmount: '0.000',
-      status: InvoiceStatus.Sent,
-    });
-    expect(save).toHaveBeenCalledWith(payment);
-    expect(save).toHaveBeenCalledWith(invoice);
-  });
+        correctionReason: 'Doublon de saisie',
+        correctedByUserId: userId,
+      });
+      expect(invoice).toMatchObject({
+        paidAmount: '0.000',
+        status: expectedStatus,
+      });
+      expect(save).toHaveBeenCalledWith(payment);
+      expect(save).toHaveBeenCalledWith(invoice);
+    },
+  );
 
   it('refuses to correct the same payment twice', async () => {
     const invoice = makeInvoice({
