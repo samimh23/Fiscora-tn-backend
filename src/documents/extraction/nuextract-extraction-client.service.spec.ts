@@ -28,7 +28,7 @@ describe('NuExtract extraction contract', () => {
     const template = templateFor('bank_statement');
 
     expect(template).toMatchObject({
-      document_type: ['bank_statement'],
+      document_type: ['bank_statement', 'other'],
       bank_statement: {
         transactions: [
           expect.objectContaining({
@@ -41,6 +41,12 @@ describe('NuExtract extraction contract', () => {
     });
     expect(template).not.toHaveProperty('line_items');
     expect(template).not.toHaveProperty('invoice_nature');
+    expect(nuextractInstructions('bank_statement')).toContain(
+      'Never return document_type as an array',
+    );
+    expect(nuextractInstructions('bank_statement')).toContain(
+      'otherwise return "other"',
+    );
   });
 
   it('keeps OCR coordinates in the input but not in the output template', () => {

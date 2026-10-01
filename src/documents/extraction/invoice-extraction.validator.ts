@@ -15,7 +15,32 @@ export class InvoiceExtractionValidator {
   validate(input: Record<string, unknown>): ExtractionValidationResult {
     const normalizedData = structuredClone(input);
     const issues: ExtractionValidationIssue[] = [];
-    const documentType = this.text(input.document_type);
+    const rawType = input.document_type;
+    const candidate: unknown =
+      Array.isArray(rawType) && rawType.length === 1 ? rawType[0] : rawType;
+    const documentType = this.text(candidate)?.toLowerCase() ?? null;
+    if (
+      (documentType &&
+        ![
+          'invoice',
+          'credit_note',
+          'receipt',
+          'bank_statement',
+          'other',
+        ].includes(documentType)) ||
+      (rawType != null && typeof rawType !== 'string' && !documentType)
+    ) {
+      issues.push(
+        this.error(
+          'DOCUMENT_TYPE_INVALID',
+          'document_type',
+          'Le type de document est invalide ou ambigu. Choisissez un seul type reconnu.',
+        ),
+      );
+      return { normalizedData, issues };
+    }
+    // Repair the legacy singleton-enum response without inferring a type from the upload category.
+    if (documentType) normalizedData.document_type = documentType;
     if (!documentType) {
       issues.push(
         this.error(

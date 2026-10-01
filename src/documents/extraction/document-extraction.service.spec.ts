@@ -10,6 +10,31 @@ import {
 import { ExtractionReviewDecision } from './extraction.dto';
 import type { DocumentExtractionClient } from './document-extraction-client';
 
+const legacyBankData = {
+  document_type: ['bank_statement'],
+  currency: 'TND',
+  bank_statement: {
+    period_start: '01/09/2026',
+    period_end: '30/09/2026',
+    opening_balance: '5000,000',
+    closing_balance: '5224,800',
+    transactions: [
+      {
+        transaction_date: '15/09/2026',
+        description: 'ATLAS',
+        credit: '1000,000',
+      },
+      {
+        transaction_date: '18/09/2026',
+        description: 'CARTHAGE',
+        debit: '700,000',
+      },
+      { transaction_date: '24/09/2026', description: 'SAHEL', debit: '65,200' },
+      { transaction_date: '30/09/2026', description: 'Frais', debit: '10,000' },
+    ],
+  },
+};
+
 describe('DocumentExtractionService image-first extraction', () => {
   const file = Buffer.from('original document');
   const ocr = {
@@ -171,6 +196,65 @@ describe('postgresUpdateRows', () => {
 });
 
 describe('DocumentExtractionService.reviewQueue', () => {
+  it('repairs a pending legacy bank response on read without rewriting the job or source', () => {
+    const service = new DocumentExtractionService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const job = {
+      status: DocumentExtractionJobStatus.ReviewRequired,
+      normalizedData: structuredClone(legacyBankData),
+      rawResponse: { extractedData: structuredClone(legacyBankData) },
+      validationIssues: [
+        {
+          code: 'SUPPLIER_MISSING',
+          field: 'supplier.name',
+          severity: 'ERROR',
+          message: 'Old invoice-only error',
+        },
+      ],
+    };
+    const original = structuredClone(job);
+    const response = service['response'](job as never);
+    expect(response.normalizedData).toMatchObject({
+      document_type: 'bank_statement',
+      bank_statement: { closing_balance: 5224.8 },
+    });
+    expect(response.validationIssues).toEqual([]);
+    expect(response.sourceData).toEqual(legacyBankData);
+    expect(job).toEqual(original);
+  });
+
+  it.each([
+    DocumentExtractionJobStatus.Approved,
+    DocumentExtractionJobStatus.Rejected,
+  ])('preserves historical %s responses', (status) => {
+    const service = new DocumentExtractionService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const response = service['response']({
+      status,
+      normalizedData: legacyBankData,
+      validationIssues: [],
+    } as never);
+    expect(response.normalizedData).toEqual(legacyBankData);
+  });
+
   it('only returns active documents that are still awaiting review', async () => {
     const jobs = {
       find: jest.fn().mockResolvedValue([]),
@@ -242,7 +326,7 @@ describe('DocumentExtractionService.review', () => {
       dossierId: 'dossier-1',
       documentId: 'document-1',
       status: DocumentExtractionJobStatus.ReviewRequired,
-      normalizedData: inconsistentInvoice,
+      normalizedData: inconsistentInvoice as Record<string, unknown>,
       validationIssues: [],
     };
     const manager = {
@@ -269,6 +353,11 @@ describe('DocumentExtractionService.review', () => {
     const dossiers = {
       getAccessibleEntity: jest.fn().mockResolvedValue({ id: 'dossier-1' }),
     };
+    const bank = {
+      importExtractedStatement: jest
+        .fn()
+        .mockResolvedValue({ id: 'statement-1' }),
+    };
     const service = new DocumentExtractionService(
       {} as never,
       documents as never,
@@ -278,10 +367,67 @@ describe('DocumentExtractionService.review', () => {
       dossiers as never,
       {} as never,
       {} as never,
-      {} as never,
+      bank as never,
     );
-    return { service, document, job, audits };
+    return { service, document, job, audits, bank };
   }
+
+  it('approves a legacy bank response into the chosen account only after review', async () => {
+    const { service, job, bank } = setupReview();
+    job.normalizedData = structuredClone(legacyBankData);
+    await service.review(
+      'organization-1',
+      'dossier-1',
+      'document-1',
+      'user-1',
+      {
+        decision: ExtractionReviewDecision.Approve,
+        bankAccountId: 'bank-1',
+      },
+    );
+    expect(bank.importExtractedStatement).toHaveBeenCalledTimes(1);
+    expect(bank.importExtractedStatement).toHaveBeenCalledWith(
+      'organization-1',
+      'dossier-1',
+      'user-1',
+      'bank-1',
+      'invoice.jpg',
+      expect.objectContaining({ document_type: 'bank_statement' }),
+    );
+    expect(job.normalizedData.document_type).toBe('bank_statement');
+    expect(job.status).toBe(DocumentExtractionJobStatus.Approved);
+  });
+
+  it('still requires a destination bank account for a repaired legacy response', async () => {
+    const { service, job, bank } = setupReview();
+    job.normalizedData = structuredClone(legacyBankData);
+    await expect(
+      service.review('organization-1', 'dossier-1', 'document-1', 'user-1', {
+        decision: ExtractionReviewDecision.Approve,
+      }),
+    ).rejects.toThrow('Sélectionnez le compte bancaire');
+    expect(bank.importExtractedStatement).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { documentType: ['bank_statement', 'invoice'] },
+    { documentType: 'unknown' },
+    { documentType: null },
+  ])(
+    'cannot force-approve an ambiguous, unknown or missing document type %j',
+    async ({ documentType }) => {
+      const { service, bank } = setupReview();
+      await expect(
+        service.review('organization-1', 'dossier-1', 'document-1', 'user-1', {
+          decision: ExtractionReviewDecision.Approve,
+          correctedData: { ...legacyBankData, document_type: documentType },
+          bankAccountId: 'bank-1',
+          forceApprove: true,
+        }),
+      ).rejects.toThrow('Choisissez un seul type');
+      expect(bank.importExtractedStatement).not.toHaveBeenCalled();
+    },
+  );
 
   it('keeps blocking validation errors blocked without an override', async () => {
     const { service } = setupReview();

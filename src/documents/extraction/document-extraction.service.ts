@@ -222,6 +222,17 @@ export class DocumentExtractionService implements OnModuleDestroy {
           'Aucune donnée extraite ne peut être approuvée.',
         );
       const validation = new InvoiceExtractionValidator().validate(accepted);
+      if (
+        validation.issues.some((issue) =>
+          ['DOCUMENT_TYPE_MISSING', 'DOCUMENT_TYPE_INVALID'].includes(
+            issue.code,
+          ),
+        )
+      ) {
+        throw new BadRequestException(
+          'Choisissez un seul type de document reconnu avant approbation.',
+        );
+      }
       const blockingIssues = validation.issues.filter(
         (issue) => issue.severity === 'ERROR',
       );
@@ -483,6 +494,14 @@ export class DocumentExtractionService implements OnModuleDestroy {
   }
 
   private response(job: DocumentExtractionJob) {
+    // Present old pending enum-list responses using the current contract. Do not
+    // mutate persisted data or rewrite approved/rejected extraction history on GET.
+    const compatibilityValidation =
+      job.status === DocumentExtractionJobStatus.ReviewRequired &&
+      job.normalizedData &&
+      Array.isArray(job.normalizedData.document_type)
+        ? new InvoiceExtractionValidator().validate(job.normalizedData)
+        : null;
     return {
       id: job.id,
       documentId: job.documentId,
@@ -491,8 +510,9 @@ export class DocumentExtractionService implements OnModuleDestroy {
       availableAtUtc: job.availableAtUtc,
       modelName: job.modelName,
       sourceData: this.sourceData(job),
-      normalizedData: job.normalizedData,
-      validationIssues: job.validationIssues,
+      normalizedData:
+        compatibilityValidation?.normalizedData ?? job.normalizedData,
+      validationIssues: compatibilityValidation?.issues ?? job.validationIssues,
       lastError: job.lastError,
       processedAtUtc: job.processedAtUtc,
       reviewedAtUtc: job.reviewedAtUtc,

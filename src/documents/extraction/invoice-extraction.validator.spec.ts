@@ -2,6 +2,115 @@ import { InvoiceExtractionValidator } from './invoice-extraction.validator';
 
 describe('InvoiceExtractionValidator', () => {
   const validator = new InvoiceExtractionValidator();
+  const septemberStatement = {
+    currency: 'TND',
+    bank_statement: {
+      period_start: '01/09/2026',
+      period_end: '30/09/2026',
+      opening_balance: '5000,000',
+      closing_balance: '5224,800',
+      transactions: [
+        {
+          transaction_date: '15/09/2026',
+          description: 'ATLAS',
+          credit: '1000,000',
+        },
+        {
+          transaction_date: '18/09/2026',
+          description: 'CARTHAGE',
+          debit: '700,000',
+        },
+        {
+          transaction_date: '24/09/2026',
+          description: 'SAHEL',
+          debit: '65,200',
+        },
+        {
+          transaction_date: '30/09/2026',
+          description: 'Frais',
+          debit: '10,000',
+        },
+      ],
+    },
+  };
+
+  it.each([
+    { documentType: 'bank_statement' },
+    { documentType: ['bank_statement'] },
+    { documentType: ' BANK_STATEMENT ' },
+  ])(
+    'normalizes the bank document type %j and runs bank-only controls',
+    ({ documentType }) => {
+      const input = { ...septemberStatement, document_type: documentType };
+      const original = structuredClone(input);
+      const result = validator.validate(input);
+      expect(result.normalizedData).toMatchObject({
+        document_type: 'bank_statement',
+        bank_statement: {
+          period_start: '2026-09-01',
+          period_end: '2026-09-30',
+          opening_balance: 5000,
+          closing_balance: 5224.8,
+          transactions: [
+            expect.objectContaining({ amount: 1000 }),
+            expect.objectContaining({ amount: -700 }),
+            expect.objectContaining({ amount: -65.2 }),
+            expect.objectContaining({ amount: -10 }),
+          ],
+        },
+      });
+      expect(result.issues).toEqual([]);
+      expect(input).toEqual(original);
+    },
+  );
+
+  it.each([
+    { documentType: [] },
+    { documentType: ['bank_statement', 'invoice'] },
+    { documentType: [['bank_statement']] },
+    { documentType: ['unknown'] },
+    { documentType: { type: 'bank_statement' } },
+    { documentType: 'unknown' },
+  ])(
+    'rejects an invalid or ambiguous document type %j rather than guessing',
+    ({ documentType }) => {
+      const result = validator.validate({
+        ...septemberStatement,
+        document_type: documentType,
+      });
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({
+          code: 'DOCUMENT_TYPE_INVALID',
+          severity: 'ERROR',
+        }),
+      );
+      expect(result.normalizedData.document_type).not.toBe('bank_statement');
+    },
+  );
+
+  it('still blocks an inconsistent bank balance after repairing the type', () => {
+    const result = validator.validate({
+      ...septemberStatement,
+      document_type: ['bank_statement'],
+      bank_statement: {
+        ...septemberStatement.bank_statement,
+        closing_balance: '9999,000',
+      },
+    });
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'BANK_CLOSING_BALANCE_MISMATCH',
+        severity: 'ERROR',
+      }),
+    );
+  });
+
+  it('unwraps a legacy invoice classification without changing its identity', () => {
+    expect(
+      validator.validate({ document_type: ['credit_note'] }).normalizedData
+        .document_type,
+    ).toBe('credit_note');
+  });
 
   it.each(['BIENS', 'SERVICES', 'MIXTE'])(
     'keeps a valid invoice nature suggestion: %s',

@@ -68,7 +68,8 @@ const INVOICE_TEMPLATE = {
 };
 
 const BANK_STATEMENT_TEMPLATE = {
-  document_type: ['bank_statement'],
+  // NuExtract treats a one-element array as a list, not a scalar enum.
+  document_type: ['bank_statement', 'other'],
   currency: 'verbatim-string',
   bank_statement: {
     bank_name: 'verbatim-string',
@@ -364,12 +365,14 @@ export function nuextractInstructions(
   const classification =
     documentKind === 'invoice'
       ? `
-- Only invoice_nature and line_items.item_nature are semantic classifications, not verbatim facts. All other fields must remain strictly extractive.
+- document_type, invoice_nature and line_items.item_nature are semantic classifications, not verbatim facts. All other fields must remain strictly extractive.
 - Classify billed descriptions: BIENS means physical products, equipment or merchandise; SERVICES means work, subscriptions, internet access, repairs, consulting or maintenance. Do not classify from the supplier name alone.
 - A negative adjustment has the same nature as the related billed item; its minus sign does not make it a different nature.
 - Classify every visible line as BIENS, SERVICES or INDETERMINE. Use INDETERMINE when the description is insufficient or ambiguous; do not guess.
 - invoice_nature is BIENS if all lines are goods, SERVICES if all lines are services, MIXTE if both are present, and INDETERMINE if any line is uncertain. Classify only the lines visible on these supplied pages.`
-      : '';
+      : `
+- document_type is a semantic classification, not verbatim text. Return the scalar string "bank_statement" only when the source is a bank statement with account movements or balances; otherwise return "other". Never return document_type as an array.
+- Do not classify an invoice, receipt or credit note as a bank statement simply because this template was supplied.`;
   return `Extract this ${typeLabel} into the supplied JSON template.
 - Copy only values visibly present in the source.
 - Preserve monetary strings exactly, including spaces, commas, points and leading zeros.
