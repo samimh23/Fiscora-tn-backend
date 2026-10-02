@@ -13,6 +13,7 @@ import {
   CabinetMemberCostRate,
   ClientDossier,
   DossierAssignment,
+  DossierAssignmentRole,
   MemberCompensationType,
   OrganizationMembership,
   TimeEntry,
@@ -22,7 +23,7 @@ import {
   WorkSessionStatus,
   WorkTask,
 } from '../database/entities';
-import { PermissionNames } from '../database/permissions';
+import { PermissionNames, SystemRoleNames } from '../database/permissions';
 import { DossiersService } from '../dossiers/dossiers.service';
 import { canAccessAllTasks } from '../tasks/task-access';
 import { estimateContractFee } from './contract-fee';
@@ -214,10 +215,12 @@ export class ProductivityService {
   async listCostRates(organizationId: string) {
     const rates = await this.costRates.find({
       where: { organizationId },
-      relations: { membership: { user: true } },
+      relations: { membership: { user: true, role: true } },
       order: { effectiveFrom: 'DESC' },
     });
-    return rates.map((rate) => this.toCostRate(rate));
+    return rates
+      .filter((rate) => !this.isClientPortal(rate.membership))
+      .map((rate) => this.toCostRate(rate));
   }
 
   async cockpit(organizationId: string, actorUserId: string) {
@@ -600,10 +603,14 @@ export class ProductivityService {
   ) {
     const membership = await this.memberships.findOne({
       where: { id: dto.membershipId, organizationId, isActive: true },
-      relations: { user: true },
+      relations: { user: true, role: true },
     });
     if (!membership)
       throw new NotFoundException('Le membre actif est introuvable.');
+    if (this.isClientPortal(membership))
+      throw new BadRequestException(
+        'Un compte portail client ne peut pas avoir de coût collaborateur.',
+      );
     if (dto.effectiveTo && dto.effectiveTo < dto.effectiveFrom)
       throw new BadRequestException(
         'La date de fin ne peut pas précéder la date de début.',
@@ -1040,6 +1047,7 @@ export class ProductivityService {
         .createQueryBuilder('entry')
         .leftJoinAndSelect('entry.membership', 'membership')
         .leftJoinAndSelect('membership.user', 'user')
+        .leftJoinAndSelect('membership.role', 'role')
         .leftJoinAndSelect('entry.dossier', 'dossier')
         .where('entry.organization_id = :organizationId', { organizationId })
         .andWhere('entry.dossier_id = ANY(:dossierIds)', { dossierIds })
@@ -1065,7 +1073,7 @@ export class ProductivityService {
           dossierId,
           isActive: true,
         })),
-        relations: { membership: { user: true } },
+        relations: { membership: { user: true, role: true } },
       }),
       this.dataSource.query<
         Array<{
@@ -1130,6 +1138,11 @@ export class ProductivityService {
     };
 
     for (const assignment of assignments) {
+      if (
+        assignment.assignmentRole === DossierAssignmentRole.Client ||
+        this.isClientPortal(assignment.membership)
+      )
+        continue;
       const budget = (assignment.monthlyTimeBudgetMinutes ?? 0) * months;
       const dossier = dossierMetrics.get(assignment.dossierId);
       if (!dossier) continue;
@@ -1155,6 +1168,7 @@ export class ProductivityService {
     }
 
     for (const entry of entries) {
+      if (this.isClientPortal(entry.membership)) continue;
       const dossier = dossierMetrics.get(entry.dossierId);
       if (!dossier) continue;
       const fullName = entry.membership.user.fullName;
@@ -1385,6 +1399,13 @@ export class ProductivityService {
       dossiers: dossierRows,
       members: memberRows,
     };
+  }
+
+  private isClientPortal(membership: OrganizationMembership | undefined) {
+    const portalRole = SystemRoleNames.ClientPortal.toLocaleLowerCase();
+    return [membership?.role?.name, membership?.role?.normalizedName].some(
+      (name) => name?.trim().toLocaleLowerCase() === portalRole,
+    );
   }
 
   private lane<TRow extends CockpitRow>(
