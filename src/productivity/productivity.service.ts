@@ -25,6 +25,7 @@ import {
 import { PermissionNames } from '../database/permissions';
 import { DossiersService } from '../dossiers/dossiers.service';
 import { canAccessAllTasks } from '../tasks/task-access';
+import { estimateContractFee } from './contract-fee';
 import {
   CreateMemberCostRateDto,
   CreateTimeEntryDto,
@@ -44,6 +45,8 @@ interface DossierMetric {
   budgetMinutes: number;
   allocatedPay: bigint;
   employerCost: bigint;
+  estimatedRevenue: bigint;
+  missingContractFee: boolean;
   billedRevenue: bigint;
   collectedRevenue: bigint;
   missingCostMembershipIds: Set<string>;
@@ -60,6 +63,7 @@ interface DossierWorkerMetric {
   employerCost: bigint;
   allocatedBilledRevenue: bigint;
   allocatedCollectedRevenue: bigint;
+  allocatedEstimatedRevenue: bigint;
 }
 
 interface MemberMetric {
@@ -74,6 +78,7 @@ interface MemberMetric {
   hourlyEmployerCost: bigint;
   allocatedBilledRevenue: bigint;
   allocatedCollectedRevenue: bigint;
+  allocatedEstimatedRevenue: bigint;
   missingCostRate: boolean;
 }
 
@@ -1083,6 +1088,7 @@ export class ProductivityService {
 
     const dossierMetrics = new Map<string, DossierMetric>();
     for (const dossier of dossiers) {
+      const estimatedRevenue = estimateContractFee(dossier, from, to);
       dossierMetrics.set(dossier.id, {
         id: dossier.id,
         name: dossier.legalName,
@@ -1091,6 +1097,8 @@ export class ProductivityService {
         budgetMinutes: 0,
         allocatedPay: 0n,
         employerCost: 0n,
+        estimatedRevenue: estimatedRevenue ?? 0n,
+        missingContractFee: estimatedRevenue === null,
         billedRevenue: 0n,
         collectedRevenue: 0n,
         missingCostMembershipIds: new Set<string>(),
@@ -1113,6 +1121,7 @@ export class ProductivityService {
           hourlyEmployerCost: 0n,
           allocatedBilledRevenue: 0n,
           allocatedCollectedRevenue: 0n,
+          allocatedEstimatedRevenue: 0n,
           missingCostRate: false,
         };
         memberMetrics.set(membershipId, metric);
@@ -1186,8 +1195,12 @@ export class ProductivityService {
     }
 
     for (const dossier of dossierMetrics.values()) {
-      if (dossier.billableMinutes <= 0) continue;
       for (const worker of dossier.workers.values()) {
+        worker.allocatedEstimatedRevenue = this.prorate(
+          dossier.estimatedRevenue,
+          worker.approvedMinutes,
+          dossier.approvedMinutes,
+        );
         worker.allocatedBilledRevenue = this.prorate(
           dossier.billedRevenue,
           worker.billableMinutes,
@@ -1202,6 +1215,7 @@ export class ProductivityService {
         if (member) {
           member.allocatedBilledRevenue += worker.allocatedBilledRevenue;
           member.allocatedCollectedRevenue += worker.allocatedCollectedRevenue;
+          member.allocatedEstimatedRevenue += worker.allocatedEstimatedRevenue;
         }
       }
     }
@@ -1246,6 +1260,12 @@ export class ProductivityService {
         allocatedClientCost: fromMillimes(member.allocatedEmployerCost),
         unallocatedEmployerCost: fromMillimes(unallocatedCost),
         allocatedBilledRevenue: fromMillimes(member.allocatedBilledRevenue),
+        allocatedEstimatedRevenue: fromMillimes(
+          member.allocatedEstimatedRevenue,
+        ),
+        contributionMarginEstimated: fromMillimes(
+          member.allocatedEstimatedRevenue - employerCost,
+        ),
         allocatedCollectedRevenue: fromMillimes(
           member.allocatedCollectedRevenue,
         ),
@@ -1277,6 +1297,15 @@ export class ProductivityService {
       allocatedEmployerCost: fromMillimes(dossier.employerCost),
       billedRevenueNet: fromMillimes(dossier.billedRevenue),
       collectedRevenueNet: fromMillimes(dossier.collectedRevenue),
+      estimatedRevenueNet: fromMillimes(dossier.estimatedRevenue),
+      estimatedMargin: fromMillimes(
+        dossier.estimatedRevenue - dossier.employerCost,
+      ),
+      estimatedMarginRate: this.moneyPercentage(
+        dossier.estimatedRevenue - dossier.employerCost,
+        dossier.estimatedRevenue,
+      ),
+      missingContractFee: dossier.missingContractFee,
       marginOnBilled: fromMillimes(
         dossier.billedRevenue - dossier.employerCost,
       ),
@@ -1297,6 +1326,12 @@ export class ProductivityService {
         allocatedPay: fromMillimes(worker.allocatedPay),
         allocatedEmployerCost: fromMillimes(worker.employerCost),
         allocatedBilledRevenue: fromMillimes(worker.allocatedBilledRevenue),
+        allocatedEstimatedRevenue: fromMillimes(
+          worker.allocatedEstimatedRevenue,
+        ),
+        estimatedMargin: fromMillimes(
+          worker.allocatedEstimatedRevenue - worker.employerCost,
+        ),
         marginOnBilled: fromMillimes(
           worker.allocatedBilledRevenue - worker.employerCost,
         ),
@@ -1305,6 +1340,10 @@ export class ProductivityService {
 
     const billed = [...dossierMetrics.values()].reduce(
       (total, item) => total + item.billedRevenue,
+      0n,
+    );
+    const estimated = [...dossierMetrics.values()].reduce(
+      (total, item) => total + item.estimatedRevenue,
       0n,
     );
     const collected = [...dossierMetrics.values()].reduce(
@@ -1319,6 +1358,8 @@ export class ProductivityService {
       period: { from, to, monthsTouched: months },
       basis: {
         revenue: 'Honoraires nets hors TVA émis et encaissés sur la période',
+        estimate:
+          'Honoraires HT actuellement convenus dans le dossier, proratisés par mois. Estimation distincte des factures et encaissements ; sans historique des changements de tarif.',
         cost: 'Coût employeur standard affecté selon les temps approuvés',
         warning:
           'Ces indicateurs aident au pilotage et ne doivent pas être utilisés seuls pour évaluer une personne.',
@@ -1331,6 +1372,11 @@ export class ProductivityService {
           ),
         ),
         billedRevenueNet: fromMillimes(billed),
+        estimatedRevenueNet: fromMillimes(estimated),
+        estimatedMargin: fromMillimes(estimated - allocatedCost),
+        missingContractFeeCount: dossierRows.filter(
+          (dossier) => dossier.missingContractFee,
+        ).length,
         collectedRevenueNet: fromMillimes(collected),
         allocatedEmployerCost: fromMillimes(allocatedCost),
         marginOnBilled: fromMillimes(billed - allocatedCost),
@@ -1795,6 +1841,7 @@ export class ProductivityService {
         employerCost: 0n,
         allocatedBilledRevenue: 0n,
         allocatedCollectedRevenue: 0n,
+        allocatedEstimatedRevenue: 0n,
       };
       dossier.workers.set(membershipId, worker);
     }
@@ -1839,6 +1886,9 @@ export class ProductivityService {
       totals: {
         approvedHours: '0.00',
         billedRevenueNet: '0.000',
+        estimatedRevenueNet: '0.000',
+        estimatedMargin: '0.000',
+        missingContractFeeCount: 0,
         collectedRevenueNet: '0.000',
         allocatedEmployerCost: '0.000',
         marginOnBilled: '0.000',
