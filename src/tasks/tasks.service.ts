@@ -17,10 +17,11 @@ import {
   WorkTaskStatus,
   WorkTaskType,
 } from '../database/entities';
-import { PermissionNames, SystemRoleNames } from '../database/permissions';
+import { SystemRoleNames } from '../database/permissions';
 import { DossiersService } from '../dossiers/dossiers.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { FiscalWorkflowService } from '../workflow/fiscal-workflow.service';
+import { canAccessAllTasks } from './task-access';
 import {
   CreateTaskDto,
   TaskQueryDto,
@@ -64,7 +65,10 @@ export class TasksService {
           'access_assignment.dossier_id = task.dossier_id AND access_assignment.membership_id = :membershipId AND access_assignment.is_active = true',
           { membershipId: access.membership.id },
         )
-        .distinct(true);
+        .distinct(true)
+        .andWhere('task.assignee_membership_id = :visibleMembershipId', {
+          visibleMembershipId: access.membership.id,
+        });
     }
     return this.executeList(builder, query);
   }
@@ -80,12 +84,17 @@ export class TasksService {
       dossierId,
       userId,
     );
-    return this.executeList(
-      this.baseQuery(organizationId).andWhere('task.dossier_id = :dossierId', {
-        dossierId,
-      }),
-      query,
+    const access = await this.getAccess(organizationId, userId);
+    const builder = this.baseQuery(organizationId).andWhere(
+      'task.dossier_id = :dossierId',
+      { dossierId },
     );
+    if (!access.canSeeAll) {
+      builder.andWhere('task.assignee_membership_id = :visibleMembershipId', {
+        visibleMembershipId: access.membership.id,
+      });
+    }
+    return this.executeList(builder, query);
   }
 
   async create(
@@ -99,6 +108,7 @@ export class TasksService {
       dossierId,
       actorUserId,
     );
+    const access = await this.getAccess(organizationId, actorUserId);
     const responsible = await this.assignments.findOne({
       where: {
         organizationId,
@@ -119,7 +129,9 @@ export class TasksService {
         dueOn: dto.dueOn,
         priority: dto.priority,
         status: WorkTaskStatus.Todo,
-        assigneeMembershipId: responsible?.membershipId ?? null,
+        assigneeMembershipId: access.canSeeAll
+          ? (responsible?.membershipId ?? null)
+          : access.membership.id,
         createdByUserId: actorUserId,
         completedAtUtc: null,
         completedByUserId: null,
@@ -164,7 +176,12 @@ export class TasksService {
       dossierId,
       actorUserId,
     );
-    const task = await this.getTaskEntity(organizationId, dossierId, taskId);
+    const task = await this.ensureTaskAccess(
+      organizationId,
+      dossierId,
+      taskId,
+      actorUserId,
+    );
     this.ensureEditable(task);
     if (dto.title !== undefined) task.title = dto.title.trim();
     if (dto.description !== undefined) {
@@ -192,6 +209,7 @@ export class TasksService {
       dossierId,
       actorUserId,
     );
+    await this.ensureTaskAccess(organizationId, dossierId, taskId, actorUserId);
     await this.workflow.transitionTask(
       { organizationId, dossierId, actorUserId },
       taskId,
@@ -230,6 +248,7 @@ export class TasksService {
       dossierId,
       actorUserId,
     );
+    await this.ensureTaskAccess(organizationId, dossierId, taskId, actorUserId);
     await this.workflow.transitionTask(
       { organizationId, dossierId, actorUserId },
       taskId,
@@ -254,6 +273,7 @@ export class TasksService {
       dossierId,
       actorUserId,
     );
+    await this.ensureTaskAccess(organizationId, dossierId, taskId, actorUserId);
     await this.workflow.transitionTask(
       { organizationId, dossierId, actorUserId },
       taskId,
@@ -355,6 +375,7 @@ export class TasksService {
       dossierId,
       actorUserId,
     );
+    await this.ensureTaskAccess(organizationId, dossierId, taskId, actorUserId);
     const item = await this.workflow.editChecklist(
       { organizationId, dossierId, actorUserId },
       taskId,
@@ -390,6 +411,7 @@ export class TasksService {
       dossierId,
       actorUserId,
     );
+    await this.ensureTaskAccess(organizationId, dossierId, taskId, actorUserId);
     const item = await this.workflow.editChecklist(
       { organizationId, dossierId, actorUserId },
       taskId,
@@ -427,7 +449,7 @@ export class TasksService {
       dossierId,
       userId,
     );
-    await this.getTaskEntity(organizationId, dossierId, taskId);
+    await this.ensureTaskAccess(organizationId, dossierId, taskId, userId);
     const comments = await this.comments.find({
       where: { organizationId, taskId },
       relations: { author: true },
@@ -454,7 +476,7 @@ export class TasksService {
       dossierId,
       actorUserId,
     );
-    await this.getTaskEntity(organizationId, dossierId, taskId);
+    await this.ensureTaskAccess(organizationId, dossierId, taskId, actorUserId);
     const comment = await this.comments.save(
       this.comments.create({
         organizationId,
@@ -533,9 +555,10 @@ export class TasksService {
       throw new ForbiddenException("Vous n'appartenez pas à ce cabinet.");
     return {
       membership,
-      canSeeAll: membership.role.rolePermissions.some(
-        (permission) =>
-          permission.permissionName === PermissionNames.TasksAssign,
+      canSeeAll: canAccessAllTasks(
+        new Set(
+          membership.role.rolePermissions.map((item) => item.permissionName),
+        ),
       ),
     };
   }
@@ -569,6 +592,25 @@ export class TasksService {
       dossierId,
     });
     if (!task) throw new NotFoundException('La tâche est introuvable.');
+    return task;
+  }
+
+  private async ensureTaskAccess(
+    organizationId: string,
+    dossierId: string,
+    taskId: string,
+    userId: string,
+  ) {
+    const access = await this.getAccess(organizationId, userId);
+    const task = await this.getTaskEntity(organizationId, dossierId, taskId);
+    if (
+      !access.canSeeAll &&
+      task.assigneeMembershipId !== access.membership.id
+    ) {
+      throw new ForbiddenException(
+        'Vous ne pouvez accéder qu’aux tâches qui vous sont affectées.',
+      );
+    }
     return task;
   }
 

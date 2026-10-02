@@ -24,6 +24,7 @@ import {
 } from '../database/entities';
 import { PermissionNames } from '../database/permissions';
 import { DossiersService } from '../dossiers/dossiers.service';
+import { canAccessAllTasks } from '../tasks/task-access';
 import {
   CreateMemberCostRateDto,
   CreateTimeEntryDto,
@@ -218,6 +219,9 @@ export class ProductivityService {
     const actor = await this.getActor(organizationId, actorUserId);
     const canSeeAll = actor.permissions.has(PermissionNames.DossiersAssign);
     const params = [organizationId, actor.membership.id, canSeeAll];
+    const taskParams = [...params, canAccessAllTasks(actor.permissions)];
+    const taskAccessFilter =
+      'AND ($4::boolean OR t.assignee_membership_id = $2)';
     const accessFilter = `
       AND ($3::boolean OR EXISTS (
         SELECT 1
@@ -252,13 +256,14 @@ export class ProductivityService {
         JOIN accounting.client_dossiers d ON d.id = t.dossier_id
         WHERE ${activeDossierFilter}
           AND t.status IN ('A_FAIRE','EN_COURS')
+          ${taskAccessFilter}
           AND t.due_on <= CURRENT_DATE
         ORDER BY t.due_on ASC,
           CASE t.priority WHEN 'URGENTE' THEN 0 WHEN 'HAUTE' THEN 1 WHEN 'NORMALE' THEN 2 ELSE 3 END,
           t.created_at_utc ASC
         LIMIT 3
         `,
-        params,
+        taskParams,
       ),
       this.dataSource.query<TaskCockpitRow[]>(
         `
@@ -269,10 +274,11 @@ export class ProductivityService {
         JOIN accounting.client_dossiers d ON d.id = t.dossier_id
         WHERE ${activeDossierFilter}
           AND t.status = 'PRETE_POUR_REVISION'
+          ${taskAccessFilter}
         ORDER BY t.due_on ASC, t.created_at_utc ASC
         LIMIT 3
         `,
-        params,
+        taskParams,
       ),
       this.dataSource.query<DocumentCockpitRow[]>(
         `
@@ -703,7 +709,7 @@ export class ProductivityService {
     );
     const actor = await this.getActor(organizationId, actorUserId);
     this.ensureWorkDate(dto.workDate);
-    await this.ensureTask(organizationId, dossierId, dto.taskId);
+    await this.ensureTask(organizationId, dossierId, dto.taskId, actor);
     await this.ensureDailyCapacity(
       organizationId,
       actor.membership.id,
@@ -772,6 +778,7 @@ export class ProductivityService {
       organizationId,
       dossierId,
       dto.taskId === undefined ? entry.taskId : dto.taskId,
+      actor,
     );
     await this.ensureDailyCapacity(
       organizationId,
@@ -827,7 +834,7 @@ export class ProductivityService {
       actorUserId,
     );
     const actor = await this.getActor(organizationId, actorUserId);
-    await this.ensureTask(organizationId, dossierId, dto.taskId);
+    await this.ensureTask(organizationId, dossierId, dto.taskId, actor);
     const description = this.description(dto.description);
     const current = await this.findOpenSession(
       organizationId,
@@ -1557,7 +1564,8 @@ export class ProductivityService {
   private async ensureTask(
     organizationId: string,
     dossierId: string,
-    taskId?: string | null,
+    taskId: string | null | undefined,
+    actor: Awaited<ReturnType<ProductivityService['getActor']>>,
   ) {
     if (!taskId) return;
     const task = await this.tasks.findOneBy({
@@ -1566,6 +1574,14 @@ export class ProductivityService {
       dossierId,
     });
     if (!task) throw new NotFoundException('La tâche liée est introuvable.');
+    if (
+      !canAccessAllTasks(actor.permissions) &&
+      task.assigneeMembershipId !== actor.membership.id
+    ) {
+      throw new ForbiddenException(
+        'Vous ne pouvez enregistrer du temps que sur vos tâches affectées.',
+      );
+    }
   }
 
   private async ensureDailyCapacity(
