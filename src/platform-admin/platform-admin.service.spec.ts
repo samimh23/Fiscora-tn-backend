@@ -12,6 +12,58 @@ const actor: JwtUser = {
 };
 
 describe('PlatformAdminService', () => {
+  it('returns cabinet-specific roles and security flags without exposing authentication secrets', async () => {
+    const memberships = [
+      {
+        organizationId: 'cabinet-1',
+        organizationName: 'Cabinet Pro',
+        role: 'Collaborateur',
+      },
+      {
+        organizationId: 'cabinet-2',
+        organizationName: 'Cabinet Demo',
+        role: 'Portail client',
+      },
+    ];
+    const query = jest.fn().mockResolvedValue([
+      {
+        id: 'user-1',
+        membershipsCount: '2',
+        activeSessionsCount: '62',
+        memberships,
+        emailVerified: true,
+        mfaEnabled: true,
+      },
+      {
+        id: 'user-2',
+        membershipsCount: '0',
+        activeSessionsCount: '0',
+        memberships: [],
+      },
+    ]);
+    const service = new PlatformAdminService(
+      { query } as unknown as DataSource,
+      { get: jest.fn() } as unknown as ConfigService,
+      { sendTestEmail: jest.fn() } as never,
+      { operationalSnapshot: jest.fn() } as never,
+    );
+    const users = await service.users();
+    expect(users[0]).toMatchObject({
+      membershipsCount: 2,
+      activeSessionsCount: 62,
+      memberships,
+      emailVerified: true,
+      mfaEnabled: true,
+    });
+    expect(users[1]).toMatchObject({ membershipsCount: 0, memberships: [] });
+    const sqlCalls = query.mock.calls as Array<[string]>;
+    const sql = sqlCalls[0][0];
+    expect(sql).toContain('m."is_active" = true');
+    expect(sql).toContain('r."organization_id" = m."organization_id"');
+    expect(sql).toContain('u."mfa_enabled" AS "mfaEnabled"');
+    expect(sql).not.toMatch(/password_hash|mfa_secret|token_hash/);
+  });
+
   it('combines runtime metrics, pipeline health, and integration status', async () => {
     const operationalSnapshot = jest.fn().mockResolvedValue({
       generatedAtUtc: '2026-09-16T10:00:00.000Z',

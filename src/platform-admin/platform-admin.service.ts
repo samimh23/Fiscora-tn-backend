@@ -371,11 +371,20 @@ export class PlatformAdminService {
         u."email",
         u."is_active" AS "isActive",
         u."email_verified" AS "emailVerified",
+        u."mfa_enabled" AS "mfaEnabled",
         u."is_platform_admin" AS "isPlatformAdmin",
         u."disabled_at_utc" AS "disabledAtUtc",
         u."disabled_reason" AS "disabledReason",
         u."last_login_at_utc" AS "lastLoginAtUtc",
         u."created_at_utc" AS "createdAtUtc",
+        COALESCE((SELECT jsonb_agg(jsonb_build_object(
+          'organizationId', o."id", 'organizationName', o."name", 'role', r."name"
+        ) ORDER BY o."name")
+          FROM "accounting"."organization_memberships" m
+          JOIN "accounting"."organizations" o ON o."id" = m."organization_id"
+          JOIN "accounting"."roles" r ON r."id" = m."role_id"
+            AND r."organization_id" = m."organization_id"
+          WHERE m."user_id" = u."id" AND m."is_active" = true), '[]'::jsonb) AS "memberships",
         (SELECT COUNT(*) FROM "accounting"."organization_memberships" m
           WHERE m."user_id" = u."id" AND m."is_active" = true) AS "membershipsCount",
         (SELECT COUNT(*) FROM "accounting"."refresh_tokens" rt
@@ -390,6 +399,7 @@ export class PlatformAdminService {
       ...row,
       membershipsCount: Number(row.membershipsCount),
       activeSessionsCount: Number(row.activeSessionsCount),
+      memberships: row.memberships ?? [],
     }));
   }
 
