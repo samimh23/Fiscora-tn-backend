@@ -341,43 +341,22 @@ vers GitHub Pages.
 
 ## Réception des factures par e-mail
 
-La collecte entrante utilise **Brevo Inbound Parse** sur un sous-domaine séparé
-du domaine d'envoi. Le backend génère deux adresses non devinables :
+Cette fonctionnalité a été retirée de l'application. `AppModule` ne charge plus
+`EmailIngestionModule` : les webhooks Brevo et les routes de classement ne sont
+plus exposés. Les réponses d'organisation et de dossier ne publient plus
+d'adresse de réception.
 
-- `o-<clé>@inbox.fiscora.me` pour le Gmail du cabinet ; l'expéditeur est comparé
-  aux contacts et comptes portail afin de retrouver un dossier unique ;
-- `d-<clé>@inbox.fiscora.me` pour un dossier précis, sans déduction par
-  expéditeur.
+La collecte se fait par téléversement, portail client ou lien sécurisé de
+demande de pièce. Les e-mails sortants (invitations, réinitialisation du mot de
+passe et demandes de pièces) restent actifs.
 
-Les pièces jointes passent par la validation de format, ClamAV et le stockage
-Azure existants. Un message ambigu reste dans la file **E-mails à classer** et
-n'est jamais affecté silencieusement au mauvais client. Les images intégrées à
-la signature ou au corps du message ne deviennent pas des pièces comptables.
+Les anciennes migrations, tables et métadonnées d'origine restent conservées
+pour ne pas supprimer les documents reçus ni casser l'historique. Le code
+d'ingestion non chargé est conservé comme référence historique.
 
-Variables runtime (les deux secrets restent dans Azure Key Vault) :
-
-```text
-EMAIL_INGESTION_DOMAIN=inbox.fiscora.me
-EMAIL_INGESTION_MAX_ATTACHMENT_BYTES=20971520
-BREVO_API_KEY=<clé API REST xkeysib, différente de la clé SMTP>
-INBOUND_EMAIL_WEBHOOK_SECRET=<valeur aléatoire d'au moins 32 caractères>
-```
-
-DNS Namecheap pour `inbox.fiscora.me` :
-
-```text
-MX  inbox  priorité 10  inbound1.sendinblue.com
-MX  inbox  priorité 20  inbound2.sendinblue.com
-```
-
-Le webhook Brevo est de type `inbound`, écoute l'événement
-`inboundEmailProcessed`, utilise le domaine `inbox.fiscora.me` et appelle
-`https://<api>/api/email-ingestion/brevo` avec l'en-tête
-`x-fiscora-webhook-secret`. Le script infrastructure
-`azure/scripts/configure-email-ingestion.ps1` crée ou met à jour cette
-configuration sans écrire les secrets dans Git. Enfin, activez dans Gmail le
-transfert automatique vers l'adresse `o-...` affichée par Fiscora ; Gmail garde
-le message original et transmet une copie à l'application.
+Les anciennes configurations externes ne sont pas supprimées par ce changement.
+Si Gmail transfère encore des messages vers Fiscora, désactivez ce transfert et
+le webhook entrant Brevo. Ne supprimez pas les réglages SMTP/DKIM d'envoi.
 
 ## Extraction IA et revue humaine
 

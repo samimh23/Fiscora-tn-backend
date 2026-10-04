@@ -25,7 +25,6 @@ import {
   UpdateRolePermissionsDto,
 } from './dto';
 import { InvitationMailerService } from '../email/invitation-mailer.service';
-import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class OrganizationsService {
@@ -44,7 +43,6 @@ export class OrganizationsService {
     private readonly auditLogs: Repository<AuditLog>,
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly invitationMailer: InvitationMailerService,
-    private readonly config: ConfigService,
   ) {}
 
   async getForUser(userId: string) {
@@ -67,9 +65,6 @@ export class OrganizationsService {
       name: organization.name,
       slug: organization.slug,
       isActive: organization.isActive,
-      emailIngestionAddress: this.ingestionAddress(
-        organization.emailIngestionKey,
-      ),
     };
   }
 
@@ -515,9 +510,6 @@ export class OrganizationsService {
       id: item.organizationId,
       name: item.organization.name,
       slug: item.organization.slug,
-      emailIngestionAddress: this.ingestionAddress(
-        item.organization.emailIngestionKey,
-      ),
       role: item.role.name,
       permissions: item.role.rolePermissions
         .map((permission) => permission.permissionName)
@@ -550,13 +542,5 @@ export class OrganizationsService {
 
   private hashToken(token: string) {
     return createHash('sha256').update(token).digest('hex').toUpperCase();
-  }
-
-  private ingestionAddress(key: string) {
-    const domain = this.config
-      .get<string>('EMAIL_INGESTION_DOMAIN', 'inbox.fiscora.me')
-      .trim()
-      .toLowerCase();
-    return `o-${key}@${domain}`;
   }
 }

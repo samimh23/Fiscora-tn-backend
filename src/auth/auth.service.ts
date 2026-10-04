@@ -1019,10 +1019,6 @@ export class AuthService {
       id: item.organizationId,
       name: item.organization.name,
       slug: item.organization.slug,
-      emailIngestionAddress: this.ingestionAddress(
-        'o',
-        item.organization.emailIngestionKey,
-      ),
       role: item.role.name,
       permissions: item.role.rolePermissions
         .map((permission) => permission.permissionName)
@@ -1043,14 +1039,6 @@ export class AuthService {
       replacedByTokenId: null,
     });
     return { rawToken, entity };
-  }
-
-  private ingestionAddress(prefix: 'o' | 'd', key: string) {
-    const domain = this.config
-      .get<string>('EMAIL_INGESTION_DOMAIN', 'inbox.fiscora.me')
-      .trim()
-      .toLowerCase();
-    return `${prefix}-${key}@${domain}`;
   }
 
   private hashToken(token: string) {

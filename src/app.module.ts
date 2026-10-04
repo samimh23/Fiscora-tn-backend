@@ -91,7 +91,6 @@ import { DocumentExtractionWorkflow1784382000000 } from './database/migrations/1
 import { AiAssistantRag1784383000000 } from './database/migrations/1784383000000-ai-assistant-rag';
 import { AssistantModule } from './assistant/assistant.module';
 import { EmailIngestion1784384000000 } from './database/migrations/1784384000000-email-ingestion';
-import { EmailIngestionModule } from './email-ingestion/email-ingestion.module';
 import { GoogleIdentities1784385000000 } from './database/migrations/1784385000000-google-identities';
 import { RepairExtractionReviewQueue1784386000000 } from './database/migrations/1784386000000-repair-extraction-review-queue';
 import { ClientCommercialWorkflow1784387000000 } from './database/migrations/1784387000000-client-commercial-workflow';
@@ -223,7 +222,6 @@ import { WorkflowIntegrity1790784000000 } from './database/migrations/1790784000
     QualityAssuranceModule,
     MigrationAssistantModule,
     AssistantModule,
-    EmailIngestionModule,
   ],
   controllers: [HealthController],
   providers: [
