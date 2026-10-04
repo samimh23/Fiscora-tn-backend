@@ -2,6 +2,12 @@ name: Deploy backend to Azure staging
 
 on:
   workflow_call:
+    inputs:
+      update_container_app:
+        description: False builds the bootstrap image only; Terraform creates the first Container App
+        type: boolean
+        required: false
+        default: true
 
 permissions:
   contents: read
@@ -52,8 +58,12 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo "$image" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ inputs.update_container_app }}" != "true" ]; then
+            echo "Image-only bootstrap: no Container App was updated. Review a Terraform plan with deploy_application=true and this digest to create the API." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Deploy the exact image revision
+        if: inputs.update_container_app
         run: >-
           az containerapp update
           --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}"
@@ -63,6 +73,7 @@ jobs:
           --output none
 
       - name: Wait for the exact image revision to become healthy
+        if: inputs.update_container_app
         shell: bash
         env:
           EXPECTED_IMAGE: ${{ steps.image.outputs.image }}
@@ -93,6 +104,7 @@ jobs:
           exit 1
 
       - name: Verify the deployed API
+        if: inputs.update_container_app
         shell: bash
         env:
           CONFIGURED_API_URL: ${{ vars.AZURE_API_URL }}

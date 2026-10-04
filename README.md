@@ -2,6 +2,15 @@
 
 Cette version réimplémente le backend comptable en NestJS et TypeScript. Le projet .NET original reste intact dans le dossier voisin `accounting-backend`.
 
+## Déploiement Azure
+
+Pour Azure, suivre le [guide de déploiement infrastructure](https://github.com/samimh23/Fiscora-tn-infrastructure/blob/main/azure/DEPLOYMENT.md).
+Lors d'une première installation uniquement, lancer **Backend CI** sur `main`
+avec **bootstrap_image_only** coché : les contrôles passent, l'image est publiée,
+mais aucune Container App n'est mise à jour. Utiliser le digest du résumé pour
+créer l'API avec Terraform. Les pushes suivants sur `main` déploient normalement
+l'image validée ; Terraform ne doit pas rétablir une ancienne image API.
+
 ## Technologies
 
 - NestJS 11 et TypeScript

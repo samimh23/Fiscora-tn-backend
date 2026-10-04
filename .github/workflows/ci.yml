@@ -6,6 +6,12 @@ on:
       - main
   pull_request:
   workflow_dispatch:
+    inputs:
+      bootstrap_image_only:
+        description: Build and push the first backend image without updating a Container App
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -57,6 +63,9 @@ jobs:
       - name: Run unit tests
         run: npm test -- --runInBand
 
+      - name: Check first-deployment workflow guards
+        run: node --test scripts/deployment-workflows.test.cjs
+
       - name: Build application
         run: npm run build
 
@@ -83,3 +92,5 @@ jobs:
       contents: read
       id-token: write
     uses: ./.github/workflows/deploy-azure-staging.yml
+    with:
+      update_container_app: ${{ inputs.bootstrap_image_only != true }}
