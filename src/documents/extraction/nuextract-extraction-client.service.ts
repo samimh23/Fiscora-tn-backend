@@ -10,8 +10,8 @@ import type { OcrDocument, OcrToken } from './ocr-evidence-matcher';
 import {
   mergeExtractionBatches,
   ocrTokenBatches,
-  parseQwenExtractionJson,
-} from './qwen-extraction-client.service';
+  parseExtractionJson,
+} from './extraction-json';
 
 interface ChatCompletionResponse {
   choices?: Array<{
@@ -283,11 +283,11 @@ export class NuExtractExtractionClientService implements DocumentExtractionClien
       throw new Error('NuExtract returned no extraction content.');
     let data: Record<string, unknown>;
     try {
-      data = parseQwenExtractionJson(contentText, choice?.finish_reason);
+      data = parseExtractionJson(contentText, choice?.finish_reason);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'invalid structured JSON';
-      throw new Error(message.replaceAll('Qwen', 'NuExtract'));
+      throw new Error('NuExtract: ' + message);
     }
     return {
       data,

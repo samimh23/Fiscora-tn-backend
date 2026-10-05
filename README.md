@@ -369,7 +369,7 @@ le webhook entrant Brevo. Ne supprimez pas les réglages SMTP/DKIM d'envoi.
 
 ## Extraction IA et revue humaine
 
-L'API de documents possède un workflow Qwen3.5 / NuExtract3 durable et sans clé cloud :
+L'API de documents possède un workflow NuExtract3 durable et sans clé cloud :
 
 - `POST .../documents/:documentId/extraction` met en file une image JPEG/PNG ou un PDF sain ;
 - `GET .../documents/:documentId/extraction` retourne l'état et les contrôles ;
@@ -378,7 +378,7 @@ L'API de documents possède un workflow Qwen3.5 / NuExtract3 durable et sans cl�
 
 Les tâches sont persistées dans PostgreSQL, louées avec `SKIP LOCKED`, reprises
 après expiration du bail et limitées à quatre tentatives. L'API Azure appelle le
-service Cloud Run privé avec Workload Identity Federation : aucune clé de compte
+service Cloud Run authentifié par IAM avec Workload Identity Federation : aucune clé de compte
 de service Google n'est conservée. Les totaux sont contrôlés, mais chaque résultat
 passe tout de même par une revue humaine. Avec NuExtract, les images originales
 sont envoyées directement au modèle ; PaddleOCR s'exécute indépendamment et ne
@@ -388,7 +388,12 @@ Les PDF NuExtract sont rendus par PDFium via `POST /render` du service de
 traitement documentaire, sans reconnaissance de texte, puis envoyés par lots
 de deux images (réglage `DOCUMENT_EXTRACTION_IMAGE_BATCH_PAGES`, maximum six).
 Il faut déployer la version du service qui expose `/render` avant cette API.
-La voie Qwen pour les PDF conserve les jetons OCR par lots bornés.
+Seules les catégories factures d’achats, factures de ventes et relevés bancaires
+sont extraites. Les autres documents restent téléversables, sans extraction IA :
+classez une facture ou un relevé dans sa catégorie avant de demander l’extraction.
+Qwen n’est plus appelé. Les anciens résultats revus restent conservés ; les
+anciennes tâches en attente sont relancées avec NuExtract si leur catégorie
+est prise en charge, sinon elles échouent sans appel IA et sans nouvelle tentative.
 
 Les montants imprimés sont conservés dans le résultat brut. La normalisation
 convertit les nombres et les dates `JJ/MM/AAAA`, mais ne déduit pas une remise

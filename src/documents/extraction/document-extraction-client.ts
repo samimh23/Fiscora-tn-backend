@@ -5,13 +5,13 @@ export type FinancialDocumentKind = 'invoice' | 'bank_statement' | 'auto';
 export type ExtractionClientResult = {
   data: Record<string, unknown>;
   modelName: string;
-  provider: 'qwen' | 'nuextract';
+  provider: 'nuextract';
   rawResponse: Record<string, unknown>;
 };
 
 export interface DocumentExtractionClient {
   readonly modelName: string;
-  readonly provider: 'qwen' | 'nuextract';
+  readonly provider: 'nuextract';
 
   extract(
     content: Buffer,

@@ -1,7 +1,9 @@
 import { IsNull } from 'typeorm';
 import {
+  DocumentCategory,
   DocumentExtractionJobStatus,
   ExtractionStatus,
+  MalwareScanStatus,
 } from '../../database/entities';
 import {
   DocumentExtractionService,
@@ -9,6 +11,122 @@ import {
 } from './document-extraction.service';
 import { ExtractionReviewDecision } from './extraction.dto';
 import type { DocumentExtractionClient } from './document-extraction-client';
+import { DocumentExtractionProviderService } from './document-extraction-provider.service';
+import type { NuExtractExtractionClientService } from './nuextract-extraction-client.service';
+
+describe('NuExtract-only queue and legacy jobs', () => {
+  function setup(category = DocumentCategory.Purchases) {
+    const document = {
+      id: 'doc',
+      organizationId: 'org',
+      dossierId: 'dossier',
+      category,
+      mimeType: 'image/png',
+      objectKey: 'file',
+      malwareScanStatus: MalwareScanStatus.Clean,
+      extractionStatus: ExtractionStatus.Pending,
+      extractedData: null,
+    };
+    const job = {
+      id: 'job',
+      documentId: 'doc',
+      organizationId: 'org',
+      dossierId: 'dossier',
+      modelName: 'Qwen/Qwen3.5-4B',
+      attemptCount: 1,
+      status: DocumentExtractionJobStatus.Processing,
+      validationIssues: [],
+    };
+    const client = {
+      modelName: 'numind/NuExtract3',
+      provider: 'nuextract',
+      extract: jest.fn().mockResolvedValue({
+        data: { document_type: 'invoice' },
+        modelName: 'numind/NuExtract3',
+        provider: 'nuextract',
+        rawResponse: {},
+      }),
+    };
+    const providers = new DocumentExtractionProviderService(
+      client as unknown as NuExtractExtractionClientService,
+    );
+    const documents = {
+      findOneBy: jest.fn().mockResolvedValue(document),
+      save: jest.fn(),
+    };
+    const manager = {
+      getRepository: jest.fn().mockReturnValue({ save: jest.fn() }),
+    };
+    const jobs = {
+      query: jest.fn().mockResolvedValue([]),
+      save: jest.fn(),
+      manager: {
+        transaction: jest.fn((callback: (value: typeof manager) => unknown) =>
+          Promise.resolve(callback(manager)),
+        ),
+      },
+    };
+    const storage = {
+      readObject: jest.fn().mockResolvedValue(Buffer.from('image')),
+    };
+    const service = new DocumentExtractionService(
+      { get: (_key: string, fallback: unknown) => fallback } as never,
+      documents as never,
+      jobs as never,
+      { create: (value: unknown) => value, save: jest.fn() } as never,
+      storage as never,
+      { getAccessibleEntity: jest.fn() } as never,
+      providers,
+      { extract: jest.fn().mockResolvedValue(null) } as never,
+      {} as never,
+    );
+    return { service, document, job, client, jobs, storage };
+  }
+
+  it('rejects manual extraction of generic documents before queuing', async () => {
+    const { service, jobs } = setup(DocumentCategory.Inbox);
+    await expect(
+      service.request('org', 'dossier', 'doc', 'user'),
+    ).rejects.toThrow('Classez le document');
+    expect(jobs.manager.transaction).not.toHaveBeenCalled();
+  });
+
+  it('auto-queues only the three supported categories', async () => {
+    const { service, jobs } = setup();
+    await service['autoQueueEligibleDocuments']();
+    expect(jobs.query).toHaveBeenCalledWith(
+      expect.stringContaining('document.category IN ($5, $6, $7)'),
+      [
+        MalwareScanStatus.Clean,
+        ExtractionStatus.NotRequested,
+        DocumentExtractionJobStatus.Queued,
+        ExtractionStatus.Pending,
+        DocumentCategory.Purchases,
+        DocumentCategory.Sales,
+        DocumentCategory.Bank,
+      ],
+    );
+  });
+
+  it('routes an unfinished legacy Qwen invoice job to NuExtract', async () => {
+    const { service, job, client } = setup();
+    await service['process'](job as never);
+    expect(client.extract).toHaveBeenCalled();
+    expect(job.modelName).toBe('numind/NuExtract3');
+    expect(job.status).toBe(DocumentExtractionJobStatus.ReviewRequired);
+  });
+
+  it('fails unsupported queued jobs permanently without reading files or calling AI', async () => {
+    const { service, document, job, client, storage } = setup(
+      DocumentCategory.Legal,
+    );
+    await service['process'](job as never);
+    expect(job.status).toBe(DocumentExtractionJobStatus.Failed);
+    expect(document.extractionStatus).toBe(ExtractionStatus.Failed);
+    expect(storage.readObject).not.toHaveBeenCalled();
+    expect(client.extract).not.toHaveBeenCalled();
+  });
+});
 
 const legacyBankData = {
   document_type: ['bank_statement'],

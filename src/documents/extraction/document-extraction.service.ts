@@ -34,14 +34,17 @@ import type {
   DocumentExtractionClient,
   FinancialDocumentKind,
 } from './document-extraction-client';
-import { DocumentExtractionProviderService } from './document-extraction-provider.service';
+import {
+  DocumentExtractionProviderService,
+  EXTRACTABLE_DOCUMENT_CATEGORIES,
+} from './document-extraction-provider.service';
 import { BankReconciliationService } from '../../bank-reconciliation/bank-reconciliation.service';
 import {
   PaddleOcrClientService,
   parsePaddleOcrResponse,
 } from './paddle-ocr-client.service';
 import { attachOcrEvidence, type OcrDocument } from './ocr-evidence-matcher';
-import { mergeExtractionBatches } from './qwen-extraction-client.service';
+import { mergeExtractionBatches } from './extraction-json';
 
 @Injectable()
 export class DocumentExtractionService implements OnModuleDestroy {
@@ -82,6 +85,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
       dossierId,
       documentId,
     );
+    this.providers.select(document.category);
     if (document.malwareScanStatus !== MalwareScanStatus.Clean) {
       throw new BadRequestException(
         'Le document doit être validé par l’antivirus avant extraction.',
@@ -366,16 +370,15 @@ export class DocumentExtractionService implements OnModuleDestroy {
         true,
       );
     try {
+      // A legacy Qwen job is rerouted to NuExtract only for a supported category.
+      // Completed historical results are never rewritten.
+      const { client, documentKind } = this.providers.select(document.category);
       document.extractionStatus = ExtractionStatus.Processing;
       await this.documents.save(document);
       const file = await this.objectStorage.readObject(document.objectKey);
       const correctionIssues = Array.isArray(job.validationIssues)
         ? job.validationIssues
         : [];
-      const { client, documentKind } = this.providers.select(
-        document.category,
-        job.modelName,
-      );
       if (job.modelName !== client.modelName) {
         job.modelName = client.modelName;
         await this.jobs.save(job);
@@ -434,7 +437,12 @@ export class DocumentExtractionService implements OnModuleDestroy {
         },
       );
     } catch (error) {
-      await this.fail(job, document, error);
+      await this.fail(
+        job,
+        document,
+        error,
+        error instanceof BadRequestException,
+      );
     }
   }
 
@@ -548,6 +556,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
             AND document.extraction_status = $2
             AND document.extracted_data IS NULL
            AND document.mime_type IN ('image/jpeg', 'image/png', 'application/pdf')
+           AND document.category IN ($5, $6, $7)
            AND job.id IS NULL
          ORDER BY document.created_at_utc
          LIMIT 50
@@ -569,6 +578,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
         ExtractionStatus.NotRequested,
         DocumentExtractionJobStatus.Queued,
         ExtractionStatus.Pending,
+        ...EXTRACTABLE_DOCUMENT_CATEGORIES,
       ],
     );
     const rows = postgresUpdateRows<{ documentId: string }>(result);
@@ -585,38 +595,15 @@ export class DocumentExtractionService implements OnModuleDestroy {
     documentKind: FinancialDocumentKind,
     correctionIssues: Array<Record<string, unknown>>,
   ) {
-    if (client.provider === 'nuextract') {
-      return Promise.all([
-        this.extractPdfImages(file, client, documentKind, correctionIssues),
-        this.mappingOcr(
-          file,
-          'application/pdf',
-          job.documentId,
-          this.cachedOcrDocument(job),
-        ),
-      ]);
-    }
-    let ocrDocument = this.cachedOcrDocument(job);
-    if (!ocrDocument) {
-      ocrDocument = await this.paddleOcr.extract(file, 'application/pdf');
-    }
-    if (!ocrDocument) {
-      throw new Error(
-        'PADDLE_OCR_SERVICE_URL is required to extract PDF documents.',
-      );
-    }
-    job.rawResponse = {
-      stage: 'OCR_COMPLETE',
-      pageCount: ocrDocument.pages?.length ?? 1,
-      ocr: ocrDocument,
-    };
-    await this.jobs.save(job);
-    const extracted = await client.extractFromOcr(
-      ocrDocument,
-      correctionIssues,
-      documentKind,
-    );
-    return [extracted, ocrDocument] as const;
+    return Promise.all([
+      this.extractPdfImages(file, client, documentKind, correctionIssues),
+      this.mappingOcr(
+        file,
+        'application/pdf',
+        job.documentId,
+        this.cachedOcrDocument(job),
+      ),
+    ]);
   }
 
   private async extractPdfImages(

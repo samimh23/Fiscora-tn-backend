@@ -1,22 +1,19 @@
 import {
-  extractionInstructions,
   mergeExtractionBatches,
   ocrTokenBatches,
-  parseQwenExtractionJson,
-} from './qwen-extraction-client.service';
+  parseExtractionJson,
+} from './extraction-json';
 
-describe('Qwen extraction contract', () => {
+describe('Extraction JSON utilities', () => {
   it('accepts schema-constrained JSON', () => {
     expect(
-      parseQwenExtractionJson(
-        '```json\n{"document_type":"bank_statement"}\n```',
-      ),
+      parseExtractionJson('```json\n{"document_type":"bank_statement"}\n```'),
     ).toEqual({ document_type: 'bank_statement' });
   });
 
   it('recovers a JSON object surrounded by model commentary', () => {
     expect(
-      parseQwenExtractionJson(
+      parseExtractionJson(
         'Result follows: {"document_type":"invoice"} End of result.',
       ),
     ).toEqual({ document_type: 'invoice' });
@@ -24,41 +21,8 @@ describe('Qwen extraction contract', () => {
 
   it('reports truncated responses distinctly', () => {
     expect(() =>
-      parseQwenExtractionJson('{"document_type":"bank_statement"', 'length'),
+      parseExtractionJson('{"document_type":"bank_statement"', 'length'),
     ).toThrow('truncated');
-  });
-
-  it('provides the canonical Fiscora extraction schema', () => {
-    const prompt = extractionInstructions();
-
-    expect(prompt).toContain('"document_type": "invoice"');
-    expect(prompt).toContain('"supplier"');
-    expect(prompt).toContain('"line_items"');
-    expect(prompt).toContain('"gross_subtotal_excl_tax"');
-    expect(prompt).toContain('"global_discount_amount"');
-    expect(prompt).toContain('"global_discount_rate"');
-    expect(prompt).toContain('"additional_fields"');
-    expect(prompt).toContain('"bank_statement"');
-    expect(prompt).toContain('"transactions"');
-    expect(prompt).not.toContain('"_evidence"');
-    expect(prompt).not.toContain('"bbox"');
-    expect(prompt).toContain('unit_price_basis');
-    expect(prompt).toContain('Do not return coordinates');
-    expect(prompt).toContain('spaces, commas and points');
-    expect(prompt).toContain('Return JSON only');
-  });
-
-  it('adds previous validation failures to a targeted reread', () => {
-    const prompt = extractionInstructions([
-      {
-        field: 'bank_statement.transactions.0',
-        message: 'Debit and credit are both present.',
-      },
-    ]);
-
-    expect(prompt).toContain('previous extraction failed');
-    expect(prompt).toContain('bank_statement.transactions.0');
-    expect(prompt).toContain('Debit and credit are both present.');
   });
 
   it('splits OCR tokens on page boundaries', () => {
