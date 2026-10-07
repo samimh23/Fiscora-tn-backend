@@ -87,11 +87,6 @@ export class PlatformSaasSubscriptionsController {
   ) {
     return this.service.recordPayment(user, invoiceId, dto);
   }
-
-  @Get('saas-analytics')
-  analytics() {
-    return this.service.analytics();
-  }
 }
 
 @ApiTags('Mon abonnement Fiscora')

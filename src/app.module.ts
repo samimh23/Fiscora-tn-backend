@@ -44,7 +44,6 @@ import { FinancialStatementsModule } from './financial-statements/financial-stat
 import { ProductivityModule } from './productivity/productivity.module';
 import { ForeignTradeAndTtn1784350000000 } from './database/migrations/1784350000000-foreign-trade-and-ttn';
 import { ForeignTradeModule } from './foreign-trade/foreign-trade.module';
-import { ElectronicInvoicesModule } from './electronic-invoices/electronic-invoices.module';
 import { FixForeignTradePermissions1784351000000 } from './database/migrations/1784351000000-fix-foreign-trade-permissions';
 import { InvitationEmailDelivery1784352000000 } from './database/migrations/1784352000000-invitation-email-delivery';
 import { ClientPortal1784353000000 } from './database/migrations/1784353000000-client-portal';
@@ -213,7 +212,6 @@ import { WorkflowIntegrity1790784000000 } from './database/migrations/1790784000
     FinancialStatementsModule,
     ProductivityModule,
     ForeignTradeModule,
-    ElectronicInvoicesModule,
     ClientPortalModule,
     PlatformAdminModule,
     SaasSubscriptionsModule,

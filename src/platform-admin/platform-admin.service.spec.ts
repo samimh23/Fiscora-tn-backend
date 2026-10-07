@@ -82,9 +82,6 @@ describe('PlatformAdminService', () => {
         invitationPending: '0',
         invitationProcessing: '0',
         invitationFailed: '1',
-        ttnPending: '0',
-        ttnProcessing: '0',
-        ttnFailed: '0',
       },
     ]);
     const configured = new Set([
@@ -110,7 +107,9 @@ describe('PlatformAdminService', () => {
     const monitoring = await service.monitoring();
 
     expect(monitoring.http.requestsTotal).toBe(12);
-    expect(monitoring.pipelines).toHaveLength(3);
+    expect(monitoring.pipelines).toHaveLength(2);
+    const sqlCalls = query.mock.calls as Array<[string]>;
+    expect(sqlCalls[0][0]).not.toContain('ttn_einvoice');
     expect(monitoring.pipelines[0]).toMatchObject({
       code: 'DOCUMENT_EXTRACTION',
       pending: 2,
@@ -141,8 +140,6 @@ describe('PlatformAdminService', () => {
           storageBytes: '1024',
           extractionsFailed: '2',
           invitationsFailed: '0',
-          ttnFailed: '0',
-          ttnProductionConnections: '0',
         },
       ]);
     const service = new PlatformAdminService(
@@ -167,6 +164,10 @@ describe('PlatformAdminService', () => {
       'TACHES_EN_RETARD',
     );
     expect(overview.totals).not.toHaveProperty('tasksOverdue');
+    expect(overview.services.map((item) => item.code)).not.toContain('TTN');
+    expect(overview.alerts.map((item) => item.code)).not.toContain('TTN_ECHEC');
+    const sqlCalls = query.mock.calls as Array<[string]>;
+    expect(sqlCalls[1][0]).not.toContain('ttn_einvoice');
   });
 
   it.each([

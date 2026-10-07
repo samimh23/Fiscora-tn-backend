@@ -36,10 +36,12 @@ Tous les endpoints exigent un JWT valide et `isPlatformAdmin = true`.
   réactivation motivée d'un compte ;
 - `POST /api/platform-admin/users/:userId/revoke-sessions` : révocation de
   toutes les sessions renouvelables d'un utilisateur ;
-- `GET /api/platform-admin/jobs` : état agrégé des extractions, invitations
-  et transmissions TTN ;
-- `GET /api/platform-admin/audit-logs` : dernières actions d'audit sans le contenu
-  métier détaillé.
+- `GET /api/platform-admin/jobs` : état agrégé des extractions et invitations.
+
+Les API de consultation du journal d'audit de plateforme, Analytics SaaS et
+facturation TTN sont retirées. Les écritures d'audit internes restent actives.
+Les migrations et données historiques sont conservées pour compatibilité,
+sans route TTN ni quota TTN exposé aux utilisateurs.
 
 Les actions sensibles exigent une confirmation explicite et une justification
 d'au moins huit caractères. La justification et l'acteur sont enregistrés dans

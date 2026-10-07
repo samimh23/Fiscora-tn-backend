@@ -54,10 +54,6 @@ export class CreateSaasPlanDto {
   @Min(0)
   monthlyOcrDocuments!: number;
 
-  @IsInt()
-  @Min(0)
-  monthlyTtnSubmissions!: number;
-
   @IsOptional()
   @IsObject()
   features?: Record<string, boolean>;
@@ -103,11 +99,6 @@ export class UpdateSaasPlanDto {
   @IsInt()
   @Min(0)
   monthlyOcrDocuments?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  monthlyTtnSubmissions?: number;
 
   @IsOptional()
   @IsObject()

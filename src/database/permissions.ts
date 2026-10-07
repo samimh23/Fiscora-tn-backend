@@ -76,10 +76,6 @@ export const PermissionNames = {
   ForeignTradeView: 'foreign_trade.view',
   ForeignTradeManage: 'foreign_trade.manage',
   ForeignTradePost: 'foreign_trade.post',
-  ElectronicInvoicesView: 'electronic_invoices.view',
-  ElectronicInvoicesManage: 'electronic_invoices.manage',
-  ElectronicInvoicesSubmit: 'electronic_invoices.submit',
-  ElectronicInvoicesConfigure: 'electronic_invoices.configure',
   ClientPortalView: 'client_portal.view',
   ClientPortalMessage: 'client_portal.message',
 } as const;
@@ -311,28 +307,17 @@ export const permissionSeed = [
     PermissionNames.ForeignTradePost,
     'Comptabiliser les opérations et écarts de change',
   ],
-  [
-    PermissionNames.ElectronicInvoicesView,
-    'Consulter les factures électroniques TTN',
-  ],
-  [
-    PermissionNames.ElectronicInvoicesManage,
-    'Préparer les factures électroniques TTN',
-  ],
-  [
-    PermissionNames.ElectronicInvoicesSubmit,
-    'Transmettre ou simuler la transmission TTN',
-  ],
-  [
-    PermissionNames.ElectronicInvoicesConfigure,
-    'Configurer le raccordement TTN du dossier',
-  ],
   [PermissionNames.ClientPortalView, 'Accéder au portail client sécurisé'],
   [
     PermissionNames.ClientPortalMessage,
     'Échanger des messages dans le portail client',
   ],
 ] as const;
+
+// Legacy database grants must not advertise a retired application feature.
+export function isAvailablePermission(name: string): boolean {
+  return !name.startsWith('electronic_invoices.');
+}
 
 export const SystemRoleNames = {
   Owner: 'Propriétaire',
@@ -389,8 +374,6 @@ export const collaboratorPermissions = [
   PermissionNames.QualityAssuranceView,
   PermissionNames.ForeignTradeView,
   PermissionNames.ForeignTradeManage,
-  PermissionNames.ElectronicInvoicesView,
-  PermissionNames.ElectronicInvoicesManage,
   PermissionNames.ClientPortalView,
   PermissionNames.ClientPortalMessage,
 ];

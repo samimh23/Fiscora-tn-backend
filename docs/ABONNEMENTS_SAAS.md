@@ -33,8 +33,7 @@ l'administration plateforme.
 - collaborateurs actifs ;
 - dossiers actifs ;
 - stockage documentaire ;
-- documents OCR du cycle courant ;
-- transmissions TTN du cycle courant.
+- documents OCR du cycle courant.
 
 La première version mesure et affiche les dépassements. Elle ne bloque pas
 automatiquement la production comptable afin d'éviter une interruption brutale

@@ -96,9 +96,4 @@ export class PlatformAdminController {
   ) {
     return this.service.sendTestEmail(user, dto);
   }
-
-  @Get('audit-logs')
-  auditLogs() {
-    return this.service.auditLogs();
-  }
 }

@@ -52,10 +52,6 @@ export class PlatformAdminService {
           WHERE "delivery_status" = 'ECHEC'
             AND "accepted_at_utc" IS NULL
             AND "revoked_at_utc" IS NULL) AS "invitationsFailed",
-        (SELECT COUNT(*) FROM "accounting"."ttn_einvoice_submissions"
-          WHERE "status" IN ('REJETEE', 'ECHEC')) AS "ttnFailed",
-        (SELECT COUNT(*) FROM "accounting"."ttn_einvoice_configurations"
-          WHERE "is_enabled" = true AND "environment" = 'PRODUCTION') AS "ttnProductionConnections",
         (SELECT COUNT(*) FROM "accounting"."organization_subscriptions"
           WHERE "status" = 'IMPAYE') AS "subscriptionsPastDue",
         (SELECT COUNT(*) FROM "accounting"."saas_subscription_invoices"
@@ -78,12 +74,6 @@ export class PlatformAdminService {
         'Invitations non distribuées',
         totals.invitationsFailed,
         'warning',
-      ),
-      this.alert(
-        'TTN_ECHEC',
-        'Transmissions TTN rejetées ou en échec',
-        totals.ttnFailed,
-        'error',
       ),
       this.alert(
         'ABONNEMENTS_IMPAYES',
@@ -163,16 +153,6 @@ export class PlatformAdminService {
             ? 'La stratégie de sauvegarde est déclarée active.'
             : 'Aucune stratégie de sauvegarde de production n’est déclarée.',
         },
-        {
-          code: 'TTN',
-          label: 'Facturation électronique TTN',
-          status:
-            totals.ttnProductionConnections > 0 ? 'PRODUCTION' : 'SIMULATION',
-          detail:
-            totals.ttnProductionConnections > 0
-              ? `${totals.ttnProductionConnections} connexion(s) de production active(s).`
-              : 'Aucune connexion de production active.',
-        },
       ],
     };
   }
@@ -206,16 +186,7 @@ export class PlatformAdminService {
           FROM "accounting"."organization_invitations"
           WHERE "delivery_status" = 'ECHEC'
             AND "accepted_at_utc" IS NULL
-            AND "revoked_at_utc" IS NULL) AS "invitationLastFailureAtUtc",
-        (SELECT COUNT(*) FROM "accounting"."ttn_einvoice_submissions"
-          WHERE "status" = 'PRETE') AS "ttnPending",
-        (SELECT COUNT(*) FROM "accounting"."ttn_einvoice_submissions"
-          WHERE "status" = 'SOUMISE') AS "ttnProcessing",
-        (SELECT COUNT(*) FROM "accounting"."ttn_einvoice_submissions"
-          WHERE "status" IN ('REJETEE', 'ECHEC')) AS "ttnFailed",
-        (SELECT MAX(COALESCE("last_attempt_at_utc", "updated_at_utc", "created_at_utc"))
-          FROM "accounting"."ttn_einvoice_submissions"
-          WHERE "status" IN ('REJETEE', 'ECHEC')) AS "ttnLastFailureAtUtc"
+            AND "revoked_at_utc" IS NULL) AS "invitationLastFailureAtUtc"
     `);
 
     return {
@@ -233,7 +204,6 @@ export class PlatformAdminService {
           row,
           'invitation',
         ),
-        this.pipeline('TTN_TRANSMISSION', 'Transmission TTN', row, 'ttn'),
       ],
     };
   }
@@ -401,31 +371,6 @@ export class PlatformAdminService {
       activeSessionsCount: Number(row.activeSessionsCount),
       memberships: row.memberships ?? [],
     }));
-  }
-
-  async auditLogs() {
-    return this.dataSource.query<Record<string, unknown>[]>(`
-      SELECT
-        a."id",
-        a."action",
-        a."entity_type" AS "entityType",
-        a."entity_id" AS "entityId",
-        a."created_at_utc" AS "createdAtUtc",
-        a."actor_user_id" AS "actorUserId",
-        u."full_name" AS "actorName",
-        a."organization_id" AS "organizationId",
-        o."name" AS "organizationName",
-        CASE
-          WHEN a."action" LIKE 'platform_admin.%'
-            THEN a."details_json" ->> 'reason'
-          ELSE NULL
-        END AS "reason"
-      FROM "accounting"."audit_logs" a
-      LEFT JOIN "accounting"."users" u ON u."id" = a."actor_user_id"
-      LEFT JOIN "accounting"."organizations" o ON o."id" = a."organization_id"
-      ORDER BY a."created_at_utc" DESC
-      LIMIT 200
-    `);
   }
 
   async updateOrganizationStatus(
@@ -717,7 +662,7 @@ export class PlatformAdminService {
     code: string,
     label: string,
     row: CountRow,
-    prefix: 'extraction' | 'invitation' | 'ttn',
+    prefix: 'extraction' | 'invitation',
   ) {
     const pending = Number(row[`${prefix}Pending`] ?? 0);
     const processing = Number(row[`${prefix}Processing`] ?? 0);

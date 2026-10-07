@@ -17,7 +17,10 @@ import {
   RolePermission,
   User,
 } from '../database/entities';
-import { SystemRoleNames } from '../database/permissions';
+import {
+  isAvailablePermission,
+  SystemRoleNames,
+} from '../database/permissions';
 import {
   CreateRoleDto,
   InvitationDto,
@@ -87,7 +90,10 @@ export class OrganizationsService {
   }
 
   async getPermissions() {
-    return this.permissions.find({ order: { name: 'ASC' } });
+    const permissions = await this.permissions.find({ order: { name: 'ASC' } });
+    return permissions.filter((permission) =>
+      isAvailablePermission(permission.name),
+    );
   }
 
   async getAuditLogs(organizationId: string, take: number) {
@@ -390,7 +396,11 @@ export class OrganizationsService {
       ...new Set(values.map((item) => item.trim()).filter(Boolean)),
     ].sort();
     const known = await this.permissions.findBy({ name: In(distinct) });
-    const knownNames = new Set(known.map((item) => item.name));
+    const knownNames = new Set(
+      known
+        .filter((item) => isAvailablePermission(item.name))
+        .map((item) => item.name),
+    );
     const unknown = distinct.filter((item) => !knownNames.has(item));
     if (unknown.length) {
       throw new BadRequestException(
@@ -513,6 +523,7 @@ export class OrganizationsService {
       role: item.role.name,
       permissions: item.role.rolePermissions
         .map((permission) => permission.permissionName)
+        .filter(isAvailablePermission)
         .sort(),
     };
   }
@@ -536,6 +547,7 @@ export class OrganizationsService {
       isSystem: role.isSystem,
       permissions: role.rolePermissions
         .map((permission) => permission.permissionName)
+        .filter(isAvailablePermission)
         .sort(),
     };
   }

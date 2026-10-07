@@ -32,7 +32,6 @@ export class SaasSubscriptionsService {
           "max_active_dossiers" AS "maxActiveDossiers",
           "max_storage_bytes" AS "maxStorageBytes",
           "monthly_ocr_documents" AS "monthlyOcrDocuments",
-          "monthly_ttn_submissions" AS "monthlyTtnSubmissions",
           "features_json" AS "features",
           "is_active" AS "isActive",
           "is_public" AS "isPublic"
@@ -57,7 +56,7 @@ export class SaasSubscriptionsService {
           ("code", "name", "description", "monthly_price_tnd", "annual_price_tnd",
            "max_collaborators", "max_active_dossiers", "max_storage_bytes",
            "monthly_ocr_documents", "monthly_ttn_submissions", "features_json")
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::bigint, $9, $10, $11::jsonb)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::bigint, $9, 0, $10::jsonb)
         RETURNING "id"
       `,
       [
@@ -70,7 +69,6 @@ export class SaasSubscriptionsService {
         dto.maxActiveDossiers,
         dto.maxStorageGb * 1024 * 1024 * 1024,
         dto.monthlyOcrDocuments,
-        dto.monthlyTtnSubmissions,
         JSON.stringify(dto.features ?? {}),
       ],
     );
@@ -105,8 +103,6 @@ export class SaasSubscriptionsService {
           : dto.maxStorageGb * 1024 * 1024 * 1024,
       monthlyOcrDocuments:
         dto.monthlyOcrDocuments ?? plan.monthly_ocr_documents,
-      monthlyTtnSubmissions:
-        dto.monthlyTtnSubmissions ?? plan.monthly_ttn_submissions,
       features: dto.features ?? plan.features_json,
       isActive: dto.isActive ?? plan.is_active,
       isPublic: dto.isPublic ?? plan.is_public,
@@ -117,9 +113,9 @@ export class SaasSubscriptionsService {
         SET "name" = $2, "description" = $3, "monthly_price_tnd" = $4,
             "annual_price_tnd" = $5, "max_collaborators" = $6,
             "max_active_dossiers" = $7, "max_storage_bytes" = $8::bigint,
-            "monthly_ocr_documents" = $9, "monthly_ttn_submissions" = $10,
-            "features_json" = $11::jsonb, "is_active" = $12,
-            "is_public" = $13, "updated_at_utc" = now()
+            "monthly_ocr_documents" = $9,
+            "features_json" = $10::jsonb, "is_active" = $11,
+            "is_public" = $12, "updated_at_utc" = now()
         WHERE "id" = $1::uuid
       `,
       [
@@ -132,7 +128,6 @@ export class SaasSubscriptionsService {
         values.maxActiveDossiers,
         values.maxStorageBytes,
         values.monthlyOcrDocuments,
-        values.monthlyTtnSubmissions,
         JSON.stringify(values.features),
         values.isActive,
         values.isPublic,
@@ -385,56 +380,6 @@ export class SaasSubscriptionsService {
     });
   }
 
-  async analytics() {
-    const [row] = await this.dataSource.query<Row[]>(`
-      SELECT
-        COUNT(*) FILTER (WHERE subscription."status" = 'ESSAI') AS "trialing",
-        COUNT(*) FILTER (WHERE subscription."status" = 'ACTIF') AS "active",
-        COUNT(*) FILTER (WHERE subscription."status" = 'IMPAYE') AS "pastDue",
-        COUNT(*) FILTER (WHERE subscription."status" = 'SUSPENDU') AS "suspended",
-        COUNT(*) FILTER (WHERE subscription."status" = 'ANNULE') AS "cancelled",
-        COALESCE(SUM(
-          CASE WHEN subscription."status" IN ('ACTIF', 'IMPAYE')
-            THEN CASE WHEN subscription."billing_cycle" = 'ANNUEL'
-              THEN plan."annual_price_tnd" / 12
-              ELSE plan."monthly_price_tnd"
-            END ELSE 0 END
-        ), 0) AS "mrrTnd",
-        COALESCE((
-          SELECT SUM(invoice."amount_tnd")
-          FROM "accounting"."saas_subscription_invoices" invoice
-          WHERE invoice."status" = 'PAYEE'
-            AND invoice."paid_at_utc" >= date_trunc('month', now())
-        ), 0) AS "collectedThisMonthTnd",
-        (SELECT COUNT(*) FROM "accounting"."saas_subscription_invoices"
-          WHERE "status" = 'A_PAYER' AND "due_at_utc" < now()) AS "overdueInvoices",
-        (SELECT COALESCE(SUM("amount_tnd"), 0)
-          FROM "accounting"."saas_subscription_invoices"
-          WHERE "status" = 'A_PAYER' AND "due_at_utc" < now()) AS "overdueAmountTnd"
-      FROM "accounting"."organization_subscriptions" subscription
-      JOIN "accounting"."saas_plans" plan ON plan."id" = subscription."plan_id"
-    `);
-    const trialing = Number(row.trialing);
-    const active = Number(row.active);
-    const pastDue = Number(row.pastDue);
-    const suspended = Number(row.suspended);
-    const cancelled = Number(row.cancelled);
-    const mrrTnd = Number(row.mrrTnd);
-    const decided = active + pastDue + suspended + cancelled;
-    return {
-      generatedAtUtc: new Date().toISOString(),
-      subscriptions: { trialing, active, pastDue, suspended, cancelled },
-      mrrTnd,
-      arrTnd: mrrTnd * 12,
-      averageRevenuePerActiveCabinetTnd: active ? mrrTnd / active : 0,
-      trialConversionRate: decided ? (active / decided) * 100 : 0,
-      churnRate: decided ? (cancelled / decided) * 100 : 0,
-      collectedThisMonthTnd: Number(row.collectedThisMonthTnd),
-      overdueInvoices: Number(row.overdueInvoices),
-      overdueAmountTnd: Number(row.overdueAmountTnd),
-    };
-  }
-
   private async subscriptionRows(organizationId?: string) {
     return this.dataSource.query<Row[]>(
       `
@@ -457,7 +402,6 @@ export class SaasSubscriptionsService {
           plan."max_active_dossiers" AS "maxActiveDossiers",
           plan."max_storage_bytes" AS "maxStorageBytes",
           plan."monthly_ocr_documents" AS "monthlyOcrDocuments",
-          plan."monthly_ttn_submissions" AS "monthlyTtnSubmissions",
           (SELECT COUNT(*) FROM "accounting"."organization_memberships" member
             WHERE member."organization_id" = organization."id"
               AND member."is_active" = true) AS "collaboratorsUsed",
@@ -472,11 +416,7 @@ export class SaasSubscriptionsService {
             WHERE document."organization_id" = organization."id"
               AND document."created_at_utc" >= subscription."current_period_start_utc"
               AND document."created_at_utc" < subscription."current_period_end_utc"
-              AND document."deleted_at_utc" IS NULL) AS "ocrUsed",
-          (SELECT COUNT(*) FROM "accounting"."ttn_einvoice_submissions" submission
-            WHERE submission."organization_id" = organization."id"
-              AND submission."created_at_utc" >= subscription."current_period_start_utc"
-              AND submission."created_at_utc" < subscription."current_period_end_utc") AS "ttnUsed"
+              AND document."deleted_at_utc" IS NULL) AS "ocrUsed"
         FROM "accounting"."organization_subscriptions" subscription
         JOIN "accounting"."organizations" organization
           ON organization."id" = subscription."organization_id"
@@ -512,7 +452,6 @@ export class SaasSubscriptionsService {
         activeDossiers: this.usage(row.dossiersUsed, row.maxActiveDossiers),
         storageBytes: this.usage(row.storageUsedBytes, row.maxStorageBytes),
         ocrDocuments: this.usage(row.ocrUsed, row.monthlyOcrDocuments),
-        ttnSubmissions: this.usage(row.ttnUsed, row.monthlyTtnSubmissions),
       },
     };
   }
@@ -530,7 +469,6 @@ export class SaasSubscriptionsService {
       maxStorageBytes: Number(row.maxStorageBytes),
       maxStorageGb: Number(row.maxStorageBytes) / 1024 / 1024 / 1024,
       monthlyOcrDocuments: Number(row.monthlyOcrDocuments),
-      monthlyTtnSubmissions: Number(row.monthlyTtnSubmissions),
       features: row.features,
       isActive: Boolean(row.isActive),
       isPublic: Boolean(row.isPublic),

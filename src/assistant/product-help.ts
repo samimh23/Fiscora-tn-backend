@@ -467,26 +467,6 @@ const entries: ProductHelpEntry[] = [
     ],
   },
   {
-    id: 'electronic-invoices',
-    title: 'Préparer une facture électronique TTN',
-    path: '/facturation-electronique',
-    permission: 'electronic_invoices.view',
-    keywords: [
-      'facturation électronique',
-      'ttn',
-      'el facture',
-      'transmettre facture',
-      'connecteur ttn',
-    ],
-    summary:
-      'Facturation TTN prépare, contrôle et transmet les factures électroniques selon la configuration du dossier.',
-    steps: [
-      'Choisissez le dossier et vérifiez la configuration TTN.',
-      'Préparez la facture puis corrigez les contrôles bloquants.',
-      'Simulez ou transmettez uniquement avec la permission correspondante.',
-    ],
-  },
-  {
     id: 'billing',
     title: 'Gérer les honoraires du cabinet',
     path: '/honoraires',

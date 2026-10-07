@@ -28,6 +28,7 @@ import {
   collaboratorPermissions,
   clientPortalPermissions,
   ownerPermissions,
+  isAvailablePermission,
   SystemRoleNames,
 } from '../database/permissions';
 import {
@@ -1022,6 +1023,7 @@ export class AuthService {
       role: item.role.name,
       permissions: item.role.rolePermissions
         .map((permission) => permission.permissionName)
+        .filter(isAvailablePermission)
         .sort(),
     }));
   }
