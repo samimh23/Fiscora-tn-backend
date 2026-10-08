@@ -99,6 +99,8 @@ import { AutomaticAiIndexing1784390000000 } from './database/migrations/17843900
 import { AssistantHistoryIndex1784391000000 } from './database/migrations/1784391000000-assistant-history-index';
 import { SyncControlledFiscalYearClosings1790726400000 } from './database/migrations/1790726400000-sync-controlled-fiscal-year-closings';
 import { WorkflowIntegrity1790784000000 } from './database/migrations/1790784000000-workflow-integrity';
+import { TrainingDatasets1791468000000 } from './database/migrations/1791468000000-training-datasets';
+import { TrainingDatasetsModule } from './training-datasets/training-datasets.module';
 
 @Module({
   imports: [
@@ -180,6 +182,7 @@ import { WorkflowIntegrity1790784000000 } from './database/migrations/1790784000
           AssistantHistoryIndex1784391000000,
           SyncControlledFiscalYearClosings1790726400000,
           WorkflowIntegrity1790784000000,
+          TrainingDatasets1791468000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,
@@ -220,6 +223,7 @@ import { WorkflowIntegrity1790784000000 } from './database/migrations/1790784000
     QualityAssuranceModule,
     MigrationAssistantModule,
     AssistantModule,
+    TrainingDatasetsModule,
   ],
   controllers: [HealthController],
   providers: [

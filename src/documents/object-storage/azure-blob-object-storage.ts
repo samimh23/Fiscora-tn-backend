@@ -14,7 +14,7 @@ export class AzureBlobObjectStorage implements DocumentObjectStorage {
   private readonly containerName: string;
   private readonly credential: DefaultAzureCredential;
 
-  constructor(config: ConfigService) {
+  constructor(config: ConfigService, containerName?: string) {
     const accountUrl = config.get<string>('AZURE_STORAGE_ACCOUNT_URL');
     if (!accountUrl) {
       throw new Error(
@@ -23,10 +23,9 @@ export class AzureBlobObjectStorage implements DocumentObjectStorage {
     }
     const parsedUrl = new URL(accountUrl);
     this.accountName = parsedUrl.hostname.split('.')[0];
-    this.containerName = config.get(
-      'AZURE_STORAGE_CONTAINER',
-      'accounting-documents',
-    );
+    this.containerName =
+      containerName ??
+      config.get('AZURE_STORAGE_CONTAINER', 'accounting-documents');
     this.credential = new DefaultAzureCredential();
     this.serviceClient = new BlobServiceClient(accountUrl, this.credential);
   }
@@ -39,6 +38,12 @@ export class AzureBlobObjectStorage implements DocumentObjectStorage {
 
   async putObject(objectKey: string, content: Buffer, contentType: string) {
     await this.blockBlob(objectKey).uploadData(content, {
+      blobHTTPHeaders: { blobContentType: contentType },
+    });
+  }
+
+  async putFile(objectKey: string, filePath: string, contentType: string) {
+    await this.blockBlob(objectKey).uploadFile(filePath, {
       blobHTTPHeaders: { blobContentType: contentType },
     });
   }
@@ -60,7 +65,11 @@ export class AzureBlobObjectStorage implements DocumentObjectStorage {
     });
   }
 
-  async signedReadUrl(objectKey: string, expiresInSeconds: number) {
+  async signedReadUrl(
+    objectKey: string,
+    expiresInSeconds: number,
+    downloadFilename?: string,
+  ) {
     const now = new Date();
     const startsOn = new Date(now.getTime() - 5 * 60 * 1000);
     const expiresOn = new Date(now.getTime() + expiresInSeconds * 1000);
@@ -74,6 +83,9 @@ export class AzureBlobObjectStorage implements DocumentObjectStorage {
         blobName: objectKey,
         permissions: BlobSASPermissions.parse('r'),
         protocol: SASProtocol.Https,
+        contentDisposition: downloadFilename
+          ? `attachment; filename="${downloadFilename.replace(/[^a-zA-Z0-9._-]/g, '_')}"`
+          : undefined,
         startsOn,
         expiresOn,
       },

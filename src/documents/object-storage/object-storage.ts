@@ -8,6 +8,15 @@ export interface DocumentObjectStorage {
     contentType: string,
   ): Promise<void>;
   readObject(objectKey: string): Promise<Buffer>;
+  putFile?(
+    objectKey: string,
+    filePath: string,
+    contentType: string,
+  ): Promise<void>;
   removeObject(objectKey: string): Promise<void>;
-  signedReadUrl(objectKey: string, expiresInSeconds: number): Promise<string>;
+  signedReadUrl(
+    objectKey: string,
+    expiresInSeconds: number,
+    downloadFilename?: string,
+  ): Promise<string>;
 }

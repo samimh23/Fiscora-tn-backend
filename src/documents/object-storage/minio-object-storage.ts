@@ -1,4 +1,6 @@
 import { ConfigService } from '@nestjs/config';
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import {
   CreateBucketCommand,
   DeleteObjectCommand,
@@ -15,8 +17,9 @@ export class MinioObjectStorage implements DocumentObjectStorage {
   private readonly publicClient: S3Client;
   private readonly bucket: string;
 
-  constructor(config: ConfigService) {
-    this.bucket = config.get<string>('MINIO_BUCKET', 'accounting-documents');
+  constructor(config: ConfigService, bucket?: string) {
+    this.bucket =
+      bucket ?? config.get<string>('MINIO_BUCKET', 'accounting-documents');
     const accessKeyId = config.get<string>('MINIO_ACCESS_KEY', 'minioadmin');
     const secretAccessKey = config.get<string>(
       'MINIO_SECRET_KEY',
@@ -87,16 +90,39 @@ export class MinioObjectStorage implements DocumentObjectStorage {
     return Buffer.from(await response.Body.transformToByteArray());
   }
 
+  async putFile(objectKey: string, filePath: string, contentType: string) {
+    const info = await stat(filePath);
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: objectKey,
+        Body: createReadStream(filePath),
+        ContentLength: info.size,
+        ContentType: contentType,
+      }),
+    );
+  }
+
   async removeObject(objectKey: string) {
     await this.client.send(
       new DeleteObjectCommand({ Bucket: this.bucket, Key: objectKey }),
     );
   }
 
-  signedReadUrl(objectKey: string, expiresInSeconds: number) {
+  signedReadUrl(
+    objectKey: string,
+    expiresInSeconds: number,
+    downloadFilename?: string,
+  ) {
     return getSignedUrl(
       this.publicClient,
-      new GetObjectCommand({ Bucket: this.bucket, Key: objectKey }),
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: objectKey,
+        ResponseContentDisposition: downloadFilename
+          ? `attachment; filename="${downloadFilename.replace(/[^a-zA-Z0-9._-]/g, '_')}"`
+          : undefined,
+      }),
       { expiresIn: expiresInSeconds },
     );
   }
