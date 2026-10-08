@@ -11,8 +11,16 @@ from pathlib import Path
 
 from data import BASE_MODEL, BASE_REVISION, compare_reports, dataset_check, load_split, safe_path, score_prediction
 
-DEFAULT_DATASET = Path(__file__).resolve().parents[3] / "output/financial-synthetic-pilot-v1"
-DEFAULT_RUNS = Path(__file__).resolve().parents[2] / "output/nuextract-lora"
+def default_paths(script):
+    script = Path(script).resolve()
+    # Repository layout is optional: the Docker image places this file in /app.
+    if script.parent.name == "nuextract-lora" and script.parent.parent.name == "scripts":
+        repository = script.parent.parent.parent
+        return repository.parent / "output/financial-synthetic-pilot-v1", repository / "output/nuextract-lora"
+    return Path("/work/dataset"), Path("/work/runs")
+
+
+DEFAULT_DATASET, DEFAULT_RUNS = default_paths(__file__)
 TARGET_SUFFIXES = {"q_proj", "k_proj", "v_proj", "o_proj", "in_proj_qkv", "in_proj_z", "in_proj_b", "in_proj_a", "out_proj", "gate_proj", "up_proj", "down_proj"}
 
 

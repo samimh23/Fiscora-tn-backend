@@ -4,10 +4,24 @@ import unittest
 from pathlib import Path
 
 from data import compare_reports, dataset_check, safe_path, score_prediction, validate_target
-from train import DEFAULT_DATASET, messages_for
+from train import DEFAULT_DATASET, messages_for, default_paths
 
 
 class DataTests(unittest.TestCase):
+    def test_flat_container_paths(self):
+        self.assertEqual(default_paths("/app/train.py"), (Path("/work/dataset"), Path("/work/runs")))
+
+    def test_flat_script_starts(self):
+        import shutil
+        import subprocess
+        import sys
+        with tempfile.TemporaryDirectory() as directory:
+            for name in ["train.py", "data.py"]:
+                shutil.copyfile(Path(__file__).parent / name, Path(directory) / name)
+            result = subprocess.run([sys.executable, str(Path(directory) / "train.py"), "--help"], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("preflight", result.stdout)
+
     def test_pilot_integrity(self):
         if not DEFAULT_DATASET.exists():
             self.skipTest("Generate the synthetic pilot locally first")

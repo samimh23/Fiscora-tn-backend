@@ -7,4 +7,5 @@ RUN python -m pip install torch==2.10.0 torchvision==0.25.0 --index-url https://
     && python -m pip install -r requirements.txt -r cloud-requirements.txt \
     && python -m pip check
 COPY data.py train.py cloud_io.py cloud_entry.py ./
+RUN python /app/train.py --help && python /app/cloud_entry.py --help
 ENTRYPOINT ["python", "/app/cloud_entry.py"]
