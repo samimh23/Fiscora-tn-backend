@@ -93,6 +93,11 @@ def verify_evaluations(output):
 def model_card(contract, result, reports):
     rows = "\n".join(f"| {key.replace('_', ' ')} | {reports['base'][key]:.2%} | {reports['merged'][key]:.2%} |"
                      for key in METRICS)
+    invalid = round(reports["merged"].get("documents", 10) * (1 - reports["merged"]["json_validity"]))
+    regression = (f"**Known limitation:** {invalid} held-out document(s) returned invalid JSON. "
+                  "Whole-document accuracy and aggregate field accuracy can move in opposite directions: "
+                  "one failure on a document with many fields can outweigh several perfectly extracted documents. "
+                  "Inspect the individual predictions before drawing conclusions.\n") if invalid else ""
     return f"""---
 language:
 - fr
@@ -125,6 +130,7 @@ The numbers below are from the saved and reloaded **merged model**, not training
 |---|---:|---:|
 {rows}
 
+{regression}
 Exact fields use strict string equality, including date/amount formatting; extra keys
 and list-length differences are penalized. Non-null field accuracy excludes missing
 source values so null predictions cannot inflate that score. Detailed predictions,
