@@ -273,3 +273,21 @@ local process stops; use the ledger before resuming so jobs are not duplicated.
 
 Reference: [PEFT checkpoint merging](https://huggingface.co/docs/peft/developer_guides/checkpoint)
 and [Hub folder uploads](https://huggingface.co/docs/huggingface_hub/guides/upload).
+
+### Approved direct-cloud alternative
+
+If the local 9 GB transfer fails, `direct_publish.py` supports a separately approved
+CPU-only Cloud Build upload. It reads the existing local HF login without displaying
+the token, stores it in a new temporary Secret Manager secret, and grants only the
+build service account accessor permission on that secret. No project-wide role is
+added. `cloudbuild-publish.yaml` injects the token only into its publication step.
+`cloud_publish.py` downloads the private verified release inside GCP, checks all
+hashes, explicitly discloses invalid-JSON failures in the model card, and publishes
+only the allowlisted model artifacts. The token/cache are outside that public folder.
+
+The local helper tracks the CPU build and removes the temporary accessor binding
+and secret in `finally`, on success or failure. Keep it running until cleanup is
+confirmed; if interrupted, inspect `output/nuextract-lora/direct-publish-v1.json` and
+complete the secret cleanup manually. Never run a second uploader concurrently.
+This route is not automatic authorization to copy a credential into GCP: obtain
+explicit permission first. It changes neither the live model nor the dataset.

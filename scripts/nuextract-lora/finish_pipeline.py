@@ -78,6 +78,8 @@ def main():
     ledger = json.loads(args.ledger.read_text(encoding="utf-8")) if args.ledger.exists() else {"training_job": args.training_job}
     if ledger["training_job"] != args.training_job:
         raise ValueError("Ledger belongs to a different training run")
+    if ledger.get("status") == "superseded_by_direct_cloud_publication":
+        raise ValueError("Local download was superseded by direct cloud publication; inspect that build instead of uploading twice")
     args.ledger.parent.mkdir(parents=True, exist_ok=True)
     dump(args.ledger, ledger)
     deadline = time.monotonic() + 3 * 3600

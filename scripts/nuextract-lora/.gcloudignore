@@ -15,3 +15,5 @@
 !publish.py
 !Dockerfile.release
 !cloudbuild-release.yaml
+!cloud_publish.py
+!cloudbuild-publish.yaml
