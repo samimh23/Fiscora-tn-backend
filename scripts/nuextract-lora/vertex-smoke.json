@@ -10,7 +10,7 @@
       "replicaCount": 1,
       "diskSpec": {"bootDiskType": "pd-ssd", "bootDiskSizeGb": 150},
       "containerSpec": {
-        "imageUri": "europe-west1-docker.pkg.dev/fiscora-ai/fiscora-ai/nuextract3-lora-trainer@sha256:32caa21091b56177a7c797061a372f118dab7e6f0c1d4968603367d026f1adfe",
+        "imageUri": "europe-west1-docker.pkg.dev/fiscora-ai/fiscora-ai/nuextract3-lora-trainer@sha256:8180dd9a4d4baeaf4882dcd682ea4ebc8fc2679b04d6740abbeaaac354d8fc1e",
         "env": [
           {"name": "NVIDIA_VISIBLE_DEVICES", "value": "all"},
           {"name": "NVIDIA_DRIVER_CAPABILITIES", "value": "compute,utility"}
@@ -18,7 +18,7 @@
         "args": [
           "--dataset-gcs", "gs://fiscora-ai-training-472441103512/datasets/financial-synthetic-pilot-v1.zip",
           "--dataset-sha256", "1e737477400917ef644efa5beab11d04c1147a0247a84ece5ebdff5732538676",
-          "--run-gcs", "gs://fiscora-ai-training-472441103512/runs/smoke-20261008-v2",
+          "--run-gcs", "gs://fiscora-ai-training-472441103512/runs/smoke-20261008-v3",
           "--", "--max-steps", "10", "--max-seconds", "1800"
         ]
       }
