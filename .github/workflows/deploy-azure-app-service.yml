@@ -1,0 +1,97 @@
+name: Deploy backend to Azure App Service
+
+on:
+  workflow_call:
+    inputs:
+      update_app_service:
+        description: False publishes an image only; never activates quarantined hosting
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-backend-azure-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and verify App Service API release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      WEB_APP: ${{ vars.AZURE_WEB_APP_NAME }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign in to Azure Container Registry
+        run: az acr login --name "${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}"
+
+      - name: Build and push backend image
+        env:
+          IMAGE: ${{ vars.AZURE_CONTAINER_REGISTRY_LOGIN_SERVER }}/fiscora-backend:${{ github.sha }}
+        run: |
+          docker build --platform linux/amd64 --build-arg APP_RELEASE_SHA="${{ github.sha }}" --tag "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Resolve immutable image digest
+        id: image
+        run: |
+          digest="$(az acr repository show --name "${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}" \
+            --image "fiscora-backend:${{ github.sha }}" --query digest --output tsv)"
+          image="${{ vars.AZURE_CONTAINER_REGISTRY_LOGIN_SERVER }}/fiscora-backend@$digest"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "Immutable backend image: $image" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Refuse to deploy to quarantined hosting
+        if: inputs.update_app_service
+        run: |
+          : "${WEB_APP:?Set AZURE_WEB_APP_NAME only after reviewed App Service creation}"
+          state="$(az webapp show --resource-group "$RESOURCE_GROUP" --name "$WEB_APP" --query state -o tsv)"
+          site_id="$(az webapp show --resource-group "$RESOURCE_GROUP" --name "$WEB_APP" --query id -o tsv)"
+          container="$(az rest --method get --uri "$site_id/sitecontainers/api?api-version=2024-04-01" --query properties -o json)"
+          if [ "$state" != Running ] || ! jq -e '.isMain == true and (.startUpCommand == null or .startUpCommand == "")' <<< "$container" > /dev/null; then
+            echo "App Service is not activated. GitHub must not start it or override its startup command." >&2
+            exit 1
+          fi
+
+      - name: Deploy only the API image
+        if: inputs.update_app_service
+        env:
+          EXPECTED_IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          az webapp sitecontainers update --resource-group "$RESOURCE_GROUP" --name "$WEB_APP" \
+            --container-name api --image "$EXPECTED_IMAGE" --output none
+
+      - name: Verify configured digest and actually served release
+        if: inputs.update_app_service
+        env:
+          EXPECTED_IMAGE: ${{ steps.image.outputs.image }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          site_id="$(az webapp show --resource-group "$RESOURCE_GROUP" --name "$WEB_APP" --query id -o tsv)"
+          hostname="$(az webapp show --resource-group "$RESOURCE_GROUP" --name "$WEB_APP" --query defaultHostName -o tsv)"
+          for attempt in $(seq 1 40); do
+            image="$(az rest --method get --uri "$site_id/sitecontainers/api?api-version=2024-04-01" --query properties.image -o tsv)"
+            health="$(curl --fail --silent --show-error --max-time 15 "https://$hostname/health" || true)"
+            if [ "$image" = "$EXPECTED_IMAGE" ] && jq -e --arg sha "$EXPECTED_SHA" \
+              '.status == "healthy" and .releaseSha == $sha' <<< "$health" > /dev/null; then
+              echo "Verified exact served release $EXPECTED_SHA at https://$hostname"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "The expected release was not verified; no old hosting or database was deleted." >&2
+          exit 1

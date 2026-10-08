@@ -42,6 +42,15 @@ jobs:
           --health-retries 5
 
     steps:
+      - name: Validate backend hosting selection
+        env:
+          BACKEND_HOSTING: ${{ vars.AZURE_BACKEND_HOSTING }}
+        run: |
+          case "$BACKEND_HOSTING" in
+            ""|container-app|app-service) ;;
+            *) echo "Invalid AZURE_BACKEND_HOSTING; deployment is blocked." >&2; exit 1 ;;
+          esac
+
       - name: Check out repository
         uses: actions/checkout@v4
 
@@ -87,10 +96,21 @@ jobs:
   deploy-staging:
     name: Deploy validated backend to staging
     needs: validate
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && (vars.AZURE_BACKEND_HOSTING == '' || vars.AZURE_BACKEND_HOSTING == 'container-app')
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/deploy-azure-staging.yml
     with:
       update_container_app: ${{ inputs.bootstrap_image_only != true }}
+
+  deploy-app-service:
+    name: Deploy validated backend to App Service after cutover
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.AZURE_BACKEND_HOSTING == 'app-service'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deploy-azure-app-service.yml
+    with:
+      update_app_service: ${{ inputs.bootstrap_image_only != true }}

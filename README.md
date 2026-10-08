@@ -11,6 +11,14 @@ mais aucune Container App n'est mise à jour. Utiliser le digest du résumé pou
 créer l'API avec Terraform. Les pushes suivants sur `main` déploient normalement
 l'image validée ; Terraform ne doit pas rétablir une ancienne image API.
 
+Migration App Service : la variable Actions `AZURE_BACKEND_HOSTING` vide (ou
+`container-app`) conserve le déploiement actuel. Ne la passer à `app-service`
+qu'après activation et vérification du nouveau backend. Le nouveau workflow
+utilise `AZURE_WEB_APP_NAME`, refuse une application encore en quarantaine et ne
+change que l'image du conteneur `api`. Il vérifie le digest configuré et le
+`releaseSha` réellement renvoyé par `/health`. Le plan de migration et les étapes
+sont dans `azure/APP-SERVICE-CUTOVER.md` du dépôt infrastructure.
+
 ## Technologies
 
 - NestJS 11 et TypeScript

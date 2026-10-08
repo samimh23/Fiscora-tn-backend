@@ -7,6 +7,8 @@ COPY . .
 RUN npm run build
 
 FROM node:24-alpine AS runtime
+ARG APP_RELEASE_SHA=unknown
+ENV APP_RELEASE_SHA=$APP_RELEASE_SHA
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json ./

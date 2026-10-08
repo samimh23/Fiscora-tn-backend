@@ -41,7 +41,7 @@ jobs:
         env:
           IMAGE: ${{ vars.AZURE_CONTAINER_REGISTRY_LOGIN_SERVER }}/fiscora-backend:${{ github.sha }}
         run: |
-          docker build --platform linux/amd64 --tag "$IMAGE" .
+          docker build --platform linux/amd64 --build-arg APP_RELEASE_SHA="${{ github.sha }}" --tag "$IMAGE" .
           docker push "$IMAGE"
 
       - name: Resolve immutable image digest

@@ -13,6 +13,10 @@ export class HealthController {
 
   @Get('health')
   health() {
-    return { status: 'healthy', message: 'L’API NestJS est opérationnelle.' };
+    return {
+      status: 'healthy',
+      message: 'L’API NestJS est opérationnelle.',
+      releaseSha: process.env.APP_RELEASE_SHA || 'unknown',
+    };
   }
 }
