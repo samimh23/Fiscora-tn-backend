@@ -1,0 +1,11 @@
+# Install a CUDA-compatible PyTorch build separately on the training machine.
+# The CPU-only build is sufficient for preflight, not real model training.
+transformers==5.5.4
+peft==0.19.0
+accelerate==1.12.0
+Pillow==12.3.0
+huggingface-hub==1.33.0
+tokenizers==0.22.2
+safetensors==0.8.0
+numpy==2.5.2
+Jinja2==3.1.6
