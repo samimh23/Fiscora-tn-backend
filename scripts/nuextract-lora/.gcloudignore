@@ -10,3 +10,8 @@
 !gpu_check.py
 !Dockerfile.gpu-fix
 !cloudbuild-gpu-fix.yaml
+!release.py
+!cloud_release.py
+!publish.py
+!Dockerfile.release
+!cloudbuild-release.yaml

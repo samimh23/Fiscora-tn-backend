@@ -9,7 +9,7 @@ import platform
 import time
 from pathlib import Path
 
-from data import BASE_MODEL, BASE_REVISION, compare_reports, dataset_check, load_split, safe_path, score_prediction
+from data import BASE_MODEL, BASE_REVISION, compare_reports, dataset_check, evaluation_fingerprint, load_split, safe_path, score_prediction
 
 def default_paths(script):
     script = Path(script).resolve()
@@ -225,7 +225,17 @@ def evaluate(args, info):
         raise ValueError("Choose an empty evaluation output directory")
     rows = load_split(args.dataset, args.split)
     processor = load_processor(args.max_pixels)
-    model = model_load().cuda()
+    if args.merged:
+        from transformers import AutoProcessor, Qwen3_5ForConditionalGeneration
+        if not torch.cuda.is_available() or not torch.cuda.is_bf16_supported():
+            raise RuntimeError("Merged evaluation requires a BF16-capable CUDA GPU")
+        model = Qwen3_5ForConditionalGeneration.from_pretrained(str(args.merged), dtype=torch.bfloat16,
+                                                               attn_implementation="sdpa", trust_remote_code=False).cuda()
+        processor = AutoProcessor.from_pretrained(str(args.merged), trust_remote_code=False)
+        if processor.image_processor.size != {"shortest_edge": 65536, "longest_edge": args.max_pixels}:
+            raise ValueError("Saved merged processor has different image limits")
+    else:
+        model = model_load().cuda()
     if args.adapter:
         config = json.loads((args.adapter / "adapter_config.json").read_text(encoding="utf-8"))
         if config.get("base_model_name_or_path") != BASE_MODEL or config.get("revision") not in [None, BASE_REVISION]:
@@ -260,7 +270,10 @@ def evaluate(args, info):
                         "seconds": time.monotonic() - started, "generated_tokens": output.shape[1] - inputs["input_ids"].shape[1],
                         "prediction": text, **metrics})
         dump(args.output / "predictions.json", results)
-    summary = {**info, "split": args.split, "adapter": str(args.adapter) if args.adapter else None, "documents": len(results),
+        print(f"Evaluated {len(results)}/{len(rows)}: {row['id']} JSON={valid} exact={metrics['exact_document']}", flush=True)
+    summary = {**info, "split": args.split, "adapter": str(args.adapter or args.merged) if (args.adapter or args.merged) else None,
+               "model_variant": "merged" if args.merged else "adapter" if args.adapter else "base", "documents": len(results),
+               "evaluation_data_sha256": evaluation_fingerprint(args.dataset, rows), "document_ids": [r["id"] for r in rows],
                "json_validity": sum(r["valid_json_object"] for r in results) / len(results),
                "document_exact_match": sum(r["exact_document"] for r in results) / len(results),
                "field_exact_match": sum(r["fields_correct"] for r in results) / sum(r["fields_total"] for r in results),
@@ -292,10 +305,13 @@ def main():
     parser.add_argument("--split", choices=["validation", "test"], default="validation")
     parser.add_argument("--final-test", action="store_true")
     parser.add_argument("--adapter", type=Path)
+    parser.add_argument("--merged", type=Path, help="Evaluate a local merged standalone model instead of base/adapter")
     parser.add_argument("--max-new-tokens", type=int, default=8192)
     parser.add_argument("--baseline-report", type=Path)
     parser.add_argument("--adapter-report", type=Path)
     args = parser.parse_args()
+    if args.adapter and args.merged:
+        parser.error("Choose adapter or merged, not both")
     if args.max_pixels < 65536 or args.max_length < 256 or args.rank < 1 or args.accumulation < 1 or args.max_seconds < 1:
         parser.error("Invalid pixel/token/rank/accumulation/time limit")
     if args.max_steps not in [-1] and args.max_steps < 5:

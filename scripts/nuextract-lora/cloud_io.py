@@ -22,6 +22,27 @@ def upload_tree(directory, uri):
             bucket.blob(f"{prefix}/{path.relative_to(directory).as_posix()}").upload_from_filename(str(path))
 
 
+def download_tree(uri, directory, allowed=None):
+    """Download a private artifact prefix with path checks and optional selection."""
+    from google.cloud import storage
+    bucket_name, prefix = gs_parts(uri)
+    count = 0
+    for blob in storage.Client().list_blobs(bucket_name, prefix=prefix + "/"):
+        relative = blob.name[len(prefix) + 1:]
+        parts = PurePosixPath(relative).parts
+        if not parts or ".." in parts or ":" in relative or "\\" in relative or relative.startswith("/"):
+            raise ValueError("Unsafe remote artifact path")
+        if allowed and not allowed(relative):
+            continue
+        destination = directory.joinpath(*parts)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        blob.download_to_filename(str(destination))
+        count += 1
+    if not count:
+        raise ValueError("No matching cloud artifacts")
+    return count
+
+
 def save_checkpoint(output, step, uri):
     from google.cloud import storage
     bucket_name, prefix = gs_parts(uri)

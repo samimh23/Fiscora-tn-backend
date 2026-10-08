@@ -8,3 +8,7 @@
 !cloud_entry.py
 !gpu_check.py
 !Dockerfile.gpu-fix
+!release.py
+!cloud_release.py
+!publish.py
+!Dockerfile.release

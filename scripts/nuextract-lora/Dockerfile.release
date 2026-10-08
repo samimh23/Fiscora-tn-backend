@@ -1,0 +1,5 @@
+FROM europe-west1-docker.pkg.dev/fiscora-ai/fiscora-ai/nuextract3-lora-trainer@sha256:8180dd9a4d4baeaf4882dcd682ea4ebc8fc2679b04d6740abbeaaac354d8fc1e
+COPY data.py train.py cloud_io.py cloud_entry.py gpu_check.py release.py cloud_release.py publish.py /app/
+RUN python /app/train.py --help && python /app/release.py --help \
+    && python /app/cloud_release.py --help && python /app/publish.py --help
+ENTRYPOINT ["python", "/app/cloud_release.py"]

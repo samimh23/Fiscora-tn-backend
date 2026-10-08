@@ -95,8 +95,9 @@ and its compute resources must be stopped/deleted afterward. Budget alerts are n
 spending limits. Confirm actual region, quotas, price and cost ceiling before launching.
 
 The smoke test verifies finite loss, memory/speed, checkpoint saving and resuming. Loss
-decreasing is not proof that extraction accuracy improved. A real GPU smoke run is still
-needed; CPU tests cannot validate full-model memory usage or CUDA kernels.
+decreasing is not proof that extraction accuracy improved. The real A100 smoke job
+`5063248718036205568` passed on 2026-10-08: 10 steps, 268 seconds training, peak allocated
+CUDA memory 21.55 GiB. CPU tests alone cannot establish those measurements.
 
 Optional integration tests download the real processor/config but no model weights:
 
@@ -197,3 +198,78 @@ job ends; private stored checkpoints remain until intentionally removed.
 
 The official configuration references are [Spot training](https://cloud.google.com/vertex-ai/docs/training/use-spot-vms)
 and [custom jobs](https://cloud.google.com/vertex-ai/docs/training/create-custom-job).
+
+## Full synthetic pilot and verified public release
+
+`vertex-full.json` uses the GPU-verified immutable trainer image, a **new** private
+run prefix, three epochs / 60 optimizer steps, a 3,600-second in-training deadline,
+and a 5,400-second whole-job timeout. It starts from the pinned base, not the smoke
+adapter, and saves the best validation-loss checkpoint. The submitted full run is
+`1746347592477835264` in `us-central1`. Do not submit duplicate paid jobs.
+
+```powershell
+gcloud ai custom-jobs describe 1746347592477835264 --project=fiscora-ai --region=us-central1
+```
+
+After this job succeeds **and result.json confirms 60 steps**, use `vertex-release.json`
+with the verified release image digest. Never start it while training is pending.
+`cloud_release.py` downloads only the synthetic ZIP and completed adapter/run metadata.
+It runs `release.py`, which:
+
+1. Rejects incomplete, smoke, wrong-data or wrong-base training runs.
+2. Evaluates the original model and selected adapter on the fixed 10-document test.
+3. Safely merges LoRA, saves standalone Safetensors, processor and license notices.
+4. Reloads the saved model **and processor**, and evaluates all 10 documents again.
+5. Records actual metrics/predictions, hashes test data, and rejects a merge whose
+   metrics are lower than the unmerged adapter. BF16 generation differences are
+   reported rather than hidden.
+6. Writes a model card with the **merged model's** real results and explicit synthetic
+   pilot limitations. It hashes every public artifact in `release-manifest.json`.
+
+All these files remain private in `gs://fiscora-ai-training-472441103512/releases/financial-v1`.
+No HF credentials are installed in the GPU job. No live deployment occurs.
+
+Build the small release-script layer (existing CUDA libraries are reused):
+
+```powershell
+gcloud builds submit scripts/nuextract-lora --project=fiscora-ai --config=scripts/nuextract-lora/cloudbuild-release.yaml
+```
+
+Local release processing also works on an approved GPU:
+
+```powershell
+python scripts/nuextract-lora/release.py --dataset /path/to/dataset --run /path/to/full-run --output /path/to/new-release
+```
+
+For publication, download only the final standalone `model/` directory, not raw
+optimizer/checkpoint files. Use the existing private-bucket credentials:
+
+```powershell
+gcloud storage rsync --recursive gs://fiscora-ai-training-472441103512/releases/financial-v1/model output/nuextract-lora/public-model-v1
+.\tmp\nuextract-trainer-venv\Scripts\hf.exe auth login
+.\tmp\nuextract-trainer-venv\Scripts\python.exe scripts/nuextract-lora/publish.py --folder output/nuextract-lora/public-model-v1
+# Only after local verification passes:
+.\tmp\nuextract-trainer-venv\Scripts\python.exe scripts/nuextract-lora/publish.py --folder output/nuextract-lora/public-model-v1 --publish-public
+```
+
+Enter a write-enabled HF token only in the local login prompt, **never in chat or Git**.
+`publish.py` checks the logged-in account is `samimh23`, validates artifact checksums,
+then uploads an explicit file allowlist to the authorized public repository in one
+commit. It refuses to overwrite an existing release or change a private repository's
+visibility. The downloadable weights, JSON reports, original Apache license and model
+card are public; no real customer data or training service credentials are uploaded.
+
+`finish_pipeline.py` is an optional **one-off local continuation**, not a recurring
+automation. It waits for the approved training job, submits at most one release job
+(with a durable job-ID ledger), waits for its result, downloads the verified standalone
+model, and optionally publishes using your existing local HF login. If login is missing,
+it stops safely with the files ready; no token is requested in chat. Keep this computer
+awake and the process running. Cloud jobs themselves continue independently if the
+local process stops; use the ledger before resuming so jobs are not duplicated.
+
+```powershell
+.\tmp\nuextract-trainer-venv\Scripts\python.exe -u scripts/nuextract-lora/finish_pipeline.py --publish-public
+```
+
+Reference: [PEFT checkpoint merging](https://huggingface.co/docs/peft/developer_guides/checkpoint)
+and [Hub folder uploads](https://huggingface.co/docs/huggingface_hub/guides/upload).

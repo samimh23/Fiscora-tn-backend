@@ -32,6 +32,17 @@ class ProcessorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exceeds"):
             encode_row(self.rows[0], DEFAULT_DATASET, self.processor, 256)
 
+    def test_saved_release_processor_round_trip(self):
+        from transformers import AutoProcessor
+        root = Path(__file__).resolve().parents[2] / "tmp"
+        with tempfile.TemporaryDirectory(dir=root) as directory:
+            self.processor.save_pretrained(directory)
+            saved = AutoProcessor.from_pretrained(directory, trust_remote_code=False)
+            self.assertEqual(saved.chat_template, self.processor.chat_template)
+            self.assertEqual(saved.image_processor.size, self.processor.image_processor.size)
+            for name in ["processor_config.json", "tokenizer_config.json", "tokenizer.json", "chat_template.jinja"]:
+                self.assertTrue((Path(directory) / name).is_file(), name)
+
     def test_full_architecture_targets_without_weights(self):
         import torch
         from transformers import AutoConfig, Qwen3_5ForConditionalGeneration
@@ -99,6 +110,18 @@ class ProcessorTests(unittest.TestCase):
             resumed = Trainer(model=make_model(), args=settings, train_dataset=[{}], data_collator=lambda _: batch)
             resumed.train(resume_from_checkpoint=str(Path(directory) / "checkpoint-1"))
             self.assertEqual(resumed.state.global_step, 2)
+            # Verify the same architecture's LoRA merge, standalone serialization
+            # and reload with actual tiny weights, not metadata-only tensors.
+            model = resumed.model.eval()
+            with torch.inference_mode():
+                expected = model(**batch).logits.clone()
+            merged = model.merge_and_unload(safe_merge=True)
+            merged_dir = Path(directory) / "merged"
+            merged.save_pretrained(merged_dir, safe_serialization=True)
+            loaded = Qwen3_5ForConditionalGeneration.from_pretrained(merged_dir).eval()
+            with torch.inference_mode():
+                actual = loaded(**batch).logits
+            torch.testing.assert_close(actual, expected, rtol=1e-4, atol=1e-5)
 
 
 if __name__ == "__main__":

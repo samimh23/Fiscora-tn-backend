@@ -1,0 +1,6 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: [build, -f, Dockerfile.release, -t, europe-west1-docker.pkg.dev/fiscora-ai/fiscora-ai/nuextract3-lora-release:20261008-v1, .]
+images:
+  - europe-west1-docker.pkg.dev/fiscora-ai/fiscora-ai/nuextract3-lora-release:20261008-v1
+timeout: 1200s

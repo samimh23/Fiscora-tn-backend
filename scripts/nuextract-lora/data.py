@@ -141,7 +141,21 @@ def compare_reports(baseline, adapter):
             raise ValueError(f"Evaluation settings/data differ: {key}")
     if baseline.get("adapter") is not None or not adapter.get("adapter"):
         raise ValueError("Expected a base-model report and an adapter report")
+    for key in ["evaluation_data_sha256", "document_ids"]:
+        if key not in baseline or baseline[key] != adapter.get(key):
+            raise ValueError(f"Evaluation settings/data differ: {key}")
     keys = ["json_validity", "document_exact_match", "field_exact_match", "nonnull_field_exact_match", "mean_seconds"]
     return {"split": baseline["split"], "documents": baseline["documents"],
+            "evaluation_data_sha256": baseline["evaluation_data_sha256"],
+            "document_ids": baseline["document_ids"],
             "comparison": {key: {"base": baseline[key], "adapter": adapter[key], "change": adapter[key] - baseline[key]} for key in keys},
             "production_accuracy_claim": False, "auto_deploy": False}
+
+
+def evaluation_fingerprint(root, rows):
+    digest = hashlib.sha256()
+    for row in rows:
+        digest.update(json.dumps(row, sort_keys=True, ensure_ascii=False).encode("utf-8"))
+        for image in row["images"]:
+            digest.update(safe_path(root, image).read_bytes())
+    return digest.hexdigest()
