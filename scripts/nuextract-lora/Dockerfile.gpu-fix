@@ -1,0 +1,8 @@
+# Reuse the verified dependency layer; no reinstall of the large CUDA wheels.
+FROM europe-west1-docker.pkg.dev/fiscora-ai/fiscora-ai/nuextract3-lora-trainer@sha256:32caa21091b56177a7c797061a372f118dab7e6f0c1d4968603367d026f1adfe
+ENV LD_LIBRARY_PATH=/usr/local/nvidia/lib64:/usr/local/nvidia/lib \
+    PATH=/usr/local/nvidia/bin:${PATH} \
+    NVIDIA_VISIBLE_DEVICES=all NVIDIA_DRIVER_CAPABILITIES=compute,utility
+COPY data.py train.py cloud_io.py cloud_entry.py gpu_check.py /app/
+RUN python /app/train.py --help && python /app/cloud_entry.py --help \
+    && python -c "import torch; assert torch.version.cuda == '12.8', torch.__version__"

@@ -7,3 +7,6 @@
 !train.py
 !cloud_io.py
 !cloud_entry.py
+!gpu_check.py
+!Dockerfile.gpu-fix
+!cloudbuild-gpu-fix.yaml

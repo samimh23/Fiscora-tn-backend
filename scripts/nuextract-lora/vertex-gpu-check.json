@@ -1,0 +1,17 @@
+{
+  "serviceAccount": "fiscora-training@fiscora-ai.iam.gserviceaccount.com",
+  "workerPoolSpecs": [{
+    "machineSpec": {"machineType": "a2-highgpu-1g", "acceleratorType": "NVIDIA_TESLA_A100", "acceleratorCount": 1},
+    "replicaCount": 1,
+    "diskSpec": {"bootDiskType": "pd-ssd", "bootDiskSizeGb": 150},
+    "containerSpec": {
+      "imageUri": "europe-west1-docker.pkg.dev/fiscora-ai/fiscora-ai/nuextract3-lora-trainer:20261008-v3",
+      "command": ["python", "/app/gpu_check.py"],
+      "env": [
+        {"name": "NVIDIA_VISIBLE_DEVICES", "value": "all"},
+        {"name": "NVIDIA_DRIVER_CAPABILITIES", "value": "compute,utility"}
+      ]
+    }
+  }],
+  "scheduling": {"strategy": "SPOT", "timeout": "1200s"}
+}

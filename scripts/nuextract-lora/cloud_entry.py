@@ -34,6 +34,8 @@ def main():
     parser.add_argument("--run-gcs", required=True)
     parser.add_argument("training_args", nargs=argparse.REMAINDER)
     args = parser.parse_args()
+    from gpu_check import check_gpu
+    check_gpu()
     from google.cloud import storage
     name, key = gs_parts(args.dataset_gcs)
     gs_parts(args.run_gcs)
