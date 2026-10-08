@@ -10,7 +10,7 @@
       "replicaCount": 1,
       "diskSpec": {"bootDiskType": "pd-ssd", "bootDiskSizeGb": 150},
       "containerSpec": {
-        "imageUri": "REPLACE_WITH_TRAINER_IMAGE_DIGEST",
+        "imageUri": "europe-west1-docker.pkg.dev/fiscora-ai/fiscora-ai/nuextract3-lora-trainer@sha256:8ef8afb617bb8fe376e725315c8eafac35a43eb703ae5c3ea31ace3cc3a4bee3",
         "env": [
           {"name": "NVIDIA_VISIBLE_DEVICES", "value": "all"},
           {"name": "NVIDIA_DRIVER_CAPABILITIES", "value": "compute,utility"}
