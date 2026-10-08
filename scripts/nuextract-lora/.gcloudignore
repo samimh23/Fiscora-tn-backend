@@ -1,0 +1,9 @@
+*
+!Dockerfile
+!.dockerignore
+!requirements.txt
+!cloud-requirements.txt
+!data.py
+!train.py
+!cloud_io.py
+!cloud_entry.py

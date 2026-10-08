@@ -175,6 +175,11 @@ def training(args, train, validation, info):
                 if key in (logs or {}) and not math.isfinite(float(logs[key])):
                     raise RuntimeError(f"Non-finite {key}; do not use this checkpoint")
 
+        def on_save(self, settings, state, control, **kwargs):
+            if args.checkpoint_gcs:
+                from cloud_io import save_checkpoint
+                save_checkpoint(args.output, state.global_step, args.checkpoint_gcs)
+
     settings = TrainingArguments(output_dir=str(args.output), per_device_train_batch_size=1, per_device_eval_batch_size=1,
                                  gradient_accumulation_steps=args.accumulation, learning_rate=args.learning_rate,
                                  num_train_epochs=args.epochs, max_steps=args.max_steps, bf16=True, fp16=False,
@@ -274,6 +279,7 @@ def main():
     parser.add_argument("--max-seconds", type=int, default=1800)
     parser.add_argument("--seed", type=int, default=20261008)
     parser.add_argument("--resume", type=Path)
+    parser.add_argument("--checkpoint-gcs", help="Optional private GCS prefix; sync complete checkpoints after each save")
     parser.add_argument("--run", action="store_true")
     parser.add_argument("--split", choices=["validation", "test"], default="validation")
     parser.add_argument("--final-test", action="store_true")

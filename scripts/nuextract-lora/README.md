@@ -167,3 +167,33 @@ an unevaluated checkpoint. Keep the previous Cloud Run image/revision for rollba
 - [Vertex custom training](https://cloud.google.com/vertex-ai/docs/training/overview)
 
 No credentials, generated datasets, model weights, predictions or checkpoints belong in Git.
+
+## Our public release target
+
+The intended repository is `samimh23/fiscora-nuextract3-financial-v1` (public).
+After real GPU training, compare the pinned base and trained model on the same held-out
+documents, merge the adapter into the pinned base, and verify the merged model before
+uploading. Include actual metrics, split sizes, hyperparameters, base revision, license
+notices and limitations in the model card. Use `base_model: numind/NuExtract3` and
+`base_model_relation: finetune`. Do not fabricate scores or claim that synthetic pilot
+results demonstrate accuracy on real client documents. Model upload is separate from
+live Fiscora deployment; neither happens in the training entry point.
+
+## GCP smoke job
+
+`Dockerfile` builds the isolated CUDA trainer. `cloud_entry.py` downloads only the
+reviewed synthetic ZIP and verifies its SHA-256 before extraction. `cloud_io.py` syncs
+private checkpoints with completion markers and resumes only fully uploaded checkpoints.
+`vertex-smoke.json` specifies one Spot A100 40 GB, a 150 GB boot disk, and a one-hour job
+timeout. Spot capacity can interrupt the job; availability is not guaranteed by quota.
+Replace its image placeholder with an immutable Artifact Registry image digest before
+submission. The job configuration does not submit itself.
+
+Use a dedicated private bucket with uniform access and public access prevention, and a
+dedicated training service account with object access to that bucket only. This should
+not reuse the live inference service identity or Terraform state bucket. Cloud Build,
+training compute, artifact storage and GCS are billable. The active GPU ends when the
+job ends; private stored checkpoints remain until intentionally removed.
+
+The official configuration references are [Spot training](https://cloud.google.com/vertex-ai/docs/training/use-spot-vms)
+and [custom jobs](https://cloud.google.com/vertex-ai/docs/training/create-custom-job).

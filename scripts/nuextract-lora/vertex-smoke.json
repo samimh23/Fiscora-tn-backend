@@ -1,0 +1,28 @@
+{
+  "serviceAccount": "fiscora-training@fiscora-ai.iam.gserviceaccount.com",
+  "workerPoolSpecs": [
+    {
+      "machineSpec": {
+        "machineType": "a2-highgpu-1g",
+        "acceleratorType": "NVIDIA_TESLA_A100",
+        "acceleratorCount": 1
+      },
+      "replicaCount": 1,
+      "diskSpec": {"bootDiskType": "pd-ssd", "bootDiskSizeGb": 150},
+      "containerSpec": {
+        "imageUri": "REPLACE_WITH_TRAINER_IMAGE_DIGEST",
+        "env": [
+          {"name": "NVIDIA_VISIBLE_DEVICES", "value": "all"},
+          {"name": "NVIDIA_DRIVER_CAPABILITIES", "value": "compute,utility"}
+        ],
+        "args": [
+          "--dataset-gcs", "gs://fiscora-ai-training-472441103512/datasets/financial-synthetic-pilot-v1.zip",
+          "--dataset-sha256", "1e737477400917ef644efa5beab11d04c1147a0247a84ece5ebdff5732538676",
+          "--run-gcs", "gs://fiscora-ai-training-472441103512/runs/smoke-20261008-v1",
+          "--", "--max-steps", "10", "--max-seconds", "1800"
+        ]
+      }
+    }
+  ],
+  "scheduling": {"strategy": "SPOT", "timeout": "3600s"}
+}
