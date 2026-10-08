@@ -135,6 +135,7 @@ describe('Credit-note original invoice identity', () => {
       });
       const manager = {
         findOne: jest.fn().mockResolvedValue(invoice),
+        find: jest.fn().mockResolvedValue(invoice.lines),
         findOneBy: jest.fn().mockResolvedValue({
           status: JournalEntryStatus.Draft,
           entryDate: '2026-09-30',
@@ -191,6 +192,7 @@ describe('Credit-note original invoice identity', () => {
     const entry = { status: JournalEntryStatus.Draft, entryDate: '2026-09-30' };
     const manager = {
       findOne: jest.fn().mockResolvedValue(note),
+      find: jest.fn().mockResolvedValue(note.lines),
       findOneBy: jest.fn().mockResolvedValue(entry),
       findOneOrFail: jest.fn(
         (_entity: unknown, options: { where: { id: string } }) =>

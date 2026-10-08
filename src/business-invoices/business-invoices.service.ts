@@ -617,7 +617,12 @@ export class BusinessInvoicesService {
         throw new ConflictException(
           'Cette facture ne peut plus être comptabilisée.',
         );
-      Object.assign(invoice, current);
+      // Lock the header separately: joining nullable relations with FOR UPDATE
+      // is not supported by PostgreSQL. Reload lines in this same transaction.
+      const invoice = current;
+      invoice.lines = await manager.find(BusinessInvoiceLine, {
+        where: { invoiceId, organizationId },
+      });
       const entry = await manager.findOneBy(JournalEntry, {
         id: invoice.journalEntryId!,
         organizationId,
