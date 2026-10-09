@@ -17,6 +17,7 @@ import {
   DocumentExtractionJob,
   DocumentExtractionJobStatus,
   DocumentCategory,
+  DocumentProcessingStatus,
   ExtractionStatus,
   MalwareScanStatus,
 } from '../../database/entities';
@@ -78,6 +79,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
     dossierId: string,
     documentId: string,
     userId: string,
+    category?: DocumentCategory,
   ) {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     const document = await this.findDocument(
@@ -85,7 +87,23 @@ export class DocumentExtractionService implements OnModuleDestroy {
       dossierId,
       documentId,
     );
-    this.providers.select(document.category);
+    if (
+      category &&
+      document.category !== DocumentCategory.Inbox &&
+      category !== document.category
+    )
+      throw new BadRequestException(
+        'Seules les pièces de la boîte de réception peuvent être classées au démarrage de la lecture IA.',
+      );
+    const extractionCategory = category ?? document.category;
+    this.providers.select(extractionCategory);
+    if (
+      document.category === DocumentCategory.Bank &&
+      document.extractionStatus === ExtractionStatus.Validated
+    )
+      throw new BadRequestException(
+        'Ce relevé a déjà été importé. Consultez l’original et les résultats dans Banque.',
+      );
     if (document.malwareScanStatus !== MalwareScanStatus.Clean) {
       throw new BadRequestException(
         'Le document doit être validé par l’antivirus avant extraction.',
@@ -134,6 +152,7 @@ export class DocumentExtractionService implements OnModuleDestroy {
         validationIssues: previousValidationIssues,
       });
       document.extractionStatus = ExtractionStatus.Pending;
+      document.category = extractionCategory;
       document.extractedData = null;
       await manager.getRepository(AccountingDocument).save(document);
       return repository.save(item);
@@ -155,7 +174,11 @@ export class DocumentExtractionService implements OnModuleDestroy {
     userId: string,
   ) {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
-    await this.findDocument(organizationId, dossierId, documentId);
+    const document = await this.findDocument(
+      organizationId,
+      dossierId,
+      documentId,
+    );
     const job = await this.jobs.findOneBy({
       organizationId,
       dossierId,
@@ -165,7 +188,16 @@ export class DocumentExtractionService implements OnModuleDestroy {
       throw new NotFoundException(
         'Aucune extraction n’a été demandée pour ce document.',
       );
-    return this.response(job);
+    return {
+      ...this.response(job),
+      document: {
+        id: document.id,
+        originalName: document.originalName,
+        mimeType: document.mimeType,
+        category: document.category,
+        createdAtUtc: document.createdAtUtc,
+      },
+    };
   }
 
   async reviewQueue(organizationId: string, dossierId: string, userId: string) {
@@ -257,8 +289,10 @@ export class DocumentExtractionService implements OnModuleDestroy {
           dto.bankAccountId,
           document.originalName,
           validation.normalizedData,
+          document.id,
         );
         document.category = DocumentCategory.Bank;
+        document.processingStatus = DocumentProcessingStatus.Processed;
       }
       job.status = DocumentExtractionJobStatus.Approved;
       job.normalizedData = validation.normalizedData;

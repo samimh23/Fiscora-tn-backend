@@ -4185,6 +4185,10 @@ export class BankAccount extends AuditableEntity {
 @Entity({ schema: 'accounting', name: 'bank_statements' })
 @Unique(['bankAccountId', 'periodStart', 'periodEnd'])
 @Index(['organizationId', 'dossierId', 'periodStart', 'periodEnd'])
+@Index('bank_statements_source_document_unique', ['sourceDocumentId'], {
+  unique: true,
+  where: 'source_document_id IS NOT NULL',
+})
 export class BankStatement extends AuditableEntity {
   @Column({ name: 'organization_id', type: 'uuid' })
   organizationId!: string;
@@ -4229,6 +4233,13 @@ export class BankStatement extends AuditableEntity {
 
   @Column({ name: 'source_file_name', length: 300 })
   sourceFileName!: string;
+
+  @Column({ name: 'source_document_id', type: 'uuid', nullable: true })
+  sourceDocumentId!: string | null;
+
+  @ManyToOne(() => AccountingDocument, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'source_document_id' })
+  sourceDocument!: AccountingDocument | null;
 
   @Column({ name: 'row_count', type: 'integer' })
   rowCount!: number;

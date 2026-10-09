@@ -2,6 +2,7 @@ import { IsNull } from 'typeorm';
 import {
   DocumentCategory,
   DocumentExtractionJobStatus,
+  DocumentProcessingStatus,
   ExtractionStatus,
   MalwareScanStatus,
 } from '../../database/entities';
@@ -21,6 +22,8 @@ describe('NuExtract-only queue and legacy jobs', () => {
       organizationId: 'org',
       dossierId: 'dossier',
       category,
+      originalName: 'original.png',
+      createdAtUtc: new Date('2026-09-01T00:00:00Z'),
       mimeType: 'image/png',
       objectKey: 'file',
       malwareScanStatus: MalwareScanStatus.Clean,
@@ -55,9 +58,13 @@ describe('NuExtract-only queue and legacy jobs', () => {
       save: jest.fn(),
     };
     const manager = {
-      getRepository: jest.fn().mockReturnValue({ save: jest.fn() }),
+      getRepository: jest.fn().mockReturnValue({
+        findOne: jest.fn().mockResolvedValue(job),
+        save: jest.fn((value: unknown) => value),
+      }),
     };
     const jobs = {
+      findOneBy: jest.fn().mockResolvedValue(job),
       query: jest.fn().mockResolvedValue([]),
       save: jest.fn(),
       manager: {
@@ -88,6 +95,51 @@ describe('NuExtract-only queue and legacy jobs', () => {
     await expect(
       service.request('org', 'dossier', 'doc', 'user'),
     ).rejects.toThrow('Classez le document');
+    expect(jobs.manager.transaction).not.toHaveBeenCalled();
+  });
+
+  it('classifies an inbox document and queues reading in the same transaction', async () => {
+    const { service, document, job } = setup(DocumentCategory.Inbox);
+    await service.request(
+      'org',
+      'dossier',
+      'doc',
+      'user',
+      DocumentCategory.Purchases,
+    );
+    expect(document.category).toBe(DocumentCategory.Purchases);
+    expect(document.extractionStatus).toBe(ExtractionStatus.Pending);
+    expect(job.status).toBe(DocumentExtractionJobStatus.Queued);
+  });
+
+  it('does not silently reclassify an already categorized document', async () => {
+    const { service, jobs } = setup(DocumentCategory.Bank);
+    await expect(
+      service.request(
+        'org',
+        'dossier',
+        'doc',
+        'user',
+        DocumentCategory.Purchases,
+      ),
+    ).rejects.toThrow('boîte de réception');
+    expect(jobs.manager.transaction).not.toHaveBeenCalled();
+  });
+
+  it('keeps approved bank results intact instead of starting a duplicate extraction', async () => {
+    const { service, document, jobs } = setup(DocumentCategory.Bank);
+    document.extractionStatus = ExtractionStatus.Validated;
+    await expect(
+      service.request('org', 'dossier', 'doc', 'user'),
+    ).rejects.toThrow('déjà été importé');
+    expect(jobs.manager.transaction).not.toHaveBeenCalled();
+  });
+
+  it('returns source metadata for reopening saved results without mutating the job', async () => {
+    const { service, job, jobs } = setup();
+    const result = await service.get('org', 'dossier', 'doc', 'user');
+    expect(result.document.originalName).toBe('original.png');
+    expect(result.id).toBe(job.id);
     expect(jobs.manager.transaction).not.toHaveBeenCalled();
   });
 
@@ -435,6 +487,7 @@ describe('DocumentExtractionService.review', () => {
       organizationId: 'organization-1',
       dossierId: 'dossier-1',
       originalName: 'invoice.jpg',
+      processingStatus: DocumentProcessingStatus.ToProcess,
       extractionStatus: ExtractionStatus.ReviewRequired,
       extractedData: null,
     };
@@ -491,7 +544,7 @@ describe('DocumentExtractionService.review', () => {
   }
 
   it('approves a legacy bank response into the chosen account only after review', async () => {
-    const { service, job, bank } = setupReview();
+    const { service, document, job, bank } = setupReview();
     job.normalizedData = structuredClone(legacyBankData);
     await service.review(
       'organization-1',
@@ -511,9 +564,25 @@ describe('DocumentExtractionService.review', () => {
       'bank-1',
       'invoice.jpg',
       expect.objectContaining({ document_type: 'bank_statement' }),
+      'document-1',
     );
     expect(job.normalizedData.document_type).toBe('bank_statement');
     expect(job.status).toBe(DocumentExtractionJobStatus.Approved);
+    expect(document.processingStatus).toBe(DocumentProcessingStatus.Processed);
+  });
+
+  it('does not mark a document classified when importing the statement fails', async () => {
+    const { service, document, job, bank } = setupReview();
+    job.normalizedData = structuredClone(legacyBankData);
+    bank.importExtractedStatement.mockRejectedValue(new Error('import failed'));
+    await expect(
+      service.review('organization-1', 'dossier-1', 'document-1', 'user-1', {
+        decision: ExtractionReviewDecision.Approve,
+        bankAccountId: 'bank-1',
+      }),
+    ).rejects.toThrow('import failed');
+    expect(document.processingStatus).toBe(DocumentProcessingStatus.ToProcess);
+    expect(job.status).toBe(DocumentExtractionJobStatus.ReviewRequired);
   });
 
   it('still requires a destination bank account for a repaired legacy response', async () => {

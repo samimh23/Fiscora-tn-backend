@@ -100,6 +100,7 @@ import { AssistantHistoryIndex1784391000000 } from './database/migrations/178439
 import { SyncControlledFiscalYearClosings1790726400000 } from './database/migrations/1790726400000-sync-controlled-fiscal-year-closings';
 import { WorkflowIntegrity1790784000000 } from './database/migrations/1790784000000-workflow-integrity';
 import { TrainingDatasets1791468000000 } from './database/migrations/1791468000000-training-datasets';
+import { BankStatementSourceDocument1791500000000 } from './database/migrations/1791500000000-bank-statement-source-document';
 import { TrainingDatasetsModule } from './training-datasets/training-datasets.module';
 
 @Module({
@@ -183,6 +184,7 @@ import { TrainingDatasetsModule } from './training-datasets/training-datasets.mo
           SyncControlledFiscalYearClosings1790726400000,
           WorkflowIntegrity1790784000000,
           TrainingDatasets1791468000000,
+          BankStatementSourceDocument1791500000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,

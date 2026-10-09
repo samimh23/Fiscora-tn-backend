@@ -1,12 +1,21 @@
 import {
   IsBoolean,
   IsEnum,
+  IsIn,
   IsObject,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
 } from 'class-validator';
+import { DocumentCategory } from '../../database/entities';
+import { EXTRACTABLE_DOCUMENT_CATEGORIES } from './document-extraction-provider.service';
+
+export class RequestExtractionDto {
+  @IsOptional()
+  @IsIn(EXTRACTABLE_DOCUMENT_CATEGORIES)
+  category?: DocumentCategory;
+}
 
 export enum ExtractionReviewDecision {
   Approve = 'APPROUVER',

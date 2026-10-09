@@ -658,8 +658,23 @@ export class BankReconciliationService {
     bankAccountId: string,
     sourceFileName: string,
     extraction: Record<string, unknown>,
+    sourceDocumentId?: string,
   ) {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const existing = sourceDocumentId
+      ? await this.statements.findOne({
+          where: {
+            organizationId,
+            dossierId,
+            sourceDocumentId,
+          },
+          relations: { transactions: true },
+        })
+      : null;
+    if (existing && existing.bankAccountId !== bankAccountId)
+      throw new ConflictException(
+        'Cette pièce est déjà importée dans un autre compte bancaire.',
+      );
     const bankAccount = await this.bankAccounts.findOneBy({
       id: bankAccountId,
       organizationId,
@@ -682,11 +697,12 @@ export class BankReconciliationService {
     if (periodStart > periodEnd)
       throw new BadRequestException('La période du relevé est invalide.');
     if (
-      await this.statements.existsBy({
+      !existing &&
+      (await this.statements.existsBy({
         bankAccountId,
         periodStart,
         periodEnd,
-      })
+      }))
     )
       throw new ConflictException(
         'Un relevé existe déjà pour ce compte et cette période.',
@@ -776,6 +792,31 @@ export class BankReconciliationService {
       throw new BadRequestException(
         `Le solde final est incohérent : ${fromMillimes(expectedClosing)} TND attendu selon les opérations.`,
       );
+    if (existing) {
+      // Approval retries can reuse the import only if the corrected values still
+      // match it. Never save labels that disagree with already imported movements.
+      const sameRows =
+        existing.transactions.length === rows.length &&
+        existing.transactions
+          .map((row) => row.fingerprint)
+          .sort()
+          .join('|') ===
+          rows
+            .map((row) => row.fingerprint)
+            .sort()
+            .join('|');
+      if (
+        existing.periodStart !== periodStart ||
+        existing.periodEnd !== periodEnd ||
+        toMillimes(existing.openingBalance) !== toMillimes(openingBalance) ||
+        toMillimes(existing.closingBalance) !== toMillimes(closingBalance) ||
+        !sameRows
+      )
+        throw new ConflictException(
+          'Cette pièce est déjà importée avec des données différentes. Consultez le relevé existant.',
+        );
+      return this.getStatement(organizationId, dossierId, existing.id, userId);
+    }
     if (
       await this.transactions.existsBy({
         bankAccountId,
@@ -799,6 +840,7 @@ export class BankReconciliationService {
           bookClosingBalance: null,
           difference: null,
           sourceFileName: sourceFileName.slice(0, 300),
+          sourceDocumentId: sourceDocumentId ?? null,
           rowCount: rows.length,
           status: BankStatementStatus.Imported,
           importedByUserId: userId,

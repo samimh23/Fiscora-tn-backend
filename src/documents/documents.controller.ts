@@ -35,7 +35,10 @@ import {
 } from './dto';
 import { DocumentsService } from './documents.service';
 import { DocumentExtractionService } from './extraction/document-extraction.service';
-import { ReviewExtractionDto } from './extraction/extraction.dto';
+import {
+  RequestExtractionDto,
+  ReviewExtractionDto,
+} from './extraction/extraction.dto';
 
 @ApiTags('Documents')
 @ApiBearerAuth()
@@ -64,12 +67,14 @@ export class DocumentsController {
     @Param('dossierId', ParseUUIDPipe) dossierId: string,
     @Param('documentId', ParseUUIDPipe) documentId: string,
     @CurrentUser() user: JwtUser,
+    @Body() dto: RequestExtractionDto,
   ) {
     return this.extraction.request(
       organizationId,
       dossierId,
       documentId,
       user.userId,
+      dto?.category,
     );
   }
 
