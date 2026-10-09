@@ -15,6 +15,8 @@ import {
 } from '../database/entities';
 import { DossiersController } from './dossiers.controller';
 import { DossiersService } from './dossiers.service';
+import { DossierDeletionService } from './dossier-deletion.service';
+import { documentObjectStorageProvider } from '../documents/object-storage/object-storage.provider';
 
 @Module({
   imports: [
@@ -32,7 +34,12 @@ import { DossiersService } from './dossiers.service';
     ]),
   ],
   controllers: [DossiersController],
-  providers: [DossiersService, PermissionGuard],
+  providers: [
+    DossiersService,
+    DossierDeletionService,
+    documentObjectStorageProvider,
+    PermissionGuard,
+  ],
   exports: [DossiersService],
 })
 export class DossiersModule {}

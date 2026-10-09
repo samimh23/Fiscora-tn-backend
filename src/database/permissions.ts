@@ -22,6 +22,7 @@ export const PermissionNames = {
   DossiersView: 'dossiers.view',
   DossiersCreate: 'dossiers.create',
   DossiersManage: 'dossiers.manage',
+  DossiersDelete: 'dossiers.delete',
   DossiersAssign: 'dossiers.assign',
   DossierContactsManage: 'dossiers.contacts.manage',
   ObligationsView: 'obligations.view',
@@ -136,6 +137,10 @@ export const permissionSeed = [
   [PermissionNames.DossiersView, 'Consulter les dossiers clients autorisés'],
   [PermissionNames.DossiersCreate, 'Créer et archiver les dossiers clients'],
   [PermissionNames.DossiersManage, 'Modifier les dossiers clients autorisés'],
+  [
+    PermissionNames.DossiersDelete,
+    'Supprimer définitivement un dossier et ses données',
+  ],
   [
     PermissionNames.DossiersAssign,
     'Affecter les collaborateurs et consulter tous les dossiers',

@@ -89,6 +89,7 @@ jobs:
         run: |
           npm run migration:run
           node scripts/verify-workflow-migration.cjs
+          node scripts/verify-dossier-deletion.cjs
 
       - name: Build production container
         run: docker build --tag fiscora-backend:${{ github.sha }} .

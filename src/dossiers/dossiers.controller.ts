@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -20,19 +21,35 @@ import { PermissionNames } from '../database/permissions';
 import {
   CreateDossierContactDto,
   CreateDossierDto,
+  DeleteDossierDto,
   DossierQueryDto,
   UpdateDossierContactDto,
   UpdateDossierDto,
   UpsertDossierAssignmentDto,
 } from './dto';
 import { DossiersService } from './dossiers.service';
+import { DossierDeletionService } from './dossier-deletion.service';
 
 @ApiTags('Dossiers clients')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), PermissionGuard)
 @Controller('api/organizations/:organizationId/dossiers')
 export class DossiersController {
-  constructor(private readonly service: DossiersService) {}
+  constructor(
+    private readonly service: DossiersService,
+    private readonly deletion: DossierDeletionService,
+  ) {}
+
+  @Delete(':dossierId')
+  @RequirePermission(PermissionNames.DossiersDelete)
+  remove(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: DeleteDossierDto,
+  ) {
+    return this.deletion.remove(organizationId, dossierId, user.userId, dto);
+  }
 
   @Get()
   @RequirePermission(PermissionNames.DossiersView)

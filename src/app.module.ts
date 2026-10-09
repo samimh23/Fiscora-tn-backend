@@ -101,6 +101,7 @@ import { SyncControlledFiscalYearClosings1790726400000 } from './database/migrat
 import { WorkflowIntegrity1790784000000 } from './database/migrations/1790784000000-workflow-integrity';
 import { TrainingDatasets1791468000000 } from './database/migrations/1791468000000-training-datasets';
 import { BankStatementSourceDocument1791500000000 } from './database/migrations/1791500000000-bank-statement-source-document';
+import { DossierDeletion1791504000000 } from './database/migrations/1791504000000-dossier-deletion';
 import { TrainingDatasetsModule } from './training-datasets/training-datasets.module';
 
 @Module({
@@ -185,6 +186,7 @@ import { TrainingDatasetsModule } from './training-datasets/training-datasets.mo
           WorkflowIntegrity1790784000000,
           TrainingDatasets1791468000000,
           BankStatementSourceDocument1791500000000,
+          DossierDeletion1791504000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,

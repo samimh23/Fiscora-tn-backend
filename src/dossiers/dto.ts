@@ -29,6 +29,16 @@ const tunisianTaxIdentifierPattern =
   /^\d{7,8}\s*\/?\s*[A-Z]\s*\/?\s*[A-Z]\s*\/?\s*\d{3}$/i;
 const rnePattern = /^[A-Z0-9][A-Z0-9\-_/ ]{4,24}$/i;
 
+export class DeleteDossierDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  confirmationName!: string;
+
+  @IsIn([true])
+  acknowledgePermanentDeletion!: boolean;
+}
+
 export class CreateDossierDto {
   @IsString()
   @IsNotEmpty()
