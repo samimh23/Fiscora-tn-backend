@@ -31,7 +31,10 @@ describe('Fiscal calendar generation and existing declarations', () => {
       create: jest.fn((value: object) => ({ ...value, id: 'obligation' })),
       save: jest.fn((value: object) => Promise.resolve(value)),
     };
-    const tasks = { save: jest.fn(), create: jest.fn() };
+    const tasks = {
+      save: jest.fn((value: object) => Promise.resolve(value)),
+      create: jest.fn((value: object) => ({ ...value, id: 'task' })),
+    };
     const checklist = { save: jest.fn(), create: jest.fn() };
     const workflow = {
       reconcileGeneratedDeclaration: jest
@@ -48,7 +51,6 @@ describe('Fiscal calendar generation and existing declarations', () => {
       } as never,
       { createQueryBuilder: jest.fn().mockReturnValue(builder) } as never,
       instances as never,
-      { findOne: jest.fn().mockResolvedValue(null) } as never,
       {
         create: jest.fn((value: object) => value),
         save: jest.fn().mockResolvedValue(undefined),
@@ -78,5 +80,19 @@ describe('Fiscal calendar generation and existing declarations', () => {
     );
     expect(ctx.instances.save).not.toHaveBeenCalled();
     expect(ctx.tasks.save).not.toHaveBeenCalled();
+  });
+  it('creates new calendar obligations and tasks without an automatic assignee', async () => {
+    const ctx = setup(false);
+    ctx.workflow.reconcileGeneratedDeclaration.mockResolvedValue(
+      ObligationStatus.NotStarted,
+    );
+    await ctx.service.generate('org', 'dossier', 'user', 2026);
+    expect(ctx.tasks.create).toHaveBeenCalledTimes(12);
+    for (const [value] of ctx.tasks.create.mock.calls) {
+      expect(value).toMatchObject({ assigneeMembershipId: null });
+    }
+    for (const [value] of ctx.instances.create.mock.calls) {
+      expect(value).toMatchObject({ assignedMembershipId: null });
+    }
   });
 });

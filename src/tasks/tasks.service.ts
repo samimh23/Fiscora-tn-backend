@@ -323,25 +323,33 @@ export class TasksService {
   ) {
     const task = await this.getTaskEntity(organizationId, dossierId, taskId);
     this.ensureEditable(task);
-    const membership = await this.memberships.findOneBy({
-      id: membershipId,
-      organizationId,
-      isActive: true,
+    const membership = await this.memberships.findOne({
+      where: { id: membershipId, organizationId, isActive: true },
+      relations: { role: true },
     });
     if (!membership) {
       throw new NotFoundException(
         'Le collaborateur actif est introuvable dans ce cabinet.',
       );
     }
-    const canAccessDossier = await this.assignments.existsBy({
+    const assignment = await this.assignments.findOneBy({
       organizationId,
       dossierId,
       membershipId,
       isActive: true,
     });
-    if (!canAccessDossier) {
+    if (!assignment) {
       throw new ConflictException(
         "Le collaborateur doit d'abord être affecté au dossier.",
+      );
+    }
+    if (
+      membership.role?.name.trim().toLowerCase() ===
+        SystemRoleNames.ClientPortal.toLowerCase() ||
+      assignment.assignmentRole === DossierAssignmentRole.Client
+    ) {
+      throw new ForbiddenException(
+        'Les comptes portail client ne peuvent pas recevoir de tâches internes.',
       );
     }
     task.assigneeMembershipId = membershipId;

@@ -9,8 +9,6 @@ import { Repository } from 'typeorm';
 import {
   AuditLog,
   ClientDossier,
-  DossierAssignment,
-  DossierAssignmentRole,
   DossierStatus,
   ObligationFrequency,
   ObligationInstance,
@@ -41,8 +39,6 @@ export class ObligationsService {
     private readonly templates: Repository<ObligationTemplate>,
     @InjectRepository(ObligationInstance)
     private readonly instances: Repository<ObligationInstance>,
-    @InjectRepository(DossierAssignment)
-    private readonly assignments: Repository<DossierAssignment>,
     @InjectRepository(AuditLog)
     private readonly auditLogs: Repository<AuditLog>,
     @InjectRepository(WorkTask)
@@ -170,15 +166,6 @@ export class ObligationsService {
       }
     }
     const latestTemplates = [...latestByCode.values()];
-    const responsible = await this.assignments.findOne({
-      where: {
-        organizationId,
-        dossierId,
-        assignmentRole: DossierAssignmentRole.Responsible,
-        isActive: true,
-      },
-      order: { createdAtUtc: 'ASC' },
-    });
     let created = 0;
     let existing = 0;
     let notApplicable = 0;
@@ -210,7 +197,8 @@ export class ObligationsService {
             templateId: template.id,
             ...period,
             status: ObligationStatus.NotStarted,
-            assignedMembershipId: responsible?.membershipId ?? null,
+            // Generation does not decide who will perform the work.
+            assignedMembershipId: null,
             validatedAtUtc: null,
             validatedByUserId: null,
             filedAtUtc: null,
@@ -250,7 +238,7 @@ export class ObligationsService {
             dueOn: instance.dueOn,
             priority: WorkTaskPriority.High,
             status: WorkTaskStatus.Todo,
-            assigneeMembershipId: responsible?.membershipId ?? null,
+            assigneeMembershipId: null,
             createdByUserId: actorUserId,
             completedAtUtc: null,
             completedByUserId: null,
