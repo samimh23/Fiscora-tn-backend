@@ -30,7 +30,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1132.0",
     "@aws-sdk/s3-request-presigner": "^3.1132.0",
-    "@azure/identity": "^4.13.3",
+    "@azure/identity": "^4.14.1",
     "@azure/storage-blob": "^12.33.0",
     "@nestjs/common": "11.1.28",
     "@nestjs/config": "^4.0.4",
@@ -52,8 +52,8 @@
     "exceljs": "^4.4.0",
     "google-auth-library": "^11.1.0",
     "helmet": "^8.3.0",
-    "multer": "^2.4.0",
-    "nodemailer": "^10.0.12",
+    "multer": "^2.5.0",
+    "nodemailer": "^10.1.4",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pdfkit": "^0.19.1",
@@ -72,6 +72,7 @@
     },
     "brace-expansion": "$brace-expansion",
     "fast-uri": "3.1.4",
+    "glob@>=9": "14.0.2",
     "multer": "$multer",
     "uuid": "11.1.1"
   },

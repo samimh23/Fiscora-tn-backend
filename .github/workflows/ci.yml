@@ -75,6 +75,9 @@ jobs:
       - name: Check first-deployment workflow guards
         run: node --test scripts/deployment-workflows.test.cjs
 
+      - name: Check patched dependency compatibility
+        run: node --test scripts/dependency-compat.test.cjs
+
       - name: Build application
         run: npm run build
 
