@@ -313,7 +313,7 @@ export class NuExtractExtractionClientService implements DocumentExtractionClien
   private requestConcurrency() {
     return this.configuredInteger(
       'DOCUMENT_EXTRACTION_NUEXTRACT_CONCURRENCY',
-      2,
+      8,
       8,
     );
   }

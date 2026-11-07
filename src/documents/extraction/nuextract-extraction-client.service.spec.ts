@@ -172,3 +172,59 @@ describe('NuExtract visual input', () => {
     ).rejects.toThrow('one and six');
   });
 });
+
+describe('NuExtract request concurrency', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it.each([
+    [undefined, 8],
+    [2, 2],
+    [99, 8],
+    ['invalid', 8],
+  ])(
+    'bounds active inference requests for setting %s',
+    async (setting, limit) => {
+      const waiting: Array<() => void> = [];
+      const fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(
+        () =>
+          new Promise<Response>((resolve) => {
+            waiting.push(() =>
+              resolve({
+                ok: true,
+                json: () =>
+                  Promise.resolve({
+                    choices: [
+                      { message: { content: '{"document_type":"invoice"}' } },
+                    ],
+                  }),
+              } as Response),
+            );
+          }),
+      );
+      const service = new NuExtractExtractionClientService(
+        {
+          get: (name: string, fallback: unknown) => {
+            if (name === 'NUEXTRACT_SERVICE_URL')
+              return 'https://private.example';
+            if (name === 'DOCUMENT_EXTRACTION_NUEXTRACT_CONCURRENCY')
+              return setting ?? fallback;
+            return fallback;
+          },
+        } as never,
+        { identityToken: () => Promise.resolve('test-token') } as never,
+      );
+      const pending = Array.from({ length: limit + 1 }, () =>
+        service.extractImages([
+          { content: Buffer.from('image'), mimeType: 'image/png', page: 1 },
+        ]),
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(fetchMock).toHaveBeenCalledTimes(limit);
+      waiting.shift()!();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(fetchMock).toHaveBeenCalledTimes(limit + 1);
+      waiting.forEach((release) => release());
+      await Promise.all(pending);
+    },
+  );
+});

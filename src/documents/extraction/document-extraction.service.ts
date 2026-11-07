@@ -338,11 +338,11 @@ export class DocumentExtractionService implements OnModuleDestroy {
     try {
       await this.autoQueueEligibleDocuments();
       const configuredConcurrency = Number(
-        this.config.get('DOCUMENT_EXTRACTION_WORKER_CONCURRENCY', 4),
+        this.config.get('DOCUMENT_EXTRACTION_WORKER_CONCURRENCY', 8),
       );
       const concurrency = Number.isFinite(configuredConcurrency)
         ? Math.min(32, Math.max(1, Math.floor(configuredConcurrency)))
-        : 4;
+        : 8;
       const claimed: DocumentExtractionJob[] = [];
       for (let processed = 0; processed < concurrency; processed += 1) {
         const job = await this.claim();
