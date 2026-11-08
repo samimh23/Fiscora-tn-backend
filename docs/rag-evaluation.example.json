@@ -4,12 +4,29 @@
     "question": "Quel est le total TTC des factures de septembre 2026 ?",
     "expectedTerms": ["total TTC", "septembre 2026", "TND"],
     "expectedNumbers": ["100.000"],
-    "requireCitations": true
+    "requireCitations": true,
+    "requireInlineCitations": true,
+    "expectedScope": "ACCOUNTING_CALCULATION",
+    "forbiddenTerms": ["automatiquement comptabilisée"]
   },
   {
     "id": "fournisseurs-valides",
     "question": "Quels fournisseurs apparaissent dans les pièces validées ?",
     "expectedTerms": ["Fournisseur Test"],
-    "requireCitations": true
+    "requireCitations": true,
+    "requireInlineCitations": true,
+    "expectedScope": "DOCUMENT"
+  },
+  {
+    "id": "suivi-solde-facture",
+    "setupQuestions": ["Afficher les détails de la facture A-TEST-001"],
+    "question": "Et son solde restant ?",
+    "expectedTerms": ["A-TEST-001"],
+    "expectedNumbers": ["0.000"],
+    "expectedScope": "LIVE_FINANCIAL",
+    "requireCitations": true,
+    "requireInlineCitations": true,
+    "expectedSourceIds": ["REPLACE_WITH_REFERENCE_INVOICE_UUID"],
+    "allowedSourceIds": ["REPLACE_WITH_REFERENCE_INVOICE_UUID"]
   }
 ]

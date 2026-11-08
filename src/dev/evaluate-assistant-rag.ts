@@ -22,26 +22,32 @@ async function main() {
   ) as RagEvaluationCase[];
   const results = [];
   for (const testCase of cases) {
-    const response = await fetch(
-      `${apiUrl}/api/organizations/${organizationId}/dossiers/${dossierId}/assistant/ask`,
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${token}`,
-          'content-type': 'application/json',
+    const conversationStartedAt = new Date().toISOString();
+    const ask = async (question: string) => {
+      const response = await fetch(
+        `${apiUrl}/api/organizations/${organizationId}/assistant/ask`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${token}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ question, dossierId, conversationStartedAt }),
         },
-        body: JSON.stringify({ question: testCase.question }),
-      },
-    );
-    if (!response.ok) {
-      throw new Error(
-        `Cas ${testCase.id}: API ${response.status} ${(await response.text()).slice(0, 300)}`,
       );
-    }
-    const answer = (await response.json()) as RagEvaluationAnswer;
+      if (!response.ok) {
+        throw new Error(
+          `Cas ${testCase.id}: API ${response.status} ${(await response.text()).slice(0, 300)}`,
+        );
+      }
+      return (await response.json()) as RagEvaluationAnswer;
+    };
+    for (const question of testCase.setupQuestions ?? []) await ask(question);
+    const answer = await ask(testCase.question);
     const result = evaluateRagCase(testCase, answer);
     results.push(result);
     console.log(`${result.passed ? 'PASS' : 'FAIL'} ${testCase.id}`);
+    for (const failure of result.failures) console.log(`  ${failure}`);
   }
   console.log(JSON.stringify(summarizeRagEvaluation(results), null, 2));
   if (results.some((result) => !result.passed)) process.exitCode = 1;

@@ -93,10 +93,224 @@ describe('AssistantService history', () => {
     expect(result.items[0].actions).toEqual([
       { label: 'Ouvrir « Test guide »', path: '/documents' },
     ]);
+    expect(result.items[0].scope).toBe('PRODUCT_HELP');
     expect(result.nextCursor).toEqual({
       beforeCreatedAt: new Date('2026-09-27T12:02:00.000Z'),
       beforeId: '00000000-0000-4000-8000-000000000002',
     });
+  });
+});
+
+describe('AssistantService source-aware follow-ups', () => {
+  const docId = '00000000-0000-4000-8000-000000000001';
+  const documentCitation = {
+    sourceId: docId,
+    sourceName: 'approved-scan.png',
+    chunkId: docId,
+    kind: 'DOCUMENT',
+  };
+  const invoiceCitation = {
+    sourceId: 'invoice',
+    sourceName: 'Facture A-001',
+    chunkId: 'live:invoice',
+    kind: 'BUSINESS_INVOICE',
+  };
+  function setup() {
+    const query = jest.fn<Promise<unknown[]>, [string, unknown[]]>();
+    const embed = jest.fn().mockResolvedValue([0, 1]);
+    const answer = jest
+      .fn()
+      .mockResolvedValue({ text: 'Tunis [S1]', model: 'gemini', usage: null });
+    const routeLiveFinancialQuestion = jest.fn().mockResolvedValue({
+      operation: 'INVOICE_DETAILS',
+      invoiceNumber: 'A-001',
+    });
+    const liveAnswer = jest.fn().mockResolvedValue({
+      answer: 'Solde actuel : 60.000 TND [S1]',
+      citations: [invoiceCitation],
+    });
+    const service = new AssistantService(
+      {
+        get: jest.fn((name: string) =>
+          name === 'AI_ASSISTANT_ENABLED'
+            ? 'true'
+            : name === 'VERTEX_AI_EMBEDDING_DIMENSIONS'
+              ? '2'
+              : undefined,
+        ),
+      } as never,
+      { query } as never,
+      { getAccessibleEntity: jest.fn().mockResolvedValue({}) } as never,
+      { embed, answer, routeLiveFinancialQuestion } as never,
+      {} as never,
+      { answer: liveAnswer } as never,
+    );
+    return {
+      service,
+      query,
+      embed,
+      answer,
+      routeLiveFinancialQuestion,
+      liveAnswer,
+    };
+  }
+  it('pins retrieval to the cited document and exposes a real page/excerpt/source target', async () => {
+    const t = setup();
+    t.query
+      .mockResolvedValueOnce([
+        { question: 'Describe the scan', citations: [documentCitation] },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'chunk',
+          source_id: docId,
+          source_name: 'approved-scan.png',
+          page_number: null,
+          content: 'Client: Test; Adresse: Tunis',
+          metadata: { kind: 'PARTIES' },
+          evidence: { 'customer.address': { status: 'MATCHED', page: 2 } },
+          distance: 0.1,
+          text_score: 1,
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'turn' }]);
+    const result = await t.service.ask(
+      'org',
+      'dossier',
+      'user',
+      'What about its delivery address?',
+      '2026-09-01T00:00:00Z',
+    );
+    expect(t.query.mock.calls[0][1]).toEqual([
+      'org',
+      'dossier',
+      'user',
+      '2026-09-01T00:00:00Z',
+    ]);
+    expect(t.query.mock.calls[1][1][4]).toBe(docId);
+    expect(t.query.mock.calls[1][0]).toContain(
+      'document.deleted_at_utc IS NULL',
+    );
+    expect(t.query.mock.calls[1][0]).toContain("job.status = 'VALIDEE'");
+    expect(result).toMatchObject({
+      scope: 'DOCUMENT',
+      citations: [
+        {
+          sourceId: docId,
+          pageNumber: 2,
+          pages: [2],
+          kind: 'DOCUMENT',
+          excerpt: 'Client: Test; Adresse: Tunis',
+        },
+      ],
+    });
+    expect(result.citations[0].path).toContain(`documentId=${docId}`);
+    const insert = t.query.mock.calls.at(-1)!;
+    expect(insert[1][3]).toBe('What about its delivery address?');
+    expect(insert[1][8]).toBeInstanceOf(Date);
+    expect(t.routeLiveFinancialQuestion).not.toHaveBeenCalled();
+  });
+  it('resolves a live invoice follow-up then re-reads facts instead of recycling the previous amount', async () => {
+    const t = setup();
+    t.query
+      .mockResolvedValueOnce([
+        { question: 'And its VAT?', citations: [invoiceCitation] },
+      ])
+      .mockResolvedValueOnce([{ id: 'turn' }]);
+    const result = await t.service.ask(
+      'org',
+      'dossier',
+      'user',
+      'And its remaining balance?',
+    );
+    expect(t.routeLiveFinancialQuestion).toHaveBeenCalledWith(
+      expect.stringContaining('facture A-001'),
+      undefined,
+    );
+    expect(t.liveAnswer).toHaveBeenCalledWith(
+      'org',
+      'dossier',
+      'user',
+      expect.objectContaining({ invoiceNumber: 'A-001' }),
+    );
+    expect(result.scope).toBe('LIVE_FINANCIAL');
+    expect(result.answer).toContain('60.000');
+    expect(t.embed).not.toHaveBeenCalled();
+    expect(
+      t.query.mock.calls.every(
+        ([sql]) =>
+          !/INSERT|UPDATE|DELETE/.test(sql) ||
+          sql.includes('INSERT INTO accounting.ai_chat_turns'),
+      ),
+    ).toBe(true);
+  });
+  it('does not present an extracted amount as current settlement when no converted invoice exists', async () => {
+    const t = setup();
+    t.query
+      .mockResolvedValueOnce([
+        { question: 'Describe scan', citations: [documentCitation] },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'turn' }]);
+    const result = await t.service.ask(
+      'org',
+      'dossier',
+      'user',
+      'And its remaining balance?',
+    );
+    expect(result.scope).toBe('CLARIFICATION');
+    expect(t.embed).not.toHaveBeenCalled();
+    expect(t.query.mock.calls[1][1]).toEqual(['org', 'dossier', docId]);
+  });
+  it('re-checks live permissions after resolving a converted document and never falls back to RAG', async () => {
+    const t = setup();
+    t.query
+      .mockResolvedValueOnce([
+        { question: 'Describe scan', citations: [documentCitation] },
+      ])
+      .mockResolvedValueOnce([{ number: 'A-001' }]);
+    t.liveAnswer.mockRejectedValue(new Error('permissions denied'));
+    await expect(
+      t.service.ask('org', 'dossier', 'user', 'And its payments?'),
+    ).rejects.toThrow('permissions denied');
+    expect(t.embed).not.toHaveBeenCalled();
+    expect(t.query).toHaveBeenCalledTimes(2);
+  });
+  it('asks a clarification without retrieval when the conversation has no unique source', async () => {
+    const t = setup();
+    t.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'turn' }]);
+    const result = await t.service.ask(
+      'org',
+      'dossier',
+      'user',
+      'And its VAT?',
+    );
+    expect(result.scope).toBe('CLARIFICATION');
+    expect(t.embed).not.toHaveBeenCalled();
+    expect(t.liveAnswer).not.toHaveBeenCalled();
+  });
+  it('does not let an uncertain invoice follow-up become a global total or a document guess', async () => {
+    const t = setup();
+    t.query
+      .mockResolvedValueOnce([
+        { question: 'invoice A-001', citations: [invoiceCitation] },
+      ])
+      .mockResolvedValueOnce([{ id: 'turn' }]);
+    t.routeLiveFinancialQuestion.mockResolvedValueOnce({
+      operation: 'NONE',
+      invoiceNumber: null,
+    });
+    const result = await t.service.ask(
+      'org',
+      'dossier',
+      'user',
+      'And its VAT?',
+    );
+    expect(result.scope).toBe('CLARIFICATION');
+    expect(t.embed).not.toHaveBeenCalled();
+    expect(t.liveAnswer).not.toHaveBeenCalled();
+    expect(t.query).toHaveBeenCalledTimes(2);
   });
 });
 

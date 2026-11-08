@@ -32,6 +32,12 @@ import {
 } from './product-help';
 import type { AssistantHistoryQueryDto } from './assistant.dto';
 import {
+  isEntityFollowUp,
+  resolveFollowUp,
+  type PreviousAssistantTurn,
+} from './conversation-follow-up';
+import { sourcePages } from './source-evidence';
+import {
   uniqueFinancialDocuments,
   type InvoiceIdentity,
 } from './financial-source-deduplication';
@@ -46,6 +52,7 @@ interface KnowledgeChunkRow {
   distance: number;
   text_score: number;
   relevance_score: number;
+  evidence?: unknown;
 }
 
 interface ExistingChunkRow {
@@ -104,6 +111,8 @@ export interface Citation {
     | 'FINANCIAL_REPORT'
     | 'PARTY_BALANCE';
   path?: string;
+  excerpt?: string;
+  pages?: number[];
 }
 
 export interface AssistantAction {
@@ -404,6 +413,11 @@ export class AssistantService {
         answer: row.answer,
         citations: row.citations ?? [],
         model: row.model_name,
+        scope: (row.citations ?? []).some(
+          (citation) => citation.kind === 'PRODUCT_HELP',
+        )
+          ? 'PRODUCT_HELP'
+          : this.answerScope(row.model_name),
         actions: (row.citations ?? [])
           .filter(
             (citation) => citation.kind === 'PRODUCT_HELP' && citation.path,
@@ -532,6 +546,85 @@ export class AssistantService {
   ) {
     this.ensureEnabled();
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
+    const requestedAt = new Date();
+    const originalQuestion = question;
+    let sourceId: string | undefined;
+    let invoiceReference: string | undefined;
+    if (isEntityFollowUp(question)) {
+      const turns = await this.dataSource.query<PreviousAssistantTurn[]>(
+        `SELECT question, answer, citations FROM accounting.ai_chat_turns
+         WHERE organization_id = $1 AND dossier_id = $2 AND user_id = $3
+           AND ($4::timestamptz IS NULL OR created_at_utc >= $4)
+         ORDER BY created_at_utc DESC, id DESC LIMIT 1`,
+        [organizationId, dossierId, userId, conversationStartedAt ?? null],
+      );
+      const followUp = resolveFollowUp(question, turns[0]);
+      if (followUp.clarification) {
+        const id = await this.recordTurn(
+          organizationId,
+          dossierId,
+          userId,
+          originalQuestion,
+          followUp.clarification,
+          [],
+          'clarification-v1',
+          null,
+          requestedAt,
+        );
+        return {
+          id,
+          answer: followUp.clarification,
+          citations: [],
+          model: 'clarification-v1',
+          scope: 'CLARIFICATION',
+        };
+      }
+      question = followUp.question;
+      sourceId = followUp.sourceId;
+      invoiceReference = followUp.invoiceNumber;
+    }
+    // A document's extracted amount_due is not a current settlement balance.
+    // Resolve the converted invoice by its source, then let the read-only live
+    // tool re-check permissions and read fresh facts instead of using RAG.
+    if (
+      sourceId &&
+      /\b(remaining|outstanding|unpaid|paid|payments?|settle|solde|impay|reglements?|paiements?|reste)\b/i.test(
+        question,
+      )
+    ) {
+      const invoices = await this.dataSource.query<Array<{ number: string }>>(
+        `SELECT number FROM accounting.business_invoices
+         WHERE organization_id = $1 AND dossier_id = $2 AND source_document_id = $3
+           AND status IN ('VALIDEE', 'COMPTABILISEE') LIMIT 2`,
+        [organizationId, dossierId, sourceId],
+      );
+      if (invoices.length === 1) {
+        question = `Concernant la facture ${invoices[0].number} : ${originalQuestion}`;
+        invoiceReference = invoices[0].number;
+        sourceId = undefined;
+      } else {
+        const answer =
+          'Pour consulter le solde ou les règlements actuels, indiquez la référence de la facture comptable. Le montant extrait du document ne représente pas nécessairement son solde restant.';
+        const id = await this.recordTurn(
+          organizationId,
+          dossierId,
+          userId,
+          originalQuestion,
+          answer,
+          [],
+          'clarification-v1',
+          null,
+          requestedAt,
+        );
+        return {
+          id,
+          answer,
+          citations: [],
+          model: 'clarification-v1',
+          scope: 'CLARIFICATION',
+        };
+      }
+    }
     const clarificationContext = isLiveFinancialFollowUp(question)
       ? await this.recentConversationContext(
           organizationId,
@@ -540,11 +633,40 @@ export class AssistantService {
           conversationStartedAt,
         )
       : undefined;
-    if (isLiveFinancialCandidate(question) || clarificationContext) {
+    if (
+      !sourceId &&
+      (isLiveFinancialCandidate(question) || clarificationContext)
+    ) {
       const route = await this.vertex.routeLiveFinancialQuestion(
         question,
         clarificationContext,
       );
+      if (
+        invoiceReference &&
+        (route.operation !== 'INVOICE_DETAILS' ||
+          route.invoiceNumber?.toLocaleLowerCase() !==
+            invoiceReference.toLocaleLowerCase())
+      ) {
+        const answer = `Je n’ai pas pu déterminer une consultation fiable de la facture ${invoiceReference}. Reformulez la question avec sa référence. Aucun total global ni ancien montant extrait n’est utilisé à la place.`;
+        const id = await this.recordTurn(
+          organizationId,
+          dossierId,
+          userId,
+          originalQuestion,
+          answer,
+          [],
+          'clarification-v1',
+          null,
+          requestedAt,
+        );
+        return {
+          id,
+          answer,
+          citations: [],
+          model: 'clarification-v1',
+          scope: 'CLARIFICATION',
+        };
+      }
       if (route.operation !== 'NONE') {
         const result = await this.liveFinancial.answer(
           organizationId,
@@ -557,11 +679,12 @@ export class AssistantService {
           organizationId,
           dossierId,
           userId,
-          question,
+          originalQuestion,
           result.answer,
           result.citations,
           model,
           null,
+          requestedAt,
         );
         return { id, ...result, model, scope: 'LIVE_FINANCIAL' };
       }
@@ -579,17 +702,18 @@ export class AssistantService {
           organizationId,
           dossierId,
           userId,
-          question,
+          originalQuestion,
           answer,
           [],
           model,
           null,
+          requestedAt,
         );
         return { id, answer, citations: [], model, scope: 'LIVE_FINANCIAL' };
       }
     }
     const intent = detectFinancialQuestion(question);
-    if (intent) {
+    if (intent && !sourceId) {
       const financialSources = await this.financialSources(
         organizationId,
         dossierId,
@@ -613,17 +737,19 @@ export class AssistantService {
           organizationId,
           dossierId,
           userId,
-          question,
+          originalQuestion,
           answer,
           citations,
           'deterministic-accounting-v1',
           null,
+          requestedAt,
         );
         return {
           id,
           answer,
           citations,
           model: 'deterministic-accounting-v1',
+          scope: 'ACCOUNTING_CALCULATION',
         };
       }
     }
@@ -631,11 +757,22 @@ export class AssistantService {
     const chunks = await this.dataSource.query<KnowledgeChunkRow[]>(
       `
         WITH scored AS (
-          SELECT id, source_id, source_name, page_number, content, metadata,
+          SELECT chunk.id, chunk.source_id, chunk.source_name, chunk.page_number, chunk.content, chunk.metadata,
+            job.normalized_data -> '_evidence' AS evidence,
             embedding <=> $4::vector AS distance,
             ts_rank(search_vector, plainto_tsquery('simple', $3)) AS text_score
-          FROM accounting.ai_knowledge_chunks
-          WHERE organization_id = $1 AND dossier_id = $2
+          FROM accounting.ai_knowledge_chunks chunk
+          INNER JOIN accounting.accounting_documents document
+            ON document.id::text = chunk.source_id
+            AND document.organization_id = chunk.organization_id
+            AND document.dossier_id = chunk.dossier_id
+          INNER JOIN accounting.document_extraction_jobs job ON job.document_id = document.id
+            AND job.organization_id = chunk.organization_id AND job.dossier_id = chunk.dossier_id
+          WHERE chunk.organization_id = $1 AND chunk.dossier_id = $2
+            AND document.deleted_at_utc IS NULL AND job.status = 'VALIDEE'
+            AND chunk.source_type = 'REVIEWED_EXTRACTION'
+            AND job.normalized_data IS NOT NULL
+            AND ($5::text IS NULL OR chunk.source_id = $5)
         ),
         vector_ranked AS (
           SELECT id, row_number() OVER (ORDER BY distance ASC) AS rank
@@ -659,7 +796,13 @@ export class AssistantService {
         ORDER BY fused.relevance_score DESC, scored.distance ASC
         LIMIT 8
       `,
-      [organizationId, dossierId, question, this.vector(embedding)],
+      [
+        organizationId,
+        dossierId,
+        question,
+        this.vector(embedding),
+        sourceId ?? null,
+      ],
     );
     if (!chunks.length) {
       throw new BadRequestException(
@@ -677,13 +820,24 @@ export class AssistantService {
         'Les sources validées ne permettent pas de répondre avec suffisamment de confiance.',
       );
     }
-    const citations: Citation[] = chunks.map((chunk, index) => ({
-      label: `S${index + 1}`,
-      chunkId: chunk.id,
-      sourceId: chunk.source_id,
-      sourceName: chunk.source_name,
-      pageNumber: chunk.page_number,
-    }));
+    const citations: Citation[] = chunks.map((chunk, index) => {
+      const pages = sourcePages(
+        chunk.metadata ?? {},
+        chunk.evidence,
+        chunk.page_number,
+      );
+      return {
+        label: `S${index + 1}`,
+        chunkId: chunk.id,
+        sourceId: chunk.source_id,
+        sourceName: chunk.source_name,
+        pageNumber: pages.length === 1 ? pages[0] : null,
+        pages,
+        kind: 'DOCUMENT',
+        path: `/documents?dossierId=${encodeURIComponent(dossierId)}&documentId=${encodeURIComponent(chunk.source_id)}`,
+        excerpt: chunk.content.slice(0, 800),
+      };
+    });
     const context = chunks
       .map(
         (chunk, index) =>
@@ -705,17 +859,19 @@ export class AssistantService {
       organizationId,
       dossierId,
       userId,
-      question,
+      originalQuestion,
       result.text,
       citations,
       result.model,
       result.usage,
+      requestedAt,
     );
     return {
       id,
       answer: result.text,
       citations,
       model: result.model,
+      scope: 'DOCUMENT',
     };
   }
 
@@ -728,6 +884,7 @@ export class AssistantService {
     userId: string,
     conversationStartedAt?: string,
   ) {
+    const requestedAt = new Date();
     const citations: Citation[] = matches.map(({ entry }, index) => ({
       label: `S${index + 1}`,
       chunkId: `product-help:${entry.id}`,
@@ -767,6 +924,7 @@ export class AssistantService {
           citations,
           result.model,
           result.usage,
+          requestedAt,
         )
       : `product-help:${randomUUID()}`;
     return {
@@ -804,6 +962,14 @@ export class AssistantService {
           `Tour ${index + 1}\nUtilisateur: ${row.question.slice(0, 1200)}\nAssistant: ${row.answer.slice(0, 1800)}`,
       )
       .join('\n\n');
+  }
+
+  private answerScope(model: string) {
+    if (model === 'live-financial-readonly-v1') return 'LIVE_FINANCIAL';
+    if (model === 'deterministic-accounting-v1')
+      return 'ACCOUNTING_CALCULATION';
+    if (model === 'clarification-v1') return 'CLARIFICATION';
+    return 'DOCUMENT';
   }
 
   private resolveHelpPath(
@@ -884,13 +1050,14 @@ export class AssistantService {
     citations: Citation[],
     model: string,
     usage: Record<string, unknown> | null,
+    requestedAt: Date,
   ) {
     const inserted = await this.dataSource.query<Array<{ id: string }>>(
       `
         INSERT INTO accounting.ai_chat_turns (
           organization_id, dossier_id, user_id, question, answer,
-          citations, model_name, usage
-        ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8::jsonb)
+          citations, model_name, usage, created_at_utc
+        ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8::jsonb, $9)
         RETURNING id
       `,
       [
@@ -902,6 +1069,7 @@ export class AssistantService {
         JSON.stringify(citations),
         model,
         usage ? JSON.stringify(usage) : null,
+        requestedAt,
       ],
     );
     return inserted[0].id;
