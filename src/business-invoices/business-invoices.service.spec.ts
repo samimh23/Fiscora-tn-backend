@@ -48,6 +48,137 @@ describe('Business invoice adjustment lines', () => {
     {} as never,
   );
 
+  describe('invoice withholding', () => {
+    const resolveWithholdingRate = jest.fn(
+      (_organizationId: string, natureCode: string) =>
+        Promise.resolve({
+          natureCode: natureCode.toUpperCase(),
+          rate:
+            natureCode.toUpperCase() === 'RS_1_5_ACHATS'
+              ? '0.01500'
+              : '0.05000',
+          effectiveFrom: '2026-01-01',
+        }),
+    );
+    const withholdingService = new BusinessInvoicesService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { resolveWithholdingRate } as never,
+      {} as never,
+    );
+    const invoice = (
+      unitPrice: string,
+      overrides: Partial<SaveBusinessInvoiceDto> = {},
+      vatRate = '0.19000',
+    ) =>
+      withholdingService['calculate']('organization', {
+        ...dto(),
+        withholdingNature: 'RS_1_5_ACHATS',
+        lines: [{ ...dto().lines[1], unitPrice, vatRate }],
+        ...overrides,
+      });
+
+    it('does not withhold on a standalone acquisition under 1000 TND TTC', async () => {
+      const { header } = await invoice('800.000');
+      expect(header).toMatchObject({
+        withholdingBase: '952.000',
+        grossAmount: '953.000',
+        withholdingAmount: '0.000',
+        netPayable: '953.000',
+        taxSnapshot: {
+          withholding: {
+            invoiceThresholdTtc: '1000.000',
+            belowThreshold: true,
+            reason: 'BELOW_ACQUISITION_INVOICE_THRESHOLD',
+          },
+        },
+      });
+    });
+
+    it.each([
+      ['998.999', '999.999', '0.000'],
+      ['999.000', '1000.000', '14.985'],
+    ])(
+      'checks the TTC threshold inclusively (%s HT)',
+      async (ht, ttc, amount) => {
+        const { header } = await invoice(ht, {}, '0.00000');
+        expect(header.grossAmount).toBe(ttc);
+        expect(header.withholdingAmount).toBe(amount);
+      },
+    );
+
+    it('includes VAT but excludes the separately recorded stamp from the default base', async () => {
+      const { header } = await invoice('1000.000');
+      expect(header).toMatchObject({
+        withholdingBase: '1190.000',
+        withholdingAmount: '17.850',
+        grossAmount: '1191.000',
+        vatAmount: '190.000',
+        netPayable: '1173.150',
+        taxSnapshot: {
+          withholding: {
+            baseMode: 'TTC_EXCLUDING_STAMP',
+            belowThreshold: false,
+          },
+        },
+      });
+    });
+
+    it('includes excise and FODEC in the default base without applying the acquisition cutoff to fees', async () => {
+      const { header } = await invoice('100.000', {
+        withholdingNature: 'RS_5_HONORAIRES',
+        lines: [
+          {
+            ...dto().lines[1],
+            unitPrice: '100.000',
+            vatRate: '0.19000',
+            fodecRate: '0.01000',
+            exciseRate: '0.10000',
+          },
+        ],
+      });
+      expect(header.withholdingBase).toBe('132.090');
+      expect(header.withholdingAmount).toBe('6.605');
+      expect(header.taxSnapshot.withholding).not.toHaveProperty(
+        'invoiceThresholdTtc',
+      );
+    });
+
+    it.each([
+      ['1000.000', '500.000', '7.500'],
+      ['1000.000', '0.000', '0.000'],
+      ['800.000', '1200.000', '0.000'],
+    ])(
+      'honors manual base %s / %s without bypassing the threshold',
+      async (ht, base, amount) => {
+        const { header } = await invoice(ht, { withholdingBase: base });
+        expect(header.withholdingBase).toBe(base);
+        expect(header.withholdingAmount).toBe(amount);
+        expect(header.taxSnapshot.withholding).toMatchObject({
+          baseMode: 'MANUAL',
+        });
+      },
+    );
+
+    it('ignores a stale base when the withholding nature is cleared', async () => {
+      const { header } = await invoice('1000.000', {
+        withholdingNature: '',
+        withholdingBase: '500.000',
+      });
+      expect(header.withholdingBase).toBe('0.000');
+      expect(header.withholdingAmount).toBe('0.000');
+      expect(header.taxSnapshot.withholding).toBeNull();
+    });
+  });
+
   it.each([
     [BusinessInvoiceType.Sale, '604', '411', '436711'],
     [BusinessInvoiceType.Purchase, '705', '4011', '43666'],

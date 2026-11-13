@@ -47,6 +47,9 @@ import { PeriodLockService } from '../period-closing/period-lock.service';
 import { SystemRoleNames } from '../database/permissions';
 import { autoLetterInvoice } from '../common/invoice-lettrage';
 
+const ACQUISITION_WITHHOLDING_NATURE = 'RS_1_5_ACHATS';
+const ACQUISITION_WITHHOLDING_THRESHOLD = 1_000_000n; // 1,000 TND TTC
+
 @Injectable()
 export class BusinessInvoicesService {
   constructor(
@@ -813,23 +816,51 @@ export class BusinessInvoicesService {
       );
     let withholdingRate: string | null = null;
     let withholdingAmount = 0n;
+    let withholdingBase = 0n;
     let withholdingSnapshot: Record<string, unknown> | null = null;
-    const withholdingBase = dto.withholdingBase
-      ? toMillimes(dto.withholdingBase, 'Base de retenue')
-      : dto.withholdingNature
-        ? totalNet
-        : 0n;
-    if (dto.withholdingNature) {
+    const withholdingNature = dto.withholdingNature?.trim();
+    if (withholdingNature) {
       const setting = await this.fiscalSettings.resolveWithholdingRate(
         organizationId,
-        dto.withholdingNature,
+        withholdingNature,
         dto.invoiceDate,
       );
+      const manualBase = !!dto.withholdingBase;
+      withholdingBase = manualBase
+        ? toMillimes(dto.withholdingBase!, 'Base de retenue')
+        : gross - stampDuty;
+      if (withholdingBase < 0n)
+        throw new BadRequestException(
+          'La base de retenue doit être positive ou nulle.',
+        );
+
+      // Invoice-level threshold for a standalone acquisition. Grouped
+      // payments need a separate eligibility check at settlement time.
+      // An avoir adjusts an original invoice; it is not a new acquisition.
+      const thresholdApplies =
+        dto.kind !== BusinessInvoiceKind.CreditNote &&
+        setting.natureCode === ACQUISITION_WITHHOLDING_NATURE;
+      const belowThreshold =
+        thresholdApplies && gross < ACQUISITION_WITHHOLDING_THRESHOLD;
       withholdingRate = setting.rate;
-      withholdingAmount = multiplyRate(withholdingBase, setting.rate);
+      withholdingAmount = belowThreshold
+        ? 0n
+        : multiplyRate(withholdingBase, setting.rate);
       withholdingSnapshot = {
         natureCode: setting.natureCode,
         rate: setting.rate,
+        baseMode: manualBase ? 'MANUAL' : 'TTC_EXCLUDING_STAMP',
+        ...(thresholdApplies
+          ? {
+              invoiceThresholdTtc: fromMillimes(
+                ACQUISITION_WITHHOLDING_THRESHOLD,
+              ),
+              belowThreshold,
+              ...(belowThreshold
+                ? { reason: 'BELOW_ACQUISITION_INVOICE_THRESHOLD' }
+                : {}),
+            }
+          : {}),
         effectiveFrom: setting.effectiveFrom,
         effectiveTo: setting.effectiveTo,
         sourceLabel: setting.sourceLabel,
