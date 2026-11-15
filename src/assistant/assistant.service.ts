@@ -1178,7 +1178,7 @@ export class AssistantService {
       `
         WITH queries AS (
           SELECT
-            replace(plainto_tsquery('french', accounting.immutable_unaccent($3))::text, ' & ', ' | ')::tsquery AS words,
+            replace(plainto_tsquery('french', accounting.immutable_unaccent($3::text))::text, ' & ', ' | ')::tsquery AS words,
             CASE WHEN cardinality($6::text[]) = 0 THEN NULL
               ELSE replace(plainto_tsquery('simple', array_to_string($6::text[], ' '))::text, ' & ', ' | ')::tsquery
             END AS codes
