@@ -77,4 +77,21 @@ describe('conversation entity references', () => {
       }).clarification,
     ).toBeTruthy();
   });
+  it('lends the previous question to the search for a refinement', () => {
+    expect(
+      resolveFollowUp('Et en mars ?', {
+        question: 'Quelles ventes en février 2026 ?',
+        citations: [],
+      }),
+    ).toEqual({
+      question: 'Et en mars ?',
+      retrievalContext: 'Quelles ventes en février 2026 ?',
+    });
+    expect(
+      resolveFollowUp('Et son total TTC ?', {
+        question: 'Date du document A ?',
+        citations: [],
+      }).clarification,
+    ).toBeTruthy();
+  });
 });

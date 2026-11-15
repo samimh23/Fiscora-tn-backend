@@ -20,3 +20,6 @@ npm-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+
+# Assistant evaluation results
+rag-eval-results/

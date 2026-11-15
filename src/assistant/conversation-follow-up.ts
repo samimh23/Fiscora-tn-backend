@@ -20,15 +20,29 @@ function invoiceReferences(text: string) {
   return [...new Set([...text.matchAll(reference)].map((match) => match[1]))];
 }
 
-export function isEntityFollowUp(question: string) {
-  const text = question
+function plainText(question: string) {
+  return question
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
+}
+
+const ENTITY_REFERENCE =
+  /\b(its|this invoice|that invoice|this document|that document|same invoice|cette facture|ce document|son solde|sa tva|ses paiements|son paiement|celle-ci|celui-ci)\b/;
+
+export function isEntityFollowUp(question: string) {
+  const text = plainText(question);
+  return ENTITY_REFERENCE.test(text) || /^(and\b|what about\b|et\b)/.test(text);
+}
+
+/** "Et son total ?" points at one document; "Et en mars ?" refines the last question. */
+function pointsAtEntity(question: string) {
+  const text = plainText(question);
   return (
-    /\b(its|this invoice|that invoice|this document|that document|same invoice|cette facture|ce document|son solde|sa tva|ses paiements|son paiement|celle-ci|celui-ci)\b/.test(
+    ENTITY_REFERENCE.test(text) ||
+    /\b(son|sa|ses|leur|leurs|ce|cet|cette|celui|celle|it|this|that)\b/.test(
       text,
-    ) || /^(and\b|what about\b|et\b)/.test(text)
+    )
   );
 }
 
@@ -36,9 +50,21 @@ export function isEntityFollowUp(question: string) {
 export function resolveFollowUp(
   question: string,
   previous?: PreviousAssistantTurn,
-) {
+): {
+  question: string;
+  sourceId?: string;
+  invoiceNumber?: string;
+  clarification?: string;
+  retrievalContext?: string;
+} {
   if (!isEntityFollowUp(question) || [...question.matchAll(reference)].length) {
     return { question };
+  }
+  // A refinement such as "Et en mars ?" keeps the question as asked (so exact
+  // calculators and routing never mix two periods) and only lends the previous
+  // question to the document search.
+  if (!pointsAtEntity(question) && previous?.question) {
+    return { question, retrievalContext: previous.question.slice(0, 500) };
   }
   const usedLabels = new Set(
     [...(previous?.answer ?? '').matchAll(/\[(S\d+)\]/g)].map(
