@@ -13,6 +13,7 @@ import {
 } from './assistant.controller';
 import { AssistantService } from './assistant.service';
 import { AssistantIndexingService } from './assistant-indexing.service';
+import { AssistantReranker } from './reranker';
 import { VertexAiClient } from './vertex-ai.client';
 
 @Module({
@@ -29,6 +30,7 @@ import { VertexAiClient } from './vertex-ai.client';
     AssistantIndexingService,
     LiveFinancialService,
     VertexAiClient,
+    AssistantReranker,
     PermissionGuard,
   ],
 })

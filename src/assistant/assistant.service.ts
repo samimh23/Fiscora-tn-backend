@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -38,6 +39,15 @@ import {
 } from './conversation-follow-up';
 import { sourcePages } from './source-evidence';
 import {
+  analyzeQuestion,
+  hasFilters,
+  namesDocumentReference,
+  NO_FILTERS,
+  type QueryAnalysis,
+  type RetrievalFilters,
+} from './query-filters';
+import { AssistantReranker, diversify } from './reranker';
+import {
   uniqueFinancialDocuments,
   type InvoiceIdentity,
 } from './financial-source-deduplication';
@@ -51,9 +61,18 @@ interface KnowledgeChunkRow {
   metadata: Record<string, unknown>;
   distance: number;
   text_score: number;
+  code_score?: number;
+  fuzzy_score?: number;
   relevance_score: number;
   evidence?: unknown;
 }
+
+/** Chunks sent to the answer model. */
+const CONTEXT_CHUNKS = 8;
+/** Candidates gathered by the hybrid search before reranking. */
+const CANDIDATE_POOL = 30;
+/** Most chunks one document may take in the context, unless it was pinned. */
+const CHUNKS_PER_DOCUMENT = 3;
 
 interface ExistingChunkRow {
   source_id: string;
@@ -132,6 +151,7 @@ export class AssistantService {
     @InjectRepository(OrganizationMembership)
     private readonly memberships: Repository<OrganizationMembership>,
     private readonly liveFinancial: LiveFinancialService,
+    @Optional() private readonly reranker?: AssistantReranker,
   ) {
     this.embeddingDimensions = Number(
       this.config.get<string>('VERTEX_AI_EMBEDDING_DIMENSIONS') ?? '768',
@@ -550,6 +570,7 @@ export class AssistantService {
     const originalQuestion = question;
     let sourceId: string | undefined;
     let invoiceReference: string | undefined;
+    let retrievalContext: string | undefined;
     if (isEntityFollowUp(question)) {
       const turns = await this.dataSource.query<PreviousAssistantTurn[]>(
         `SELECT question, answer, citations FROM accounting.ai_chat_turns
@@ -582,6 +603,7 @@ export class AssistantService {
       question = followUp.question;
       sourceId = followUp.sourceId;
       invoiceReference = followUp.invoiceNumber;
+      retrievalContext = followUp.retrievalContext;
     }
     // A document's extracted amount_due is not a current settlement balance.
     // Resolve the converted invoice by its source, then let the read-only live
@@ -713,7 +735,9 @@ export class AssistantService {
       }
     }
     const intent = detectFinancialQuestion(question);
-    if (intent && !sourceId) {
+    // A question naming one document ("total TTC du document FV-2026-013")
+    // must read that document, never a dossier-wide sum.
+    if (intent && !sourceId && !namesDocumentReference(question)) {
       const financialSources = await this.financialSources(
         organizationId,
         dossierId,
@@ -753,58 +777,45 @@ export class AssistantService {
         };
       }
     }
-    const embedding = await this.vertex.embed(question, 'RETRIEVAL_QUERY');
-    const chunks = await this.dataSource.query<KnowledgeChunkRow[]>(
-      `
-        WITH scored AS (
-          SELECT chunk.id, chunk.source_id, chunk.source_name, chunk.page_number, chunk.content, chunk.metadata,
-            job.normalized_data -> '_evidence' AS evidence,
-            embedding <=> $4::vector AS distance,
-            ts_rank(search_vector, plainto_tsquery('simple', $3)) AS text_score
-          FROM accounting.ai_knowledge_chunks chunk
-          INNER JOIN accounting.accounting_documents document
-            ON document.id::text = chunk.source_id
-            AND document.organization_id = chunk.organization_id
-            AND document.dossier_id = chunk.dossier_id
-          INNER JOIN accounting.document_extraction_jobs job ON job.document_id = document.id
-            AND job.organization_id = chunk.organization_id AND job.dossier_id = chunk.dossier_id
-          WHERE chunk.organization_id = $1 AND chunk.dossier_id = $2
-            AND document.deleted_at_utc IS NULL AND job.status = 'VALIDEE'
-            AND chunk.source_type = 'REVIEWED_EXTRACTION'
-            AND job.normalized_data IS NOT NULL
-            AND ($5::text IS NULL OR chunk.source_id = $5)
-        ),
-        vector_ranked AS (
-          SELECT id, row_number() OVER (ORDER BY distance ASC) AS rank
-          FROM scored ORDER BY distance ASC LIMIT 20
-        ),
-        text_ranked AS (
-          SELECT id, row_number() OVER (ORDER BY text_score DESC) AS rank
-          FROM scored WHERE text_score > 0 ORDER BY text_score DESC LIMIT 20
-        ),
-        fused AS (
-          SELECT id, SUM(score) AS relevance_score
-          FROM (
-            SELECT id, 1.0 / (60 + rank) AS score FROM vector_ranked
-            UNION ALL
-            SELECT id, 1.0 / (60 + rank) AS score FROM text_ranked
-          ) ranked
-          GROUP BY id
-        )
-        SELECT scored.*, fused.relevance_score
-        FROM fused INNER JOIN scored ON scored.id = fused.id
-        ORDER BY fused.relevance_score DESC, scored.distance ASC
-        LIMIT 8
-      `,
-      [
+    const retrievalText = retrievalContext
+      ? `${retrievalContext}\n${question}`
+      : question;
+    const analysis = analyzeQuestion(retrievalText);
+    if (retrievalContext) {
+      // The current question's month or kind of document wins over the previous one.
+      const current = analyzeQuestion(question).filters;
+      const previous = analyzeQuestion(retrievalContext).filters;
+      analysis.filters = {
+        year: current.year ?? previous.year,
+        month: current.month ?? previous.month,
+        category: current.category ?? previous.category,
+      };
+    }
+    const embedding = await this.vertex.embed(retrievalText, 'RETRIEVAL_QUERY');
+    const queryVector = this.vector(embedding);
+    const filters = sourceId ? NO_FILTERS : analysis.filters;
+    let pool = await this.retrieveCandidates(
+      organizationId,
+      dossierId,
+      retrievalText,
+      queryVector,
+      sourceId,
+      analysis,
+      filters,
+    );
+    // Filters are hints: when they match nothing, search the whole dossier.
+    if (!pool.length && hasFilters(filters)) {
+      pool = await this.retrieveCandidates(
         organizationId,
         dossierId,
-        question,
-        this.vector(embedding),
-        sourceId ?? null,
-      ],
-    );
-    if (!chunks.length) {
+        retrievalText,
+        queryVector,
+        sourceId,
+        analysis,
+        NO_FILTERS,
+      );
+    }
+    if (!pool.length) {
       throw new BadRequestException(
         'Aucune source validée n’est indexée pour ce dossier.',
       );
@@ -812,14 +823,19 @@ export class AssistantService {
     const maxDistance = Number(
       this.config.get<string>('AI_ASSISTANT_MAX_VECTOR_DISTANCE') ?? '0.8',
     );
+    const lexicalMatch = (chunk: KnowledgeChunkRow) =>
+      Number(chunk.text_score ?? 0) > 0 ||
+      Number(chunk.code_score ?? 0) > 0 ||
+      Number(chunk.fuzzy_score ?? 0) > 0;
     if (
-      chunks[0].distance > maxDistance &&
-      chunks.every((chunk) => chunk.text_score === 0)
+      pool.every((chunk) => Number(chunk.distance) > maxDistance) &&
+      !pool.some(lexicalMatch)
     ) {
       throw new BadRequestException(
         'Les sources validées ne permettent pas de répondre avec suffisamment de confiance.',
       );
     }
+    const chunks = await this.selectContext(retrievalText, pool, !!sourceId);
     const citations: Citation[] = chunks.map((chunk, index) => {
       const pages = sourcePages(
         chunk.metadata ?? {},
@@ -1140,6 +1156,178 @@ export class AssistantService {
            SELECT id::text FROM ancestors WHERE id IS NOT NULL
          )`,
       [organizationId, dossierId, documentId],
+    );
+  }
+
+  /**
+   * Hybrid search over the approved chunks of one dossier. Four rankings are
+   * fused with reciprocal rank fusion: meaning (embeddings), French words
+   * (stemmed, accents ignored, any word may match), exact codes such as
+   * document numbers, and fuzzy words that survive typos.
+   */
+  private retrieveCandidates(
+    organizationId: string,
+    dossierId: string,
+    retrievalText: string,
+    queryVector: string,
+    sourceId: string | undefined,
+    analysis: QueryAnalysis,
+    filters: RetrievalFilters,
+  ) {
+    return this.dataSource.query<KnowledgeChunkRow[]>(
+      `
+        WITH queries AS (
+          SELECT
+            replace(plainto_tsquery('french', accounting.immutable_unaccent($3))::text, ' & ', ' | ')::tsquery AS words,
+            CASE WHEN cardinality($6::text[]) = 0 THEN NULL
+              ELSE replace(plainto_tsquery('simple', array_to_string($6::text[], ' '))::text, ' & ', ' | ')::tsquery
+            END AS codes
+        ),
+        scored AS (
+          SELECT chunk.id, chunk.source_id, chunk.source_name, chunk.page_number, chunk.content, chunk.metadata,
+            job.normalized_data -> '_evidence' AS evidence,
+            embedding <=> $4::vector AS distance,
+            ts_rank_cd(chunk.search_vector_fr, queries.words, 32) AS text_score,
+            CASE WHEN queries.codes IS NULL THEN 0
+              ELSE ts_rank_cd(chunk.search_vector, queries.codes, 32)
+            END AS code_score
+          FROM accounting.ai_knowledge_chunks chunk
+          CROSS JOIN queries
+          INNER JOIN accounting.accounting_documents document
+            ON document.id::text = chunk.source_id
+            AND document.organization_id = chunk.organization_id
+            AND document.dossier_id = chunk.dossier_id
+          INNER JOIN accounting.document_extraction_jobs job ON job.document_id = document.id
+            AND job.organization_id = chunk.organization_id AND job.dossier_id = chunk.dossier_id
+          WHERE chunk.organization_id = $1 AND chunk.dossier_id = $2
+            AND document.deleted_at_utc IS NULL AND job.status = 'VALIDEE'
+            AND chunk.source_type = 'REVIEWED_EXTRACTION'
+            AND job.normalized_data IS NOT NULL
+            AND ($5::text IS NULL OR chunk.source_id = $5)
+            AND ($8::int IS NULL OR document.period_year = $8)
+            AND ($9::int IS NULL OR document.period_month = $9)
+            AND ($10::text IS NULL OR document.category = $10)
+        ),
+        vector_ranked AS (
+          SELECT id, row_number() OVER (ORDER BY distance ASC) AS rank
+          FROM scored ORDER BY distance ASC LIMIT 20
+        ),
+        text_ranked AS (
+          SELECT id, row_number() OVER (ORDER BY text_score DESC) AS rank
+          FROM scored WHERE text_score > 0 ORDER BY text_score DESC LIMIT 20
+        ),
+        code_ranked AS (
+          SELECT id, row_number() OVER (ORDER BY code_score DESC) AS rank
+          FROM scored WHERE code_score > 0 ORDER BY code_score DESC LIMIT 20
+        ),
+        -- Typo-tolerant matching is costly per chunk, so it only re-scores the
+        -- best candidates by meaning and by words (any one correct word is enough
+        -- to be a candidate) instead of the whole dossier.
+        fuzzy_pool AS (
+          SELECT id FROM (SELECT id FROM scored ORDER BY distance ASC LIMIT 60) by_meaning
+          UNION
+          SELECT id FROM (
+            SELECT id FROM scored WHERE text_score > 0 ORDER BY text_score DESC LIMIT 60
+          ) by_words
+        ),
+        fuzzy_scored AS (
+          SELECT scored.id, COALESCE((
+            SELECT sum(similarity) FROM (
+              SELECT word_similarity(
+                term,
+                accounting.immutable_unaccent(lower(scored.source_name || ' ' || scored.content))
+              ) AS similarity
+              FROM unnest($7::text[]) term
+            ) terms WHERE similarity >= 0.6
+          ), 0) AS fuzzy_score
+          FROM scored INNER JOIN fuzzy_pool ON fuzzy_pool.id = scored.id
+          WHERE cardinality($7::text[]) > 0
+        ),
+        fuzzy_ranked AS (
+          SELECT id, row_number() OVER (ORDER BY fuzzy_score DESC) AS rank
+          FROM fuzzy_scored WHERE fuzzy_score > 0 ORDER BY fuzzy_score DESC LIMIT 20
+        ),
+        fused AS (
+          SELECT id, SUM(score) AS relevance_score
+          FROM (
+            SELECT id, 1.0 / (60 + rank) AS score FROM vector_ranked
+            UNION ALL
+            SELECT id, 1.0 / (60 + rank) AS score FROM text_ranked
+            UNION ALL
+            SELECT id, 1.0 / (60 + rank) AS score FROM code_ranked
+            UNION ALL
+            SELECT id, 1.0 / (60 + rank) AS score FROM fuzzy_ranked
+          ) ranked
+          GROUP BY id
+        )
+        SELECT scored.*, COALESCE(fuzzy_scored.fuzzy_score, 0) AS fuzzy_score,
+          fused.relevance_score
+        FROM fused INNER JOIN scored ON scored.id = fused.id
+        LEFT JOIN fuzzy_scored ON fuzzy_scored.id = fused.id
+        ORDER BY fused.relevance_score DESC, scored.distance ASC
+        LIMIT $11
+      `,
+      [
+        organizationId,
+        dossierId,
+        retrievalText,
+        queryVector,
+        sourceId ?? null,
+        analysis.codes,
+        analysis.terms,
+        filters.year,
+        filters.month,
+        filters.category,
+        CANDIDATE_POOL,
+      ],
+    );
+  }
+
+  /**
+   * Picks the chunks the answer model reads: reranked by Vertex AI when it is
+   * switched on and answers in time, otherwise in hybrid-search order; then at
+   * most a few chunks per document so several documents can be compared.
+   */
+  private async selectContext(
+    retrievalText: string,
+    pool: KnowledgeChunkRow[],
+    pinnedToOneDocument: boolean,
+  ) {
+    let ordered = pool;
+    const scores = this.reranker
+      ? await this.reranker.rerank(
+          retrievalText,
+          pool.map((chunk) => ({
+            id: chunk.id,
+            title: chunk.source_name,
+            content: chunk.content,
+          })),
+          pool.length,
+        )
+      : null;
+    if (scores) {
+      const minimum = Number(
+        this.config.get<string>('RAG_RERANK_MIN_SCORE') ?? '',
+      );
+      if (
+        Number.isFinite(minimum) &&
+        minimum > 0 &&
+        scores[0].score < minimum
+      ) {
+        throw new BadRequestException(
+          'Les sources validées ne permettent pas de répondre avec suffisamment de confiance.',
+        );
+      }
+      const byId = new Map(pool.map((chunk) => [chunk.id, chunk]));
+      const reranked = scores.map((score) => byId.get(score.id)!);
+      const seen = new Set(reranked.map((chunk) => chunk.id));
+      // Chunks the ranker did not return keep their hybrid order at the end.
+      ordered = [...reranked, ...pool.filter((chunk) => !seen.has(chunk.id))];
+    }
+    return diversify(
+      ordered,
+      CONTEXT_CHUNKS,
+      pinnedToOneDocument ? CONTEXT_CHUNKS : CHUNKS_PER_DOCUMENT,
     );
   }
 
