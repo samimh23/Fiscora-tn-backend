@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { PermissionGuard } from '../common/permission.guard';
+import { DossiersModule } from '../dossiers/dossiers.module';
 import {
   Notification,
   ObligationInstance,
@@ -13,6 +14,7 @@ import { NotificationsService } from './notifications.service';
 @Module({
   imports: [
     AuthModule,
+    DossiersModule,
     TypeOrmModule.forFeature([
       Notification,
       ObligationInstance,

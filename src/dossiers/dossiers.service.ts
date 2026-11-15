@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, In, Repository } from 'typeorm';
 import {
   AccountingJournal,
   AuditLog,
@@ -549,6 +549,28 @@ export class DossiersService {
       );
     }
     return dossier;
+  }
+
+  async resolveAccessibleDossiers(
+    organizationId: string,
+    userId: string,
+    dossierIds: string[],
+  ) {
+    const { membership, canSeeAll } = await this.getAccess(
+      organizationId,
+      userId,
+    );
+    const dossiers = await this.dossiers.find({
+      select: { id: true, legalName: true },
+      where: {
+        organizationId,
+        id: In(dossierIds),
+        ...(canSeeAll
+          ? {}
+          : { assignments: { membershipId: membership.id, isActive: true } }),
+      },
+    });
+    return { membership, dossiers };
   }
 
   private async ensureDossierExists(organizationId: string, dossierId: string) {

@@ -62,6 +62,22 @@ export class TasksController {
     );
   }
 
+  @Get('dossiers/:dossierId/tasks/:taskId')
+  @RequirePermission(PermissionNames.TasksView)
+  get(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('dossierId', ParseUUIDPipe) dossierId: string,
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.service.getForViewer(
+      organizationId,
+      dossierId,
+      taskId,
+      user.userId,
+    );
+  }
+
   @Post('dossiers/:dossierId/tasks')
   @RequirePermission(PermissionNames.TasksManage)
   create(

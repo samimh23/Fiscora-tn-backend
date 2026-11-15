@@ -571,13 +571,39 @@ export class TasksService {
     };
   }
 
+  async getForViewer(
+    organizationId: string,
+    dossierId: string,
+    taskId: string,
+    userId: string,
+  ) {
+    await this.dossiersService.getAccessibleEntity(
+      organizationId,
+      dossierId,
+      userId,
+    );
+    const access = await this.getAccess(organizationId, userId);
+    return this.getTask(
+      organizationId,
+      dossierId,
+      taskId,
+      access.canSeeAll ? undefined : access.membership.id,
+    );
+  }
+
   private async getTask(
     organizationId: string,
     dossierId: string,
     taskId: string,
+    assigneeMembershipId?: string,
   ) {
     const task = await this.tasks.findOne({
-      where: { id: taskId, organizationId, dossierId },
+      where: {
+        id: taskId,
+        organizationId,
+        dossierId,
+        ...(assigneeMembershipId ? { assigneeMembershipId } : {}),
+      },
       relations: {
         dossier: true,
         assigneeMembership: { user: true },
