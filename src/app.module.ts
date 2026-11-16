@@ -103,6 +103,7 @@ import { TrainingDatasets1791468000000 } from './database/migrations/17914680000
 import { BankStatementSourceDocument1791500000000 } from './database/migrations/1791500000000-bank-statement-source-document';
 import { DossierDeletion1791504000000 } from './database/migrations/1791504000000-dossier-deletion';
 import { AssistantFrenchSearch1791600000000 } from './database/migrations/1791600000000-assistant-french-search';
+import { AssistantAnswerFeedback1791700000000 } from './database/migrations/1791700000000-assistant-answer-feedback';
 import { TrainingDatasetsModule } from './training-datasets/training-datasets.module';
 
 @Module({
@@ -189,6 +190,7 @@ import { TrainingDatasetsModule } from './training-datasets/training-datasets.mo
           BankStatementSourceDocument1791500000000,
           DossierDeletion1791504000000,
           AssistantFrenchSearch1791600000000,
+          AssistantAnswerFeedback1791700000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,

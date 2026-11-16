@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  NotFoundException,
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -47,7 +48,18 @@ import {
   type RetrievalFilters,
 } from './query-filters';
 import { AssistantReranker, diversify } from './reranker';
-import { answerListing, detectListingQuestion } from './party-question';
+import {
+  answerListing,
+  answerPartyTotal,
+  detectListingQuestion,
+  mayAskPartyTotal,
+} from './party-question';
+import { detectQuestionLanguage, MESSAGES } from './assistant-language';
+import {
+  findNamedDocuments,
+  mayNameADocument,
+  type NamedDocument,
+} from './document-name-reference';
 import {
   amountWarning,
   normalizeCitations,
@@ -124,6 +136,8 @@ interface ChatTurnRow {
   answer: string;
   citations: Citation[] | null;
   model_name: string;
+  feedback_rating?: number | null;
+  feedback_comment?: string | null;
 }
 
 export interface Citation {
@@ -416,7 +430,8 @@ export class AssistantService {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     const limit = query.limit ?? 20;
     const rows = await this.dataSource.query<ChatTurnRow[]>(
-      `SELECT id, created_at_utc, question, answer, citations, model_name
+      `SELECT id, created_at_utc, question, answer, citations, model_name,
+         feedback_rating, feedback_comment
        FROM accounting.ai_chat_turns
        WHERE organization_id = $1 AND dossier_id = $2 AND user_id = $3
          AND ($4::timestamptz IS NULL OR created_at_utc >= $4)
@@ -447,6 +462,12 @@ export class AssistantService {
         answer: row.answer,
         citations: row.citations ?? [],
         model: row.model_name,
+        feedback: row.feedback_rating
+          ? {
+              rating: row.feedback_rating,
+              comment: row.feedback_comment ?? null,
+            }
+          : null,
         scope: (row.citations ?? []).some(
           (citation) => citation.kind === 'PRODUCT_HELP',
         )
@@ -469,6 +490,43 @@ export class AssistantService {
               beforeId: oldest.id,
             }
           : null,
+    };
+  }
+
+  /**
+   * Stores a user's 👍 / 👎 on one of their own answers (0 removes it), so the
+   * real questions that fail can be reviewed and added to the evaluation.
+   */
+  async rateTurn(
+    organizationId: string,
+    userId: string,
+    turnId: string,
+    rating: number,
+    comment?: string,
+  ) {
+    this.ensureEnabled();
+    const rows = await this.dataSource.query<Array<{ id: string }>>(
+      `UPDATE accounting.ai_chat_turns
+       SET feedback_rating = $4,
+         feedback_comment = $5,
+         feedback_at_utc = CASE WHEN $4::smallint IS NULL THEN NULL ELSE now() END
+       WHERE id = $1 AND organization_id = $2 AND user_id = $3
+       RETURNING id`,
+      [
+        turnId,
+        organizationId,
+        userId,
+        rating === 0 ? null : rating,
+        rating === 0 ? null : comment?.trim() || null,
+      ],
+    );
+    if (!rows.length) {
+      throw new NotFoundException('Réponse introuvable.');
+    }
+    return {
+      id: turnId,
+      feedback:
+        rating === 0 ? null : { rating, comment: comment?.trim() || null },
     };
   }
 
@@ -582,6 +640,7 @@ export class AssistantService {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     const requestedAt = new Date();
     const originalQuestion = question;
+    const language = detectQuestionLanguage(originalQuestion);
     let sourceId: string | undefined;
     let invoiceReference: string | undefined;
     let retrievalContext: string | undefined;
@@ -618,6 +677,44 @@ export class AssistantService {
       sourceId = followUp.sourceId;
       invoiceReference = followUp.invoiceNumber;
       retrievalContext = followUp.retrievalContext;
+    }
+    // "how much VAT for test 5": the user names a file, so read that file.
+    if (!sourceId && !invoiceReference && mayNameADocument(originalQuestion)) {
+      const documents = await this.validatedDocumentNames(
+        organizationId,
+        dossierId,
+      );
+      const reference = findNamedDocuments(originalQuestion, documents);
+      if (reference.matches.length === 1) {
+        sourceId = reference.matches[0].id;
+        question = `${question}\nDocument concerné : ${reference.matches[0].original_name.slice(0, 200)}`;
+      } else if (!reference.matches.length && reference.missing) {
+        const answer = MESSAGES[language].fileNotFound(
+          reference.missing,
+          documents
+            .slice(0, 12)
+            .map((document) => document.original_name)
+            .join(', '),
+        );
+        const id = await this.recordTurn(
+          organizationId,
+          dossierId,
+          userId,
+          originalQuestion,
+          answer,
+          [],
+          'clarification-v1',
+          null,
+          requestedAt,
+        );
+        return {
+          id,
+          answer,
+          citations: [],
+          model: 'clarification-v1',
+          scope: 'CLARIFICATION',
+        };
+      }
     }
     // A document's extracted amount_due is not a current settlement balance.
     // Resolve the converted invoice by its source, then let the read-only live
@@ -662,41 +759,46 @@ export class AssistantService {
       }
     }
     const listingIntent = sourceId ? null : detectListingQuestion(question);
-    if (listingIntent) {
-      const aggregation = answerListing(
-        await this.approvedExtractions(organizationId, dossierId),
-        listingIntent,
+    // Lists, rankings and per-party totals need every approved document.
+    const wantsExactAnswer =
+      !sourceId && (listingIntent !== null || mayAskPartyTotal(question));
+    const allDocuments = wantsExactAnswer
+      ? await this.approvedExtractions(organizationId, dossierId)
+      : [];
+    const aggregation = !wantsExactAnswer
+      ? null
+      : listingIntent
+        ? answerListing(allDocuments, listingIntent, language)
+        : answerPartyTotal(allDocuments, question, language);
+    if (aggregation) {
+      const citations: Citation[] = aggregation.rows.map((row, index) => ({
+        label: `S${index + 1}`,
+        chunkId: `deterministic:DOCUMENT:${row.document_id}`,
+        sourceId: row.document_id,
+        sourceName: row.original_name,
+        pageNumber: null,
+        kind: 'DOCUMENT',
+        path: `/documents?dossierId=${encodeURIComponent(dossierId)}&documentId=${encodeURIComponent(row.document_id)}`,
+      }));
+      const model = 'deterministic-listing-v1';
+      const id = await this.recordTurn(
+        organizationId,
+        dossierId,
+        userId,
+        originalQuestion,
+        aggregation.answer,
+        citations,
+        model,
+        null,
+        requestedAt,
       );
-      if (aggregation) {
-        const citations: Citation[] = aggregation.rows.map((row, index) => ({
-          label: `S${index + 1}`,
-          chunkId: `deterministic:DOCUMENT:${row.document_id}`,
-          sourceId: row.document_id,
-          sourceName: row.original_name,
-          pageNumber: null,
-          kind: 'DOCUMENT',
-          path: `/documents?dossierId=${encodeURIComponent(dossierId)}&documentId=${encodeURIComponent(row.document_id)}`,
-        }));
-        const model = 'deterministic-listing-v1';
-        const id = await this.recordTurn(
-          organizationId,
-          dossierId,
-          userId,
-          originalQuestion,
-          aggregation.answer,
-          citations,
-          model,
-          null,
-          requestedAt,
-        );
-        return {
-          id,
-          answer: aggregation.answer,
-          citations,
-          model,
-          scope: 'ACCOUNTING_CALCULATION',
-        };
-      }
+      return {
+        id,
+        answer: aggregation.answer,
+        citations,
+        model,
+        scope: 'ACCOUNTING_CALCULATION',
+      };
     }
     const clarificationContext = isLiveFinancialFollowUp(question)
       ? await this.recentConversationContext(
@@ -867,9 +969,7 @@ export class AssistantService {
       );
     }
     if (!pool.length) {
-      throw new BadRequestException(
-        'Aucune source validée n’est indexée pour ce dossier.',
-      );
+      throw new BadRequestException(MESSAGES[language].noIndexedSource);
     }
     const maxDistance = Number(
       this.config.get<string>('AI_ASSISTANT_MAX_VECTOR_DISTANCE') ?? '0.8',
@@ -882,9 +982,7 @@ export class AssistantService {
       pool.every((chunk) => Number(chunk.distance) > maxDistance) &&
       !pool.some(lexicalMatch)
     ) {
-      throw new BadRequestException(
-        'Les sources validées ne permettent pas de répondre avec suffisamment de confiance.',
-      );
+      throw new BadRequestException(MESSAGES[language].lowConfidence);
     }
     const chunks = await this.selectContext(retrievalText, pool, !!sourceId, {
       organizationId,
@@ -924,10 +1022,12 @@ export class AssistantService {
       question,
       context,
       conversationContext,
+      language,
     );
     // Every amount stated must exist in the passages the model was given.
     const text = normalizeCitations(result.text);
-    const answer = text + amountWarning(unsupportedAmounts(text, context));
+    const answer =
+      text + amountWarning(unsupportedAmounts(text, context), language);
     const id = await this.recordTurn(
       organizationId,
       dossierId,
@@ -986,6 +1086,7 @@ export class AssistantService {
       buildProductHelpContext(matches),
       currentPath,
       conversationContext,
+      detectQuestionLanguage(question),
     );
     const id = dossierId
       ? await this.recordTurn(
@@ -1420,6 +1521,22 @@ export class AssistantService {
       CONTEXT_CHUNKS,
       pinnedToOneDocument ? CONTEXT_CHUNKS : CHUNKS_PER_DOCUMENT,
       pinnedToOneDocument ? CONTEXT_CHUNKS : BEST_DOCUMENT_CHUNKS,
+    );
+  }
+
+  /** Names of the validated documents, to recognise "test 5" or "scan.pdf". */
+  private validatedDocumentNames(organizationId: string, dossierId: string) {
+    return this.dataSource.query<NamedDocument[]>(
+      `SELECT document.id::text AS id, document.original_name
+       FROM accounting.accounting_documents document
+       INNER JOIN accounting.document_extraction_jobs job
+         ON job.document_id = document.id
+       WHERE document.organization_id = $1 AND document.dossier_id = $2
+         AND document.deleted_at_utc IS NULL AND job.status = 'VALIDEE'
+         AND job.normalized_data IS NOT NULL
+       ORDER BY document.original_name
+       LIMIT 2000`,
+      [organizationId, dossierId],
     );
   }
 

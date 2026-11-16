@@ -116,9 +116,14 @@ export function analyzeQuestion(question: string): QueryAnalysis {
     .filter(isReference)
     .reduce((value, code) => value.split(plain(code)).join(' '), text);
   const yearMatch = periodText.match(/\b(20\d{2})\b/);
-  const monthEntry = Object.entries(MONTHS).find(([name]) =>
+  const monthsNamed = Object.entries(MONTHS).filter(([name]) =>
     new RegExp(`\\b${name}\\b`).test(periodText),
   );
+  // "Compare January and April": filtering on one month would hide the other.
+  const monthEntry =
+    new Set(monthsNamed.map(([, month]) => month)).size === 1
+      ? monthsNamed[0]
+      : undefined;
   const numericMonth = periodText.match(/\b(0?[1-9]|1[0-2])\/(20\d{2})\b/);
   const codeWords = new Set(codes.map(plain));
   const terms = [

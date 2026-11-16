@@ -15,7 +15,11 @@ import { CurrentUser } from '../common/current-user.decorator';
 import { RequirePermission } from '../common/permission.decorator';
 import { PermissionGuard } from '../common/permission.guard';
 import { PermissionNames } from '../database/permissions';
-import { AskAssistantDto, AssistantHistoryQueryDto } from './assistant.dto';
+import {
+  AskAssistantDto,
+  AssistantFeedbackDto,
+  AssistantHistoryQueryDto,
+} from './assistant.dto';
 import { AssistantService } from './assistant.service';
 
 @ApiTags('Assistant Fiscora')
@@ -93,6 +97,23 @@ export class ContextualAssistantController {
       dto.currentPath,
       dto.dossierId,
       dto.conversationStartedAt,
+    );
+  }
+
+  /** Rate one of my own answers: 👍 / 👎 with an optional comment. */
+  @Post('turns/:turnId/feedback')
+  feedback(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('turnId', ParseUUIDPipe) turnId: string,
+    @CurrentUser() user: JwtUser,
+    @Body() dto: AssistantFeedbackDto,
+  ) {
+    return this.service.rateTurn(
+      organizationId,
+      user.userId,
+      turnId,
+      dto.rating,
+      dto.comment,
     );
   }
 }

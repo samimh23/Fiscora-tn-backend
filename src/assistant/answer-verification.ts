@@ -1,3 +1,5 @@
+import { MESSAGES, type AnswerLanguage } from './assistant-language';
+
 /**
  * Checks that every amount in a generated answer appears in the sources the
  * model was given. An amount that is not there was either invented or
@@ -46,9 +48,16 @@ export function unsupportedAmounts(answer: string, sources: string) {
   ];
 }
 
-export function amountWarning(unsupported: string[]) {
+export function amountWarning(
+  unsupported: string[],
+  language: AnswerLanguage = 'fr',
+) {
   if (!unsupported.length) return '';
-  return `\n\n⚠️ Montant${unsupported.length > 1 ? 's' : ''} non retrouvé${unsupported.length > 1 ? 's' : ''} tel${unsupported.length > 1 ? 's' : ''} quel${unsupported.length > 1 ? 's' : ''} dans les sources : ${unsupported.slice(0, 5).join(', ')}. Il peut s’agir d’un calcul de l’assistant : vérifiez sur la pièce avant tout usage.`;
+  if (language === 'fr') {
+    const plural = unsupported.length > 1 ? 's' : '';
+    return `\n\n⚠️ Montant${plural} non retrouvé${plural} tel${plural} quel${plural} dans les sources : ${unsupported.slice(0, 5).join(', ')}. Il peut s’agir d’un calcul de l’assistant : vérifiez sur la pièce avant tout usage.`;
+  }
+  return `\n\n${MESSAGES[language].amountWarning(unsupported.slice(0, 5).join(', '))}`;
 }
 
 /**

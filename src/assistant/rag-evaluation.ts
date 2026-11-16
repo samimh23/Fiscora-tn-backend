@@ -108,6 +108,12 @@ const refusalPatterns = [
   /(?:ne|n') ?(?:figure|apparait) pas/,
   /n'(?:est|sont) pas (?:indique|mentionne|disponible|precise|renseigne)/,
   /impossible de (?:repondre|determiner|trouver)/,
+  // English and Arabic refusals.
+  /\bnot (?:available|found|mentioned|provided|included|present)\b/,
+  /\b(?:do|does|did) not (?:contain|mention|include|provide|specify)\b/,
+  /\bno (?:information|data|record|mention|document|invoice)\b/,
+  /\b(?:cannot|can't|unable to)\b/,
+  /لا تتوفر|لا توجد|لا تحتوي|غير متوفر|لا يمكن/,
 ];
 
 /** True when a generated answer declines instead of stating a fact. */

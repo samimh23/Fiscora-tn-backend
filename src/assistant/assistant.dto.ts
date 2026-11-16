@@ -1,5 +1,6 @@
 import {
   IsDateString,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -56,4 +57,16 @@ export class AssistantHistoryQueryDto {
   )
   @IsUUID()
   beforeId?: string;
+}
+
+export class AssistantFeedbackDto {
+  /** 1 = useful, -1 = wrong or unhelpful, 0 = remove my rating. */
+  @IsInt()
+  @IsIn([-1, 0, 1])
+  rating!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  comment?: string;
 }

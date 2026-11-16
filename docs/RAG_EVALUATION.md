@@ -149,3 +149,32 @@ compte de test local.
   cliquables.
 - Gemini 2.5 Flash sans « thinking » pour les réponses sourcées : les jetons de
   réflexion consommaient le budget de sortie et tronquaient les réponses.
+
+## Réponses (phase 3)
+
+- Langue : la langue de la question (français, anglais, arabe) est détectée
+  et imposée à Gemini ; les réponses exactes (listes, décomptes, totaux,
+  avertissements) existent dans les trois langues.
+- Noms de fichiers : « test 5 », « test5.png » ou « achat-2026-01….pdf »
+  ciblent ce document ; un fichier inexistant est signalé avec la liste des
+  documents validés, au lieu d’une supposition.
+- « Quels documents avons-nous ? » liste toutes les pièces validées.
+- Classement exact (« fournisseur le plus cher », « top clients ») et total
+  exact par tiers (« total des achats chez X », « how much did we spend with
+  X »), avoirs déduits ; les questions sur une ligne ou un produit restent à
+  la recherche documentaire.
+- Comparaison de deux mois : aucun filtre de mois n’est appliqué.
+- Avis 👍 / 👎 (et commentaire) enregistrés sur `ai_chat_turns`
+  (`feedback_rating`, `feedback_comment`, `feedback_at_utc`) via
+  `POST /api/organizations/:id/assistant/turns/:turnId/feedback`.
+  Réponses à revoir :
+
+  ```sql
+  SELECT created_at_utc, question, answer, feedback_comment
+  FROM accounting.ai_chat_turns
+  WHERE feedback_rating = -1
+  ORDER BY feedback_at_utc DESC LIMIT 50;
+  ```
+
+Évaluation locale avec les vrais modèles : 138/138 (catégorie « odd » :
+fichiers, anglais, arabe, injection, hors sujet, comparaisons, classements).

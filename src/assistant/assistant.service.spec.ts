@@ -526,6 +526,8 @@ describe('AssistantService live financial integration', () => {
   });
   it('does not answer a supplier-filtered total with an unfiltered dossier sum', async () => {
     const test = setup();
+    // No validated document from MYTEK, so no exact per-supplier total.
+    test.query.mockResolvedValueOnce([]);
     test.routeLiveFinancialQuestion.mockResolvedValueOnce({
       operation: 'NONE',
       partyName: 'MYTEK',
@@ -544,7 +546,8 @@ describe('AssistantService live financial integration', () => {
     expect(result.answer).toContain('totaux filtrés par tiers');
     expect(test.embed).not.toHaveBeenCalled();
     expect(test.liveAnswer).not.toHaveBeenCalled();
-    expect(test.query).toHaveBeenCalledTimes(1);
+    // The documents lookup, then the recorded turn; never a dossier-wide sum.
+    expect(test.query).toHaveBeenCalledTimes(2);
   });
   it('preserves the exact calculator without an AI-routing call for ordinary totals', async () => {
     const test = setup();

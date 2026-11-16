@@ -1,6 +1,7 @@
 import type { ApprovedExtractionForIndex } from './accounting-rag';
 import {
   answerListing,
+  answerPartyTotal,
   detectListingQuestion,
   type ListingQuestion,
   partyKey,
@@ -52,6 +53,11 @@ describe('detectListingQuestion', () => {
       null,
       'LIST',
     ],
+    ['what the availble documents we have', 'DOCUMENTS', null, 'LIST'],
+    ['Quels documents avons-nous ?', 'DOCUMENTS', null, 'LIST'],
+    ['Liste des factures', 'DOCUMENTS', null, 'LIST'],
+    ['كم عدد المزودين؟', 'PARTIES', 'SUPPLIER', 'COUNT'],
+    ['ما هي الوثائق المتوفرة لدينا؟', 'DOCUMENTS', null, 'LIST'],
   ])('reads "%s"', (question, kind, party, operation) => {
     expect(detectListingQuestion(question)).toMatchObject({
       kind,
@@ -65,8 +71,10 @@ describe('detectListingQuestion', () => {
     'Quel est le solde du fournisseur MYTEK ?',
     'who is the supplier',
     'Combien de clients et de fournisseurs ?',
-    'Liste les documents',
     'Combien de factures en mars 2026 ?',
+    'which supplier sold us the phone?',
+    'Quel est le total TTC de la facture FAC-24M03LIV-123325 ?',
+    'what is the date of the invoice?',
   ])('leaves "%s" to the other tools', (question) => {
     expect(detectListingQuestion(question)).toBeNull();
   });
@@ -119,8 +127,8 @@ describe('answerListing', () => {
     );
     expect(result?.answer.split('\n')).toEqual([
       '2 pièce(s) d’achat validée(s) en janvier 2026 :',
-      '- FA-1 — Tunisianet — 2026-01-05 — 119.000 TND TTC [S1]',
-      '- FA-2 — Garage Hamdi — 2026-01-20 — 119.000 TND TTC [S2]',
+      '- FA-1 (fa-1.pdf) — Tunisianet — 2026-01-05 — 119.000 TND TTC [S1]',
+      '- FA-2 (fa-2.pdf) — Garage Hamdi — 2026-01-20 — 119.000 TND TTC [S2]',
     ]);
   });
 
@@ -171,5 +179,81 @@ describe('product help routing', () => {
         open,
       ),
     ).toBe(true);
+  });
+});
+
+describe('listing languages', () => {
+  const rows = [
+    row('a', 'FACTURES_ACHATS', 'Tunisianet', 'Nous', '2026-05-26'),
+  ];
+  it('answers in English and Arabic', () => {
+    const intent = {
+      kind: 'PARTIES' as const,
+      party: 'SUPPLIER' as const,
+      operation: 'COUNT' as const,
+      filters: { year: 2026, month: 5, category: null },
+    };
+    expect(answerListing(rows, intent, 'en')?.answer).toContain(
+      'The validated purchase documents of this client file in May 2026 mention 1 distinct supplier:',
+    );
+    expect(answerListing(rows, intent, 'ar')?.answer).toContain('ماي 2026');
+  });
+});
+
+describe('rankings and per-party totals', () => {
+  const docs = [
+    row('a', 'FACTURES_ACHATS', 'Garage Hamdi Auto'),
+    row('b', 'FACTURES_ACHATS', 'Garage Hamdi Auto', 'Nous', '2026-02-10'),
+    row('c', 'FACTURES_ACHATS', 'STE MYTEK INFORMATIQUE'),
+  ];
+  docs[0].normalized_data.total_incl_tax = '1000.500';
+  docs[1].normalized_data.total_incl_tax = '200.250';
+  docs[2].normalized_data.total_incl_tax = '600.000';
+
+  it('ranks suppliers by total including tax', () => {
+    const intent = detectListingQuestion(
+      'Quel est le fournisseur le plus cher ?',
+    );
+    expect(intent).toMatchObject({ kind: 'RANKING', party: 'SUPPLIER' });
+    const answer = answerListing(docs, intent!, 'fr')!.answer;
+    expect(answer).toContain('1. Garage Hamdi Auto : 1200.750 TND TTC');
+    expect(answer).toContain('2. STE MYTEK INFORMATIQUE : 600.000 TND TTC');
+  });
+
+  it('totals one supplier exactly, in the question language', () => {
+    const fr = answerPartyTotal(
+      docs,
+      'Montant total des achats chez Garage Hamdi ?',
+    )!.answer;
+    expect(fr).toContain('Total des achats chez Garage Hamdi Auto');
+    expect(fr).toContain('Total : 1200.750 TND TTC');
+    const en = answerPartyTotal(
+      docs,
+      'how much did we spend with mytek?',
+      'en',
+    )!.answer;
+    expect(en).toContain('Total purchases from STE MYTEK INFORMATIQUE');
+    expect(en).toContain('Total: 600.000 TND incl. tax');
+  });
+
+  it('leaves product-line questions to the document search', () => {
+    expect(
+      answerPartyTotal(
+        docs,
+        'Quelle quantité de « Pneus » a été achetée chez Garage Hamdi, et quel est le total de cette ligne ?',
+      ),
+    ).toBeNull();
+    expect(
+      answerPartyTotal(docs, 'unit price of tyres from Garage Hamdi'),
+    ).toBeNull();
+  });
+
+  it('stays out of the way when no known party is named', () => {
+    expect(
+      answerPartyTotal(docs, 'Montant total des achats chez Inconnu SARL ?'),
+    ).toBeNull();
+    expect(
+      answerPartyTotal(docs, 'Quel est le total TTC pour 2026 ?'),
+    ).toBeNull();
   });
 });

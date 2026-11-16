@@ -198,4 +198,68 @@ describe('AssistantService document retrieval', () => {
       'c1',
     ]);
   });
+
+  it('reads the file the user names and answers in their language', async () => {
+    const t = setup();
+    t.query
+      .mockResolvedValueOnce([
+        { id: 'doc-5', original_name: 'test5.png' },
+        { id: 'doc-2', original_name: 'test2.jpg' },
+      ])
+      .mockResolvedValueOnce([chunk('c1', 'doc-5')])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'turn' }]);
+    await t.service.ask('org', 'dossier', 'user', 'how much vat for test 5');
+    // The search is pinned to that document.
+    expect(t.query.mock.calls[1][1][4]).toBe('doc-5');
+    expect(t.answer).toHaveBeenCalledWith(
+      expect.stringContaining('Document concerné : test5.png'),
+      expect.any(String),
+      undefined,
+      'en',
+    );
+  });
+
+  it('says so when the named file does not exist instead of guessing', async () => {
+    const t = setup();
+    t.query
+      .mockResolvedValueOnce([
+        { id: 'doc-5', original_name: 'test5.png' },
+        { id: 'doc-2', original_name: 'test2.jpg' },
+      ])
+      .mockResolvedValueOnce([{ id: 'turn' }]);
+    const result = await t.service.ask(
+      'org',
+      'dossier',
+      'user',
+      'how much vat for test 1',
+    );
+    expect(result).toMatchObject({ scope: 'CLARIFICATION' });
+    expect(result.answer).toContain('No validated document named "test 1"');
+    expect(result.answer).toContain('test5.png');
+    expect(t.embed).not.toHaveBeenCalled();
+  });
+
+  it('stores feedback only on the user’s own answer', async () => {
+    const t = setup();
+    t.query.mockResolvedValueOnce([{ id: 'turn-1' }]);
+    await expect(
+      t.service.rateTurn('org', 'user', 'turn-1', -1, ' wrong VAT '),
+    ).resolves.toEqual({
+      id: 'turn-1',
+      feedback: { rating: -1, comment: 'wrong VAT' },
+    });
+    expect(t.query.mock.calls[0][0]).toContain('AND user_id = $3');
+    expect(t.query.mock.calls[0][1]).toEqual([
+      'turn-1',
+      'org',
+      'user',
+      -1,
+      'wrong VAT',
+    ]);
+    t.query.mockResolvedValueOnce([]);
+    await expect(
+      t.service.rateTurn('org', 'other-user', 'turn-1', 1),
+    ).rejects.toThrow('Réponse introuvable');
+  });
 });

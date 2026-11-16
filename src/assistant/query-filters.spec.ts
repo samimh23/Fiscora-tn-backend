@@ -27,6 +27,13 @@ describe('analyzeQuestion', () => {
     ).toBeNull();
   });
 
+  it('drops the month filter when two months are compared', () => {
+    expect(
+      analyzeQuestion('Compare the electricity bills of January and April 2026')
+        .filters,
+    ).toMatchObject({ year: 2026, month: null });
+  });
+
   it('does not read a month inside another word', () => {
     expect(
       analyzeQuestion('Route de la Marsa, Tunis').filters.month,
