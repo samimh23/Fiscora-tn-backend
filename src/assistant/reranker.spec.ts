@@ -96,4 +96,10 @@ describe('diversify', () => {
       0, 1, 2, 3,
     ]);
   });
+
+  it('lets the best-ranked document keep more passages', () => {
+    expect(
+      diversify(rows('aaaaabbbbc'), 8, 2, 4).map((row) => row.index),
+    ).toEqual([0, 1, 2, 3, 4, 5, 6, 9]);
+  });
 });

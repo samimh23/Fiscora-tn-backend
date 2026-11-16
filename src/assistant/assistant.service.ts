@@ -47,6 +47,12 @@ import {
   type RetrievalFilters,
 } from './query-filters';
 import { AssistantReranker, diversify } from './reranker';
+import { answerListing, detectListingQuestion } from './party-question';
+import {
+  amountWarning,
+  normalizeCitations,
+  unsupportedAmounts,
+} from './answer-verification';
 import {
   uniqueFinancialDocuments,
   type InvoiceIdentity,
@@ -73,6 +79,10 @@ const CONTEXT_CHUNKS = 8;
 const CANDIDATE_POOL = 30;
 /** Most chunks one document may take in the context, unless it was pinned. */
 const CHUNKS_PER_DOCUMENT = 3;
+/** The best-matching document keeps more passages (a whole invoice). */
+const BEST_DOCUMENT_CHUNKS = 5;
+/** Passages read when one document clearly answers the question. */
+const WHOLE_DOCUMENT_CHUNKS = 6;
 
 interface ExistingChunkRow {
   source_id: string;
@@ -200,7 +210,11 @@ export class AssistantService {
       );
     }
     const helpMatches = findProductHelp(question, currentPath, permissions);
-    if (isProductHelpQuestion(question, helpMatches)) {
+    if (
+      isProductHelpQuestion(question, helpMatches, {
+        dossierSelected: Boolean(dossierId),
+      })
+    ) {
       return this.answerProductHelp(
         question,
         currentPath,
@@ -647,6 +661,43 @@ export class AssistantService {
         };
       }
     }
+    const listingIntent = sourceId ? null : detectListingQuestion(question);
+    if (listingIntent) {
+      const aggregation = answerListing(
+        await this.approvedExtractions(organizationId, dossierId),
+        listingIntent,
+      );
+      if (aggregation) {
+        const citations: Citation[] = aggregation.rows.map((row, index) => ({
+          label: `S${index + 1}`,
+          chunkId: `deterministic:DOCUMENT:${row.document_id}`,
+          sourceId: row.document_id,
+          sourceName: row.original_name,
+          pageNumber: null,
+          kind: 'DOCUMENT',
+          path: `/documents?dossierId=${encodeURIComponent(dossierId)}&documentId=${encodeURIComponent(row.document_id)}`,
+        }));
+        const model = 'deterministic-listing-v1';
+        const id = await this.recordTurn(
+          organizationId,
+          dossierId,
+          userId,
+          originalQuestion,
+          aggregation.answer,
+          citations,
+          model,
+          null,
+          requestedAt,
+        );
+        return {
+          id,
+          answer: aggregation.answer,
+          citations,
+          model,
+          scope: 'ACCOUNTING_CALCULATION',
+        };
+      }
+    }
     const clarificationContext = isLiveFinancialFollowUp(question)
       ? await this.recentConversationContext(
           organizationId,
@@ -835,7 +886,10 @@ export class AssistantService {
         'Les sources validées ne permettent pas de répondre avec suffisamment de confiance.',
       );
     }
-    const chunks = await this.selectContext(retrievalText, pool, !!sourceId);
+    const chunks = await this.selectContext(retrievalText, pool, !!sourceId, {
+      organizationId,
+      dossierId,
+    });
     const citations: Citation[] = chunks.map((chunk, index) => {
       const pages = sourcePages(
         chunk.metadata ?? {},
@@ -871,12 +925,15 @@ export class AssistantService {
       context,
       conversationContext,
     );
+    // Every amount stated must exist in the passages the model was given.
+    const text = normalizeCitations(result.text);
+    const answer = text + amountWarning(unsupportedAmounts(text, context));
     const id = await this.recordTurn(
       organizationId,
       dossierId,
       userId,
       originalQuestion,
-      result.text,
+      answer,
       citations,
       result.model,
       result.usage,
@@ -884,7 +941,7 @@ export class AssistantService {
     );
     return {
       id,
-      answer: result.text,
+      answer,
       citations,
       model: result.model,
       scope: 'DOCUMENT',
@@ -982,7 +1039,10 @@ export class AssistantService {
 
   private answerScope(model: string) {
     if (model === 'live-financial-readonly-v1') return 'LIVE_FINANCIAL';
-    if (model === 'deterministic-accounting-v1')
+    if (
+      model === 'deterministic-accounting-v1' ||
+      model === 'deterministic-listing-v1'
+    )
       return 'ACCOUNTING_CALCULATION';
     if (model === 'clarification-v1') return 'CLARIFICATION';
     return 'DOCUMENT';
@@ -1292,6 +1352,7 @@ export class AssistantService {
     retrievalText: string,
     pool: KnowledgeChunkRow[],
     pinnedToOneDocument: boolean,
+    dossier?: { organizationId: string; dossierId: string },
   ) {
     let ordered = pool;
     const scores = this.reranker
@@ -1324,10 +1385,70 @@ export class AssistantService {
       // Chunks the ranker did not return keep their hybrid order at the end.
       ordered = [...reranked, ...pool.filter((chunk) => !seen.has(chunk.id))];
     }
+    if (!pinnedToOneDocument && ordered.length > 1 && dossier) {
+      // When one document dominates the top results, the answer is usually
+      // somewhere in that document: read all of it (an invoice is 3-6
+      // passages) instead of only the passages that happened to rank well.
+      const best = ordered[0].source_id;
+      const dominant =
+        ordered.slice(0, 3).filter((chunk) => chunk.source_id === best)
+          .length >= 2;
+      if (dominant) {
+        const whole = await this.documentChunks(
+          dossier.organizationId,
+          dossier.dossierId,
+          best,
+        );
+        if (whole.length) {
+          const wholeIds = new Set(whole.map((chunk) => chunk.id));
+          const others = ordered.filter(
+            (chunk) => chunk.source_id !== best && !wholeIds.has(chunk.id),
+          );
+          return [
+            ...whole,
+            ...diversify(
+              others,
+              Math.max(0, CONTEXT_CHUNKS - whole.length),
+              CHUNKS_PER_DOCUMENT,
+            ),
+          ];
+        }
+      }
+    }
     return diversify(
       ordered,
       CONTEXT_CHUNKS,
       pinnedToOneDocument ? CONTEXT_CHUNKS : CHUNKS_PER_DOCUMENT,
+      pinnedToOneDocument ? CONTEXT_CHUNKS : BEST_DOCUMENT_CHUNKS,
+    );
+  }
+
+  /** Every passage of one approved document, in reading order. */
+  private documentChunks(
+    organizationId: string,
+    dossierId: string,
+    sourceId: string,
+  ) {
+    return this.dataSource.query<KnowledgeChunkRow[]>(
+      `
+        SELECT chunk.id, chunk.source_id, chunk.source_name, chunk.page_number,
+          chunk.content, chunk.metadata,
+          job.normalized_data -> '_evidence' AS evidence,
+          0 AS distance, 0 AS text_score, 0 AS relevance_score
+        FROM accounting.ai_knowledge_chunks chunk
+        INNER JOIN accounting.accounting_documents document
+          ON document.id::text = chunk.source_id
+          AND document.organization_id = chunk.organization_id
+          AND document.dossier_id = chunk.dossier_id
+        INNER JOIN accounting.document_extraction_jobs job ON job.document_id = document.id
+        WHERE chunk.organization_id = $1 AND chunk.dossier_id = $2
+          AND chunk.source_id = $3
+          AND chunk.source_type = 'REVIEWED_EXTRACTION'
+          AND document.deleted_at_utc IS NULL AND job.status = 'VALIDEE'
+        ORDER BY chunk.chunk_index
+        LIMIT $4
+      `,
+      [organizationId, dossierId, sourceId, WHOLE_DOCUMENT_CHUNKS],
     );
   }
 

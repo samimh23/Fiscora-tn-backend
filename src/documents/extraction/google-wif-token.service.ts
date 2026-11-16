@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ManagedIdentityCredential } from '@azure/identity';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const run = promisify(execFile);
 
 @Injectable()
 export class GoogleWifTokenService {
@@ -48,6 +52,21 @@ export class GoogleWifTokenService {
       this.accessTokenCache.expiresAtMs - Date.now() > 120_000
     ) {
       return this.accessTokenCache.token;
+    }
+    if (this.useLocalGcloud()) {
+      // Local development only: reuse the developer's own `gcloud` login so
+      // the real Vertex AI models can be called without Azure managed identity.
+      const { stdout } = await run('gcloud', ['auth', 'print-access-token'], {
+        shell: process.platform === 'win32',
+        timeout: 30_000,
+      });
+      const token = stdout.trim();
+      if (!token) throw new Error('gcloud did not return an access token.');
+      this.accessTokenCache = {
+        token,
+        expiresAtMs: Date.now() + 45 * 60_000,
+      };
+      return token;
     }
     const serviceAccount = this.required('GCP_WIF_SERVICE_ACCOUNT');
     const federatedToken = await this.federatedAccessToken();
@@ -131,6 +150,16 @@ export class GoogleWifTokenService {
     } catch {
       return null;
     }
+  }
+
+  private useLocalGcloud() {
+    if (this.config.get<string>('GCP_LOCAL_GCLOUD_AUTH') !== 'true') {
+      return false;
+    }
+    if (this.config.get<string>('NODE_ENV') === 'production') {
+      throw new Error('GCP_LOCAL_GCLOUD_AUTH is for local development only.');
+    }
+    return true;
   }
 
   private required(name: string) {

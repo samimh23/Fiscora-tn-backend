@@ -872,16 +872,29 @@ export function findProductHelp(
     .slice(0, limit);
 }
 
+/** Wording that clearly asks how to use the app, not what a document says. */
+const HOW_TO =
+  /\b(comment|how (do|can|to|should)|where (do|can|is)|ou (se trouve|trouver|puis|est le|aller|cliquer)|a quoi sert|que dois je faire|quelle page|quel menu|cette page|bouton|cliquer|clic|menu|navig\w*|etapes? (pour|a suivre)|tutoriel|mode d.emploi|utiliser fiscora)\b/;
+
 export function isProductHelpQuestion(
   question: string,
   matches: ProductHelpMatch[],
+  options: { dossierSelected?: boolean } = {},
 ) {
-  const normalized = normalizeHelpText(question);
+  // "How many / how much" ask for data, not for a how-to guide.
+  const normalized = normalizeHelpText(question).replace(
+    /\bhow (many|much)\b/g,
+    ' ',
+  );
+  if (!matches.length) return false;
+  // With a dossier open, "quelle est la date du document X" is about the
+  // dossier's data: only explicit how-to wording goes to the guides.
+  if (options.dossierSelected) return HOW_TO.test(normalized);
   const asksHow =
     /\b(comment|ou|page|menu|bouton|clic|navig|utilis|fiscora|site|workflow|etape|how|where)\b/.test(
       normalized,
     );
-  return Boolean(matches.length && (asksHow || matches[0].score >= 9));
+  return asksHow || matches[0].score >= 9;
 }
 
 export function buildProductHelpContext(matches: ProductHelpMatch[]) {

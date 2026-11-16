@@ -85,6 +85,23 @@ refusées, par HTTP 400 ou par une réponse « les sources ne permettent pas »)
 catégorie). Les montants sont comparés en acceptant l’écriture française
 (`1 190,500`) et les zéros finaux omis (`120.5`, `120`).
 
+## Évaluer en local avec les vrais modèles
+
+Sans identité managée Azure, le backend local peut appeler Vertex AI avec votre
+propre connexion `gcloud` (refusé si `NODE_ENV=production`) :
+
+```powershell
+gcloud auth login
+$env:GCP_LOCAL_GCLOUD_AUTH="true"; $env:AI_ASSISTANT_ENABLED="true"
+$env:GCP_PROJECT_ID="fiscora-ai"; $env:RAG_RERANKER="vertex"
+npm run start:dev
+```
+
+Chargez ensuite le dossier synthétique dans un dossier vide de la base locale
+(`npm run assistant:eval:seed`), attendez l’indexation, puis lancez
+`npm run assistant:eval -- --builtin --out rag-eval-results/local.json` avec un
+compte de test local.
+
 ## Recherche documentaire (phase 1)
 
 - Recherche plein texte en français, sans accents (`search_vector_fr`), où un
@@ -117,3 +134,18 @@ catégorie). Les montants sont comparés en acceptant l’écriture française
 - Ordre de déploiement : autoriser `unaccent,pg_trgm` sur Azure PostgreSQL et
   activer l’API Discovery Engine côté GCP **avant** de déployer ce code, sinon
   la migration échoue au démarrage.
+
+## Réponses (phase 2)
+
+- Avec un dossier ouvert, seules les questions explicitement « comment faire »
+  (comment, où se trouve, à quoi sert cette page, bouton, menu…) vont aux
+  guides Fiscora ; « quelle est la date du document X » interroge le dossier.
+- « Combien de fournisseurs / liste des clients » : décompte exact sur toutes
+  les pièces validées (fournisseurs = achats, clients = ventes), noms
+  regroupés malgré les variantes (« S.A.R.L. », majuscules).
+- Les montants de chaque réponse générée sont comparés aux extraits fournis ;
+  un montant absent est signalé (« Montant non retrouvé tel quel… »).
+- Citations normalisées : « [S1, S2] » devient « [S1] [S2] » pour rester
+  cliquables.
+- Gemini 2.5 Flash sans « thinking » pour les réponses sourcées : les jetons de
+  réflexion consommaient le budget de sortie et tronquaient les réponses.

@@ -189,13 +189,29 @@ const typoQueries: Array<[string, (invoice: EvalInvoice) => boolean, string]> =
     ],
   ];
 
+const PRODUCT_WORDS: Record<string, string> = {
+  'FIB-100': 'fibre',
+  'TON-85A': 'toner',
+  'PN-20555': 'pneu',
+  'PLQ-AV': 'plaquette',
+  'VID-FLT': 'vidange',
+  'ELEC-BT': 'electricit',
+  'PAP-A4': 'ramette',
+  'TR-SFX-TUN': 'transport',
+  'CH-ERG': 'chaise',
+  'ARM-2P': 'armoire',
+  'MAN-PAL': 'manutention',
+  'ENV-C4': 'enveloppe',
+};
+
 function typoCases(): RagEvaluationCase[] {
   return typoQueries.map(([query, match, reference]) => {
     const matching = EVAL_INVOICES.filter(match);
     return doc(`fuzzy-${reference}`, {
       category: 'typo_and_wording',
       question: `prix unitaire ${query} ?`,
-      expectedTerms: [reference],
+      // The answer must name the product; the internal code is optional.
+      expectedTerms: [[reference, PRODUCT_WORDS[reference] ?? reference]],
       anyOfSourceNames: matching.map((invoice) => invoice.fileName),
     });
   });
@@ -257,12 +273,16 @@ function multiDocument(): RagEvaluationCase[] {
     return [
       doc(`multi-sales-${month}`, {
         category: 'multi_document',
+        // Lists come from every approved document, not from 8 passages.
+        expectedScope: 'ACCOUNTING_CALCULATION',
         question: `Quelles ventes ont été émises en ${monthName} ${EVAL_YEAR} et à quels clients ?`,
         expectedTerms: sales.map((invoice) => invoice.party.name),
         expectedSourceNames: sales.map((invoice) => invoice.fileName),
       }),
       doc(`multi-purchases-${month}`, {
         category: 'multi_document',
+        // Lists come from every approved document, not from 8 passages.
+        expectedScope: 'ACCOUNTING_CALCULATION',
         question: `Liste les documents d’achat de ${monthName} ${EVAL_YEAR} avec leur numéro.`,
         expectedTerms: purchases.map((invoice) => invoice.number),
         expectedSourceNames: purchases.map((invoice) => invoice.fileName),
@@ -316,8 +336,40 @@ function refusals(): RagEvaluationCase[] {
   }));
 }
 
+/** Counting and listing need every document, not the top passages. */
+function partyCountCases(): RagEvaluationCase[] {
+  const suppliers = [...new Set(purchases.map((item) => item.party.name))];
+  const customers = [
+    ...new Set(
+      invoices
+        .filter((item) => item.kind === 'sale')
+        .map((item) => item.party.name),
+    ),
+  ];
+  const exact = (id: string, question: string, names: string[]) => ({
+    id,
+    category: 'counting',
+    question,
+    expectedScope: 'ACCOUNTING_CALCULATION',
+    requireCitations: true,
+    requireInlineCitations: true,
+    expectedNumbers: [String(names.length)],
+    expectedTerms: names,
+  });
+  return [
+    exact(
+      'count-suppliers-fr',
+      'Combien de fournisseurs avons-nous ?',
+      suppliers,
+    ),
+    exact('count-suppliers-en', 'how many suplier we have', suppliers),
+    exact('list-customers-fr', 'Liste des clients du dossier', customers),
+  ];
+}
+
 export function buildEvaluationCases(): RagEvaluationCase[] {
   return [
+    ...partyCountCases(),
     ...referenceDates(),
     ...referenceTotals(),
     ...creditNoteCases(),

@@ -77,7 +77,7 @@ describe('AssistantService document retrieval', () => {
       'org',
       'dossier',
       'user',
-      'Quelles ventes ont été émises en février 2026 ?',
+      'Quelle remise sur les ventes de février 2026 ?',
     );
     expect(t.query.mock.calls[0][1].slice(7, 10)).toEqual([
       2026,
@@ -161,6 +161,41 @@ describe('AssistantService document retrieval', () => {
     expect(result.citations.map((citation) => citation.chunkId)).toEqual([
       'a1',
       'b1',
+    ]);
+  });
+
+  it('reads the whole document when it dominates the top results', async () => {
+    const t = setup();
+    t.query
+      .mockResolvedValueOnce([
+        chunk('a1', 'doc-a'),
+        chunk('a2', 'doc-a'),
+        chunk('b1', 'doc-b'),
+        chunk('c1', 'doc-c'),
+      ])
+      .mockResolvedValueOnce([
+        chunk('a1', 'doc-a'),
+        chunk('a2', 'doc-a'),
+        chunk('a3', 'doc-a'),
+        chunk('a4', 'doc-a'),
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'turn' }]);
+    const result = await t.service.ask(
+      'org',
+      'dossier',
+      'user',
+      'Pourquoi cet avoir a-t-il été émis ?',
+    );
+    expect(t.query.mock.calls[1][0]).toContain('ORDER BY chunk.chunk_index');
+    expect(t.query.mock.calls[1][1]).toEqual(['org', 'dossier', 'doc-a', 6]);
+    expect(result.citations.map((citation) => citation.chunkId)).toEqual([
+      'a1',
+      'a2',
+      'a3',
+      'a4',
+      'b1',
+      'c1',
     ]);
   });
 });

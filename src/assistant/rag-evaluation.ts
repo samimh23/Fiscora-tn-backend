@@ -100,11 +100,11 @@ function containsNumber(answer: string, value: string) {
 }
 
 const refusalPatterns = [
-  /ne permettent pas/,
+  /ne (?:permettent|couvrent) pas/,
   /ne (?:contiennent|mentionnent|precisent|fournissent|comportent) (?:pas|aucun)/,
   /aucune? (?:information|source|donnee|mention|document|piece|element)/,
   /pas d'(?:information|element|indication)/,
-  /je ne (?:trouve|dispose|peux pas (?:repondre|determiner|confirmer))/,
+  /je ne (?:trouve|dispose|peux pas)/,
   /(?:ne|n') ?(?:figure|apparait) pas/,
   /n'(?:est|sont) pas (?:indique|mentionne|disponible|precise|renseigne)/,
   /impossible de (?:repondre|determiner|trouver)/,

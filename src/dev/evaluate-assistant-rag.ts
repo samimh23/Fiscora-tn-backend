@@ -50,7 +50,10 @@ async function main() {
   const answers: Record<string, RagEvaluationAnswer> = {};
   for (const testCase of cases) {
     const conversationStartedAt = new Date().toISOString();
-    const ask = async (question: string): Promise<RagEvaluationAnswer> => {
+    const ask = async (
+      question: string,
+      attempt = 0,
+    ): Promise<RagEvaluationAnswer> => {
       const startedAt = performance.now();
       const response = await fetch(
         `${apiUrl}/api/organizations/${organizationId}/assistant/ask`,
@@ -68,6 +71,12 @@ async function main() {
       if (response.status === 400) {
         const body = await response.text();
         return { answer: body, citations: [], refused: true, latencyMs };
+      }
+      // A model quota burst is not an answer: wait and ask again.
+      if (response.status === 503 && attempt < 3) {
+        await response.text();
+        await new Promise((resolve) => setTimeout(resolve, 15_000));
+        return ask(question, attempt + 1);
       }
       if (!response.ok) {
         throw new Error(

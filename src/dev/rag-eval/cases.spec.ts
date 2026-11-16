@@ -34,7 +34,10 @@ describe('RAG evaluation dataset', () => {
   });
 
   it('expects only numbers that the indexed chunks really contain', () => {
-    for (const testCase of cases) {
+    // Counts are calculated, not quoted from a document.
+    for (const testCase of cases.filter(
+      (item) => item.expectedScope !== 'ACCOUNTING_CALCULATION',
+    )) {
       const names = [
         ...(testCase.expectedSourceNames ?? []),
         ...(testCase.anyOfSourceNames ?? []),

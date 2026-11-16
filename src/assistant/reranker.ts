@@ -123,14 +123,18 @@ export function diversify<T extends { source_id: string }>(
   ordered: T[],
   limit: number,
   perSource: number,
+  /** The best-ranked document may keep more passages than the others. */
+  firstSourceLimit = perSource,
 ) {
   const selected: T[] = [];
   const skipped: T[] = [];
   const counts = new Map<string, number>();
+  const firstSource = ordered[0]?.source_id;
   for (const item of ordered) {
     if (selected.length >= limit) break;
     const count = counts.get(item.source_id) ?? 0;
-    if (count < perSource) {
+    const cap = item.source_id === firstSource ? firstSourceLimit : perSource;
+    if (count < cap) {
       selected.push(item);
       counts.set(item.source_id, count + 1);
     } else {

@@ -52,6 +52,44 @@ describe('VertexAiClient', () => {
     );
   });
 
+  it('retries once Vertex AI recovers from a quota error', async () => {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+    const answer = new Response(
+      JSON.stringify({
+        candidates: [{ content: { parts: [{ text: 'Réponse [S1]' }] } }],
+      }),
+      { status: 200 },
+    );
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response('RESOURCE_EXHAUSTED', { status: 429 }),
+      )
+      .mockResolvedValueOnce(answer);
+    const pending = client.answer('Quel total ?', '[S1] Facture');
+    await jest.advanceTimersByTimeAsync(2000);
+    await expect(pending).resolves.toMatchObject({ text: 'Réponse [S1]' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    jest.useRealTimers();
+  });
+
+  it('gives up after repeated quota errors and on other errors at once', async () => {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(new Response('RESOURCE_EXHAUSTED', { status: 429 })),
+    );
+    const pending = client.answer('Quel total ?', '[S1] Facture');
+    const assertion = expect(pending).rejects.toThrow('(429)');
+    await jest.advanceTimersByTimeAsync(10_000);
+    await assertion;
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    jest.useRealTimers();
+
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(new Response('denied', { status: 403 }));
+    await expect(client.answer('Q', '[S1] F')).rejects.toThrow('(403)');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('returns the grounded Gemini answer and usage metadata', async () => {
     fetchMock.mockResolvedValue(
       new Response(
