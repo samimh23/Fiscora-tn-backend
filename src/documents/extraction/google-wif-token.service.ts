@@ -28,6 +28,21 @@ export class GoogleWifTokenService {
     if (cached && cached.expiresAtMs - Date.now() > 120_000) {
       return cached.token;
     }
+    if (this.useLocalGcloud()) {
+      // Local development only: Cloud Run accepts the developer's own
+      // identity token when their account may invoke the service.
+      const { stdout } = await run('gcloud', ['auth', 'print-identity-token'], {
+        shell: process.platform === 'win32',
+        timeout: 30_000,
+      });
+      const token = stdout.trim();
+      if (!token) throw new Error('gcloud did not return an identity token.');
+      this.identityTokens.set(targetAudience, {
+        token,
+        expiresAtMs: this.jwtExpiry(token) ?? Date.now() + 45 * 60_000,
+      });
+      return token;
+    }
     const serviceAccount = this.required('GCP_WIF_SERVICE_ACCOUNT');
     const federatedToken = await this.federatedAccessToken();
 
