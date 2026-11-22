@@ -1,6 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleWifTokenService } from './google-wif-token.service';
+import {
+  AiUsageRecorder,
+  type AiFeature,
+} from '../../ai-usage/ai-usage.recorder';
 import type { OcrDocument, OcrToken } from './ocr-evidence-matcher';
 
 @Injectable()
@@ -8,10 +12,52 @@ export class PaddleOcrClientService {
   constructor(
     private readonly config: ConfigService,
     private readonly tokens: GoogleWifTokenService,
+    @Optional() private readonly usage?: AiUsageRecorder,
   ) {}
 
+  private async timed<T>(
+    feature: AiFeature,
+    units: number,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const startedAt = Date.now();
+    try {
+      const result = await run();
+      this.usage?.record({
+        feature,
+        provider: 'paddleocr',
+        model: 'paddleocr',
+        status: 'OK',
+        latencyMs: Date.now() - startedAt,
+        units,
+      });
+      return result;
+    } catch (error) {
+      this.usage?.record({
+        feature,
+        provider: 'paddleocr',
+        model: 'paddleocr',
+        status: 'ERROR',
+        latencyMs: Date.now() - startedAt,
+        units,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
   // Rendering uses PDFium only; no recognized OCR text is passed to NuExtract.
-  async renderPdf(content: Buffer, startPage: number, pageCount: number) {
+  renderPdf(content: Buffer, startPage: number, pageCount: number) {
+    return this.timed('pdf_render', pageCount, () =>
+      this.renderPdfPages(content, startPage, pageCount),
+    );
+  }
+
+  private async renderPdfPages(
+    content: Buffer,
+    startPage: number,
+    pageCount: number,
+  ) {
     const serviceUrl = this.config
       .get<string>('PADDLE_OCR_SERVICE_URL')
       ?.replace(/\/$/, '');
@@ -51,6 +97,16 @@ export class PaddleOcrClientService {
       .get<string>('PADDLE_OCR_SERVICE_URL')
       ?.replace(/\/$/, '');
     if (!serviceUrl) return null;
+    return this.timed('ocr', 1, () =>
+      this.extractText(serviceUrl, content, mimeType),
+    );
+  }
+
+  private async extractText(
+    serviceUrl: string,
+    content: Buffer,
+    mimeType: string,
+  ): Promise<OcrDocument | null> {
     const identityToken = await this.tokens.identityToken(serviceUrl);
     const response = await fetch(`${serviceUrl}/ocr`, {
       method: 'POST',

@@ -1,4 +1,8 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  Optional,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleWifTokenService } from '../documents/extraction/google-wif-token.service';
 import {
@@ -9,6 +13,11 @@ import {
   type LiveFinancialIntent,
 } from './live-financial-intent';
 import { answerLanguageRule, type AnswerLanguage } from './assistant-language';
+import {
+  AiUsageRecorder,
+  vertexTokens,
+  type AiFeature,
+} from '../ai-usage/ai-usage.recorder';
 
 interface VertexEmbeddingResponse {
   predictions?: Array<{ embeddings?: { values?: number[] } }>;
@@ -31,6 +40,7 @@ export class VertexAiClient {
   constructor(
     private readonly config: ConfigService,
     private readonly tokens: GoogleWifTokenService,
+    @Optional() private readonly usage?: AiUsageRecorder,
   ) {}
 
   get chatModel(): string {
@@ -47,6 +57,8 @@ export class VertexAiClient {
       this.config.get<string>('VERTEX_AI_EMBEDDING_MODEL') ??
       'gemini-embedding-001';
     const body = await this.request<VertexEmbeddingResponse>(
+      taskType === 'RETRIEVAL_QUERY' ? 'embedding_query' : 'embedding_document',
+      model,
       `${this.modelUrl(model)}:predict`,
       {
         instances: [{ content, task_type: taskType }],
@@ -71,6 +83,8 @@ export class VertexAiClient {
     conversationContext?: string,
   ): Promise<LiveFinancialIntent> {
     const body = await this.request<VertexGenerateResponse>(
+      'assistant_route',
+      this.chatModel,
       `${this.modelUrl(this.chatModel)}:generateContent`,
       {
         systemInstruction: {
@@ -118,6 +132,8 @@ export class VertexAiClient {
     language: AnswerLanguage = 'fr',
   ): Promise<VertexAnswer> {
     const body = await this.request<VertexGenerateResponse>(
+      'assistant_answer',
+      this.chatModel,
       `${this.modelUrl(this.chatModel)}:generateContent`,
       {
         systemInstruction: {
@@ -169,6 +185,8 @@ export class VertexAiClient {
     language: AnswerLanguage = 'fr',
   ): Promise<VertexAnswer> {
     const body = await this.request<VertexGenerateResponse>(
+      'product_help',
+      this.chatModel,
       `${this.modelUrl(this.chatModel)}:generateContent`,
       {
         systemInstruction: {
@@ -226,24 +244,58 @@ export class VertexAiClient {
     return `${host}/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}`;
   }
 
-  private async request<T>(url: string, payload: unknown): Promise<T> {
+  private async request<T>(
+    feature: AiFeature,
+    model: string,
+    url: string,
+    payload: unknown,
+  ): Promise<T> {
     // Vertex AI answers 429 (quota) or 503 (overloaded) under bursts; a short
     // wait usually succeeds, so retry before showing the user an error.
     const delays = [1000, 3000];
-    for (let attempt = 0; ; attempt += 1) {
-      const token = await this.tokens.accessToken();
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${token}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(
-          Number(this.config.get<string>('VERTEX_AI_TIMEOUT_MS') ?? '60000'),
-        ),
+    const startedAt = Date.now();
+    const record = (
+      status: 'OK' | 'ERROR',
+      retries: number,
+      extra: { httpStatus?: number; body?: unknown; error?: string },
+    ) =>
+      this.usage?.record({
+        feature,
+        provider: 'vertex',
+        model,
+        status,
+        latencyMs: Date.now() - startedAt,
+        retries,
+        httpStatus: extra.httpStatus ?? null,
+        ...(extra.body ? vertexTokens(extra.body) : {}),
+        error: extra.error ?? null,
       });
-      if (response.ok) return (await response.json()) as T;
+    for (let attempt = 0; ; attempt += 1) {
+      let response: Response;
+      try {
+        const token = await this.tokens.accessToken();
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${token}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(
+            Number(this.config.get<string>('VERTEX_AI_TIMEOUT_MS') ?? '60000'),
+          ),
+        });
+      } catch (error) {
+        record('ERROR', attempt, {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
+      if (response.ok) {
+        const body = (await response.json()) as T;
+        record('OK', attempt, { httpStatus: response.status, body });
+        return body;
+      }
       const retryable = response.status === 429 || response.status === 503;
       if (retryable && attempt < delays.length) {
         await response.text();
@@ -253,6 +305,10 @@ export class VertexAiClient {
         continue;
       }
       const detail = (await response.text()).slice(0, 500);
+      record('ERROR', attempt, {
+        httpStatus: response.status,
+        error: detail,
+      });
       throw new ServiceUnavailableException(
         `Vertex AI indisponible (${response.status}): ${detail}`,
       );

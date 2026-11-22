@@ -104,6 +104,8 @@ import { BankStatementSourceDocument1791500000000 } from './database/migrations/
 import { DossierDeletion1791504000000 } from './database/migrations/1791504000000-dossier-deletion';
 import { AssistantFrenchSearch1791600000000 } from './database/migrations/1791600000000-assistant-french-search';
 import { AssistantAnswerFeedback1791700000000 } from './database/migrations/1791700000000-assistant-answer-feedback';
+import { AiUsageEvents1791800000000 } from './database/migrations/1791800000000-ai-usage-events';
+import { AiUsageModule } from './ai-usage/ai-usage.module';
 import { TrainingDatasetsModule } from './training-datasets/training-datasets.module';
 
 @Module({
@@ -191,6 +193,7 @@ import { TrainingDatasetsModule } from './training-datasets/training-datasets.mo
           DossierDeletion1791504000000,
           AssistantFrenchSearch1791600000000,
           AssistantAnswerFeedback1791700000000,
+          AiUsageEvents1791800000000,
         ],
         migrationsRun: config.get('DB_MIGRATIONS_RUN', 'false') === 'true',
         synchronize: false,
@@ -202,6 +205,7 @@ import { TrainingDatasetsModule } from './training-datasets/training-datasets.mo
     }),
     ScheduleModule.forRoot(),
     MetricsModule,
+    AiUsageModule,
     AuthModule,
     OrganizationsModule,
     AccountingModule,

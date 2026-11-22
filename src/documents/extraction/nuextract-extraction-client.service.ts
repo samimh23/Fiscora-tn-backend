@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type {
   DocumentExtractionClient,
@@ -6,6 +6,7 @@ import type {
   FinancialDocumentKind,
 } from './document-extraction-client';
 import { GoogleWifTokenService } from './google-wif-token.service';
+import { AiUsageRecorder } from '../../ai-usage/ai-usage.recorder';
 import type { OcrDocument, OcrToken } from './ocr-evidence-matcher';
 import {
   mergeExtractionBatches,
@@ -104,6 +105,7 @@ export class NuExtractExtractionClientService implements DocumentExtractionClien
   constructor(
     private readonly config: ConfigService,
     private readonly tokens: GoogleWifTokenService,
+    @Optional() private readonly usage?: AiUsageRecorder,
   ) {
     this.modelName = this.config.get('NUEXTRACT_MODEL', 'numind/NuExtract3');
   }
@@ -225,8 +227,34 @@ export class NuExtractExtractionClientService implements DocumentExtractionClien
     template: Record<string, unknown>,
   ): Promise<ExtractionClientResult> {
     await this.acquireRequestSlot();
+    const startedAt = Date.now();
+    const pages = countImages(messages);
     try {
-      return await this.sendCompletion(messages, template);
+      const result = await this.sendCompletion(messages, template);
+      const usage = (result.rawResponse as { usage?: Record<string, unknown> })
+        ?.usage;
+      this.usage?.record({
+        feature: 'extraction',
+        provider: 'nuextract',
+        model: this.modelName,
+        status: 'OK',
+        latencyMs: Date.now() - startedAt,
+        inputTokens: Number(usage?.prompt_tokens ?? 0),
+        outputTokens: Number(usage?.completion_tokens ?? 0),
+        units: pages,
+      });
+      return result;
+    } catch (error) {
+      this.usage?.record({
+        feature: 'extraction',
+        provider: 'nuextract',
+        model: this.modelName,
+        status: 'ERROR',
+        latencyMs: Date.now() - startedAt,
+        units: pages,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     } finally {
       this.releaseRequestSlot();
     }
@@ -418,4 +446,21 @@ function safeIssueValue(value: unknown, fallback: string) {
   if (typeof value === 'number' || typeof value === 'boolean')
     return value.toString();
   return fallback;
+}
+
+/** Number of page images sent in one extraction request. */
+function countImages(messages: Array<Record<string, unknown>>) {
+  return messages.reduce((total, message) => {
+    const content = message.content;
+    if (!Array.isArray(content)) return total;
+    return (
+      total +
+      content.filter(
+        (part) =>
+          typeof part === 'object' &&
+          part !== null &&
+          (part as { type?: unknown }).type === 'image_url',
+      ).length
+    );
+  }, 0);
 }

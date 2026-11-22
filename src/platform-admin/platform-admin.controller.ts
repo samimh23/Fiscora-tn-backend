@@ -6,6 +6,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -19,13 +20,19 @@ import {
   UpdatePlatformStatusDto,
 } from './dto';
 import { PlatformAdminService } from './platform-admin.service';
+import { AiMonitoringService } from './ai-monitoring.service';
+import { CloudCostsService } from './cloud-costs.service';
 
 @ApiTags('Administration de la plateforme')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), PlatformAdminGuard)
 @Controller('api/platform-admin')
 export class PlatformAdminController {
-  constructor(private readonly service: PlatformAdminService) {}
+  constructor(
+    private readonly service: PlatformAdminService,
+    private readonly aiMonitoring: AiMonitoringService,
+    private readonly cloudCosts: CloudCostsService,
+  ) {}
 
   @Get('overview')
   overview() {
@@ -77,6 +84,25 @@ export class PlatformAdminController {
   @Get('monitoring')
   monitoring() {
     return this.service.monitoring();
+  }
+
+  @Get('ai-usage')
+  aiUsage(@Query('days') days?: string) {
+    return this.aiMonitoring.usage(Number(days ?? 30));
+  }
+
+  @Get('assistant-feedback')
+  assistantFeedback(
+    @Query('rating') rating?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const value = rating === 'up' || rating === 'all' ? rating : 'down';
+    return this.aiMonitoring.feedback(value, Number(limit ?? 50));
+  }
+
+  @Get('cloud-costs')
+  cloudCostReport(@Query('refresh') refresh?: string) {
+    return this.cloudCosts.report(refresh === 'true');
   }
 
   @Get('email/status')

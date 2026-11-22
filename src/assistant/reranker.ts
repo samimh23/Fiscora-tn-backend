@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleWifTokenService } from '../documents/extraction/google-wif-token.service';
+import { AiUsageRecorder } from '../ai-usage/ai-usage.recorder';
 
 export interface RerankCandidate {
   id: string;
@@ -30,6 +31,7 @@ export class AssistantReranker {
   constructor(
     private readonly config: ConfigService,
     private readonly tokens: GoogleWifTokenService,
+    @Optional() private readonly usage?: AiUsageRecorder,
   ) {}
 
   get enabled() {
@@ -59,6 +61,22 @@ export class AssistantReranker {
       this.config.get<string>('RAG_RERANK_TIMEOUT_MS') ?? '2500',
     );
     const startedAt = Date.now();
+    const records = Math.min(candidates.length, 200);
+    const record = (
+      status: 'OK' | 'FALLBACK',
+      httpStatus: number | null,
+      error: string | null,
+    ) =>
+      this.usage?.record({
+        feature: 'rerank',
+        provider: 'ranking',
+        model,
+        status,
+        latencyMs: Date.now() - startedAt,
+        httpStatus,
+        units: records,
+        error,
+      });
     try {
       const token = await this.tokens.accessToken();
       const response = await fetch(
@@ -87,8 +105,10 @@ export class AssistantReranker {
         },
       );
       if (!response.ok) {
+        const detail = (await response.text()).slice(0, 200);
+        record('FALLBACK', response.status, detail);
         this.logger.warn(
-          `Vertex ranking returned ${response.status}; keeping hybrid order. ${(await response.text()).slice(0, 200)}`,
+          `Vertex ranking returned ${response.status}; keeping hybrid order. ${detail}`,
         );
         return null;
       }
@@ -101,11 +121,17 @@ export class AssistantReranker {
         )
         .map((record) => ({ id: record.id, score: Number(record.score ?? 0) }))
         .sort((left, right) => right.score - left.score);
+      record('OK', response.status, null);
       this.logger.debug(
         `Vertex ranking scored ${scores.length} chunks in ${Date.now() - startedAt} ms.`,
       );
       return scores.length ? scores : null;
     } catch (error) {
+      record(
+        'FALLBACK',
+        null,
+        error instanceof Error ? error.message : String(error),
+      );
       this.logger.warn(
         `Vertex ranking unavailable after ${Date.now() - startedAt} ms; keeping hybrid order. ${error instanceof Error ? error.message : String(error)}`,
       );
