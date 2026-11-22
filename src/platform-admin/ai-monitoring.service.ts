@@ -17,7 +17,7 @@ export class AiMonitoringService {
 
   async usage(days: number) {
     const window = Math.min(Math.max(Math.trunc(days) || 30, 1), 90);
-    const [features, daily, answers, weeklyFeedback, organizations] =
+    const [features, daily, answers, weeklyFeedback, organizations, since] =
       await Promise.all([
         this.dataSource.query<Row[]>(
           `SELECT "feature", "provider",
@@ -79,6 +79,9 @@ export class AiMonitoringService {
            GROUP BY o."name" ORDER BY COUNT(*) DESC LIMIT 10`,
           [window],
         ),
+        this.dataSource.query<Row[]>(
+          `SELECT MIN("created_at_utc") AS "since" FROM "accounting"."ai_usage_events"`,
+        ),
       ]);
     const totals = features.reduce<{
       calls: number;
@@ -95,6 +98,7 @@ export class AiMonitoringService {
     const quality = answers[0] ?? {};
     return {
       days: window,
+      trackingSinceUtc: iso(since[0]?.since),
       totals: { ...totals, costUsd: round(totals.costUsd, 4) },
       features: features.map((row) => ({
         feature: String(row.feature),
