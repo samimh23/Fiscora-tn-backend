@@ -56,6 +56,12 @@ interface PaymentRow {
 export interface LiveFinancialAnswer {
   answer: string;
   citations: Citation[];
+  /**
+   * The invoice number exists in no business invoice: the caller should
+   * search the validated documents instead (an uploaded invoice that was
+   * read and approved but never recorded as a business invoice).
+   */
+  searchDocuments?: boolean;
 }
 
 const nameKey = (text: string) =>
@@ -310,11 +316,16 @@ export class LiveFinancialService {
       ORDER BY i.id LIMIT 3`,
       [organizationId, dossierId, intent.invoiceNumber, intent.partyType],
     );
+    if (!invoices.length)
+      return {
+        ...this.clarify(
+          'Aucune facture métier ne correspond à ce numéro dans ce dossier. Un fichier seul n’est pas nécessairement une facture métier.',
+        ),
+        searchDocuments: true,
+      };
     if (invoices.length !== 1)
       return this.clarify(
-        invoices.length
-          ? 'Ce numéro correspond à plusieurs factures/avoirs. Précisez achat ou vente, ou utilisez une référence unique.'
-          : 'Aucune facture métier ne correspond à ce numéro dans ce dossier. Un fichier seul n’est pas nécessairement une facture métier.',
+        'Ce numéro correspond à plusieurs factures/avoirs. Précisez achat ou vente, ou utilisez une référence unique.',
       );
     const invoice = invoices[0];
     const [payments, credits] = await Promise.all([

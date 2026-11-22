@@ -105,7 +105,9 @@ export function namesDocumentReference(question: string) {
 }
 
 function isReference(code: string) {
-  return /^\p{L}{1,10}[-/_.]?\d/u.test(code) && /[-/_.]/.test(code);
+  // One to three letter groups before the digits: FV-2026-013, A-CEQ-2607-014,
+  // AV-MD-2609-001.
+  return /^(?:\p{L}{1,10}[-/_.]?){1,3}\d/u.test(code) && /[-/_.]/.test(code);
 }
 
 export function analyzeQuestion(question: string): QueryAnalysis {

@@ -375,6 +375,16 @@ describe('LiveFinancialService invoice/payment details', () => {
       expect(test.query).toHaveBeenCalledTimes(1);
     },
   );
+  it('sends an unknown invoice number back to the document search', async () => {
+    const test = setup();
+    test.query.mockResolvedValueOnce([]);
+    const result = await test.ask({
+      operation: 'INVOICE_DETAILS',
+      invoiceNumber: 'V-MD-2608-003',
+    });
+    expect(result.searchDocuments).toBe(true);
+    expect(result.citations).toEqual([]);
+  });
   it('requires an explicit invoice number or payment reference', async () => {
     const test = setup();
     expect((await test.ask({ operation: 'INVOICE_DETAILS' })).answer).toContain(

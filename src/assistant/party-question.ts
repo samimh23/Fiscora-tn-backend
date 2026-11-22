@@ -275,7 +275,7 @@ export function answerListing(
 }
 
 const RANKING =
-  /\b(plus cher|plus chers|plus chere|plus gros|plus grosse|plus importants?|principaux|principal|top|biggest|largest|most expensive|highest|classement|ranking)\b|الأكبر|الأغلى|الأهم/;
+  /\b(plus cher|plus chers|plus chere|plus gros|plus grosse|plus importants?|principaux|principal|top|biggest|largest|most expensive|highest|classement|ranking|par (?:chaque )?(?:fournisseurs?|clients?)|pour chaque (?:fournisseur|client)|chaque (?:fournisseur|client)|(?:per|by|for each|each) (?:suppliers?|customers?|vendors?))\b|الأكبر|الأغلى|الأهم|لكل (?:مورد|مزود|حريف|عميل)/;
 
 function amount(row: ApprovedExtractionForIndex, field: string) {
   const value = row.normalized_data[field];
@@ -371,7 +371,7 @@ const TOTAL_WORDS =
 
 /** The question points at a counterparty: "chez X", "from X", "fournisseur X". */
 const PARTY_MARKER =
-  /\b(chez|aupres|from|with|avec|fournisseurs?|suppliers?|vendors?|clients?|customers?)\b|من|لدى|مع/;
+  /\b(chez|aupres|from|with|avec|fournisseurs?|suppliers?|vendors?|clients?|customers?|invoiced?|billed?|facture a|factures a)\b|من|لدى|مع/;
 
 /** A product or line question ("quantité de « toner »", "unit price"). */
 const ITEM =

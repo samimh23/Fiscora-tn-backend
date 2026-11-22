@@ -77,5 +77,14 @@ describe('document references', () => {
     expect(namesDocumentReference('Quel est le total TTC pour 2026 ?')).toBe(
       false,
     );
+    // Two letter groups before the digits are still one document.
+    expect(
+      namesDocumentReference(
+        'Quel est le montant TTC de la facture A-CEQ-2607-014 ?',
+      ),
+    ).toBe(true);
+    expect(namesDocumentReference('Pourquoi l’avoir AV-MD-2609-001 ?')).toBe(
+      true,
+    );
   });
 });

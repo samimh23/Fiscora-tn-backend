@@ -42,6 +42,14 @@ describe('detectListingQuestion', () => {
     ['Liste des clients du dossier', 'PARTIES', 'CUSTOMER', 'LIST'],
     ['Quels sont nos fourniseurs ?', 'PARTIES', 'SUPPLIER', 'LIST'],
     [
+      'Quel est le total TTC facturé par chaque fournisseur ?',
+      'RANKING',
+      'SUPPLIER',
+      'LIST',
+    ],
+    ['Total des ventes par client', 'RANKING', 'CUSTOMER', 'LIST'],
+    ['total spent per supplier', 'RANKING', 'SUPPLIER', 'LIST'],
+    [
       'Quelles ventes ont été émises en janvier 2026 et à quels clients ?',
       'DOCUMENTS',
       'CUSTOMER',
@@ -234,6 +242,14 @@ describe('rankings and per-party totals', () => {
     )!.answer;
     expect(en).toContain('Total purchases from STE MYTEK INFORMATIQUE');
     expect(en).toContain('Total: 600.000 TND incl. tax');
+    // "invoice X" / "facturé à X" names the counterparty too.
+    expect(
+      answerPartyTotal(
+        docs,
+        'How much did we get invoiced by Mytek in total?',
+        'en',
+      ),
+    ).not.toBeNull();
   });
 
   it('leaves product-line questions to the document search', () => {

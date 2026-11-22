@@ -842,13 +842,18 @@ export class AssistantService {
           scope: 'CLARIFICATION',
         };
       }
-      if (route.operation !== 'NONE') {
-        const result = await this.liveFinancial.answer(
-          organizationId,
-          dossierId,
-          userId,
-          route,
-        );
+      const result =
+        route.operation === 'NONE'
+          ? null
+          : await this.liveFinancial.answer(
+              organizationId,
+              dossierId,
+              userId,
+              route,
+            );
+      // No business invoice has this number: answer from the validated
+      // documents (the invoice and the bank statement that paid it).
+      if (result && !result.searchDocuments) {
         const model = 'live-financial-readonly-v1';
         const id = await this.recordTurn(
           organizationId,
@@ -865,6 +870,7 @@ export class AssistantService {
       }
       // Never let an unsupported party-filtered total become a dossier-wide sum.
       if (
+        !result?.searchDocuments &&
         detectFinancialQuestion(question) &&
         (route.partyName ||
           route.invoiceNumber ||
