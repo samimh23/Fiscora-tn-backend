@@ -12,6 +12,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { ClosingAdjustmentType } from '../database/entities';
@@ -35,6 +36,7 @@ export class LockPeriodDto {
 
 export class ReopenPeriodDto {
   @IsString()
+  @MinLength(3)
   @MaxLength(1000)
   reason!: string;
 }

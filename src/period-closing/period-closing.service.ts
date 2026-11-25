@@ -189,6 +189,11 @@ export class PeriodClosingService {
     userId: string,
     reason: string,
   ) {
+    // A reopened month must say why: the reason is the audit trail.
+    if (!reason || reason.trim().length < 3)
+      throw new BadRequestException(
+        'Indiquez un motif de réouverture d’au moins 3 caractères.',
+      );
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     return this.dataSource.transaction(async (manager) => {
       const period = await manager.findOne(AccountingPeriod, {

@@ -109,3 +109,26 @@ describe('Controlled annual closure', () => {
     expect(manager.update).not.toHaveBeenCalled();
   });
 });
+
+describe('Period reopening', () => {
+  it.each(['', '  ', 'ok'])(
+    'refuses to reopen a month without a real reason (%p)',
+    async (reason) => {
+      const transaction = jest.fn();
+      const service = new PeriodClosingService(
+        { transaction } as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        { assertDateOpen: jest.fn() } as never,
+      );
+      await expect(
+        service.reopenPeriod('org', 'dossier', 2026, 9, 'user', reason),
+      ).rejects.toThrow('motif de réouverture');
+      expect(transaction).not.toHaveBeenCalled();
+    },
+  );
+});
