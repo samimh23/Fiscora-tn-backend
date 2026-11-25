@@ -24,6 +24,8 @@ import { ClientPortalGateway } from './client-portal.gateway';
 
 @Injectable()
 export class ClientPortalService {
+  static readonly conversationLimit = 500;
+
   constructor(
     @InjectRepository(ClientPortalMessage)
     private readonly messages: Repository<ClientPortalMessage>,
@@ -44,12 +46,15 @@ export class ClientPortalService {
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     const membership = await this.membership(organizationId, userId);
     const isClient = this.isClient(membership.role.normalizedName);
-    const items = await this.messages.find({
+    // Keep the most recent messages when a conversation is long, then show
+    // them oldest first.
+    const latest = await this.messages.find({
       where: { organizationId, dossierId },
       relations: { sender: true },
-      order: { createdAtUtc: 'ASC' },
-      take: 500,
+      order: { createdAtUtc: 'DESC', id: 'DESC' },
+      take: ClientPortalService.conversationLimit,
     });
+    const items = latest.reverse();
     await this.messages
       .createQueryBuilder()
       .update(ClientPortalMessage)
