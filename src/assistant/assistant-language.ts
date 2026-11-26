@@ -22,12 +22,11 @@ const FRENCH = new Set(
   ses leur leurs tva achat achats vente ventes payé paye prix`.split(/\s+/),
 );
 
-export function detectQuestionLanguage(question: string): AnswerLanguage {
-  const letters = question.replace(/[\s\d\p{P}\p{S}]/gu, '');
-  const arabic = (question.match(/\p{Script=Arabic}/gu) ?? []).length;
-  if (letters.length && arabic / letters.length > 0.3) return 'ar';
+function languageScores(text: string) {
+  const letters = text.replace(/[\s\d\p{P}\p{S}]/gu, '');
+  const arabic = (text.match(/\p{Script=Arabic}/gu) ?? []).length;
   const words =
-    question
+    text
       .normalize('NFD')
       .replace(/\p{M}/gu, '')
       .toLowerCase()
@@ -39,8 +38,18 @@ export function detectQuestionLanguage(question: string): AnswerLanguage {
     if (FRENCH.has(word)) french += 1;
   }
   // French accents are a strong signal on their own.
-  if (/[éèêàùçôîû]/i.test(question)) french += 2;
-  return english > french ? 'en' : 'fr';
+  if (/[éèêàùçôîû]/i.test(text)) french += 2;
+  return {
+    arabic: letters.length > 0 && arabic / letters.length > 0.3,
+    english,
+    french,
+  };
+}
+
+export function detectQuestionLanguage(question: string): AnswerLanguage {
+  const scores = languageScores(question);
+  if (scores.arabic) return 'ar';
+  return scores.english > scores.french ? 'en' : 'fr';
 }
 
 const LANGUAGE_NAME: Record<AnswerLanguage, string> = {
@@ -48,6 +57,36 @@ const LANGUAGE_NAME: Record<AnswerLanguage, string> = {
   en: 'anglais (English)',
   ar: 'arabe (العربية)',
 };
+
+/**
+ * Added to the system instruction, in the answer language itself: the
+ * instructions and sources are French, and a short French reminder at the end
+ * of the request was not enough for Gemini to answer in English or Arabic.
+ */
+export function systemLanguageRule(language: AnswerLanguage) {
+  if (language === 'en')
+    return '\n\nANSWER LANGUAGE: ENGLISH. These instructions and the sources are in French, but you must write the entire answer in English, including the reminder that a human review is still required. Keep amounts, dates, numbers and names exactly as they appear in the sources.';
+  if (language === 'ar')
+    return '\n\nلغة الإجابة: العربية. هذه التعليمات والمصادر بالفرنسية، لكن يجب أن تكتب الإجابة كاملة بالعربية، بما في ذلك التذكير بضرورة التحقق البشري. احتفظ بالمبالغ والتواريخ والأرقام والأسماء كما وردت في المصادر.';
+  return '';
+}
+
+/**
+ * True only when a generated answer is clearly in another language. A short
+ * answer such as "Tunis [S1]" has no reliable signal and is not retried.
+ */
+export function answerInWrongLanguage(
+  answer: string,
+  language: AnswerLanguage,
+) {
+  const scores = languageScores(answer.replace(/\[S\d+\]/g, ' '));
+  if (language === 'ar')
+    return !scores.arabic && scores.english + scores.french >= 3;
+  if (scores.arabic) return true;
+  if (language === 'en')
+    return scores.french >= 3 && scores.french > scores.english;
+  return scores.english >= 3 && scores.english > scores.french;
+}
 
 /** Appended to the model request: the answer language is not optional. */
 export function answerLanguageRule(language: AnswerLanguage) {
@@ -76,6 +115,9 @@ type Messages = {
     inPeriod: (month: string | null, year: number | null) => string;
   };
   fileNotFound: (name: string, available: string) => string;
+  followUpWhich: string;
+  invoiceReferenceNeeded: string;
+  invoiceLookupFailed: (reference: string) => string;
   ranking: (
     party: 'SUPPLIER' | 'CUSTOMER',
     count: number,
@@ -185,6 +227,12 @@ export const MESSAGES: Record<AnswerLanguage, Messages> = {
       'Calcul exact sur les pièces validées (avoirs déduits), pas sur les écritures comptables.',
     fileNotFound: (name, available) =>
       `Aucun document nommé « ${name} » n’est validé dans ce dossier.${available ? ` Documents validés : ${available}.` : ''}`,
+    followUpWhich:
+      'De quelle facture ou de quel document parlez-vous ? Indiquez sa référence ou son nom pour éviter de consulter la mauvaise pièce.',
+    invoiceReferenceNeeded:
+      'Pour consulter le solde ou les règlements actuels, indiquez la référence de la facture comptable. Le montant extrait du document ne représente pas nécessairement son solde restant.',
+    invoiceLookupFailed: (reference) =>
+      `Je n’ai pas pu déterminer une consultation fiable de la facture ${reference}. Reformulez la question avec sa référence. Aucun total global ni ancien montant extrait n’est utilisé à la place.`,
   },
   en: {
     humanReview:
@@ -239,6 +287,12 @@ export const MESSAGES: Record<AnswerLanguage, Messages> = {
       'Exact calculation on validated documents (credit notes deducted), not on accounting entries.',
     fileNotFound: (name, available) =>
       `No validated document named "${name}" in this client file.${available ? ` Validated documents: ${available}.` : ''}`,
+    followUpWhich:
+      'Which invoice or document do you mean? Give its reference or name so that the wrong document is not used.',
+    invoiceReferenceNeeded:
+      'To see the current balance or payments, give the reference of the accounting invoice. The amount read from the document is not necessarily its remaining balance.',
+    invoiceLookupFailed: (reference) =>
+      `I could not reliably look up invoice ${reference}. Ask again with its reference. No overall total or earlier extracted amount is used instead.`,
   },
   ar: {
     humanReview: 'يبقى التحقق البشري ضرورياً لأي قرار محاسبي أو جبائي.',
@@ -283,5 +337,11 @@ export const MESSAGES: Record<AnswerLanguage, Messages> = {
       'حساب دقيق على الوثائق المصادق عليها (مع طرح الفواتير التعديلية)، وليس على القيود المحاسبية.',
     fileNotFound: (name, available) =>
       `لا توجد وثيقة مصادق عليها باسم « ${name} » في هذا الملف.${available ? ` الوثائق المصادق عليها: ${available}.` : ''}`,
+    followUpWhich:
+      'عن أي فاتورة أو وثيقة تتحدث؟ اذكر مرجعها أو اسمها حتى لا تُستعمل الوثيقة الخطأ.',
+    invoiceReferenceNeeded:
+      'للاطلاع على الرصيد أو الدفعات الحالية، اذكر مرجع الفاتورة المحاسبية. المبلغ المقروء من الوثيقة ليس بالضرورة رصيدها المتبقي.',
+    invoiceLookupFailed: (reference) =>
+      `تعذّر الاطلاع بشكل موثوق على الفاتورة ${reference}. أعد صياغة السؤال مع مرجعها. لا يُستعمل أي مجموع عام أو مبلغ مستخرج سابقاً بدلاً منها.`,
   },
 };

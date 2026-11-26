@@ -54,7 +54,11 @@ import {
   detectListingQuestion,
   mayAskPartyTotal,
 } from './party-question';
-import { detectQuestionLanguage, MESSAGES } from './assistant-language';
+import {
+  answerInWrongLanguage,
+  detectQuestionLanguage,
+  MESSAGES,
+} from './assistant-language';
 import {
   findNamedDocuments,
   mayNameADocument,
@@ -659,7 +663,7 @@ export class AssistantService {
           dossierId,
           userId,
           originalQuestion,
-          followUp.clarification,
+          MESSAGES[language].followUpWhich,
           [],
           'clarification-v1',
           null,
@@ -667,7 +671,7 @@ export class AssistantService {
         );
         return {
           id,
-          answer: followUp.clarification,
+          answer: MESSAGES[language].followUpWhich,
           citations: [],
           model: 'clarification-v1',
           scope: 'CLARIFICATION',
@@ -736,8 +740,7 @@ export class AssistantService {
         invoiceReference = invoices[0].number;
         sourceId = undefined;
       } else {
-        const answer =
-          'Pour consulter le solde ou les règlements actuels, indiquez la référence de la facture comptable. Le montant extrait du document ne représente pas nécessairement son solde restant.';
+        const answer = MESSAGES[language].invoiceReferenceNeeded;
         const id = await this.recordTurn(
           organizationId,
           dossierId,
@@ -822,7 +825,7 @@ export class AssistantService {
           route.invoiceNumber?.toLocaleLowerCase() !==
             invoiceReference.toLocaleLowerCase())
       ) {
-        const answer = `Je n’ai pas pu déterminer une consultation fiable de la facture ${invoiceReference}. Reformulez la question avec sa référence. Aucun total global ni ancien montant extrait n’est utilisé à la place.`;
+        const answer = MESSAGES[language].invoiceLookupFailed(invoiceReference);
         const id = await this.recordTurn(
           organizationId,
           dossierId,
@@ -850,6 +853,7 @@ export class AssistantService {
               dossierId,
               userId,
               route,
+              language,
             );
       // No business invoice has this number: answer from the validated
       // documents (the invoice and the bank statement that paid it).
@@ -1024,12 +1028,22 @@ export class AssistantService {
       userId,
       conversationStartedAt,
     );
-    const result = await this.vertex.answer(
+    let result = await this.vertex.answer(
       question,
       context,
       conversationContext,
       language,
     );
+    // Gemini sometimes answers in French when the question is in English or
+    // Arabic (its instructions and the sources are French): retry once.
+    if (language !== 'fr' && answerInWrongLanguage(result.text, language))
+      result = await this.vertex.answer(
+        question,
+        context,
+        conversationContext,
+        language,
+        true,
+      );
     // Every amount stated must exist in the passages the model was given.
     const text = normalizeCitations(result.text);
     const answer =

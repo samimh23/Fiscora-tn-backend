@@ -6,7 +6,12 @@ import { PermissionNames } from '../database/permissions';
 import { DossiersService } from '../dossiers/dossiers.service';
 import { FinancialStatementsService } from '../financial-statements/financial-statements.service';
 import type { Citation } from './assistant.service';
+import type { AnswerLanguage } from './assistant-language';
 import type { LiveFinancialIntent } from './live-financial-intent';
+import {
+  LIVE_FINANCIAL_TEXT,
+  type LiveFinancialText,
+} from './live-financial-text';
 
 interface PartyMatch {
   id: string | null;
@@ -83,7 +88,9 @@ export class LiveFinancialService {
     dossierId: string,
     userId: string,
     intent: LiveFinancialIntent,
+    language: AnswerLanguage = 'fr',
   ): Promise<LiveFinancialAnswer> {
+    const t = LIVE_FINANCIAL_TEXT[language];
     await this.dossiers.getAccessibleEntity(organizationId, dossierId, userId);
     const membership = await this.memberships.findOne({
       where: { organizationId, userId, isActive: true },
@@ -110,27 +117,21 @@ export class LiveFinancialService {
       !membership?.organization.isActive ||
       required.some((permission) => !permissions.has(permission))
     ) {
-      throw new ForbiddenException(
-        'Vous n’avez pas les permissions nécessaires pour consulter ces données financières.',
-      );
+      throw new ForbiddenException(t.forbidden);
     }
     if (
       intent.unsupportedPeriod ||
       (intent.operation === 'BALANCES' && intent.year !== null)
     ) {
-      return this.clarify(
-        'Les soldes et paiements sont consultés dans leur état actuel. Le résumé financier couvre un exercice annuel. Précisez un solde actuel ou une année de résumé; les soldes historiques et résumés mensuels ne sont pas disponibles ici.',
-      );
+      return this.clarify(t.unsupportedPeriod);
     }
     if (intent.operation === 'BALANCES')
-      return this.balances(organizationId, dossierId, intent);
+      return this.balances(organizationId, dossierId, intent, t);
     if (intent.operation === 'INVOICE_DETAILS')
-      return this.details(organizationId, dossierId, intent);
+      return this.details(organizationId, dossierId, intent, t);
     if (intent.operation === 'FINANCIAL_SUMMARY')
-      return this.summary(organizationId, dossierId, userId, intent.year);
-    return this.clarify(
-      'Précisez un tiers, une facture, un règlement ou une année de résumé financier.',
-    );
+      return this.summary(organizationId, dossierId, userId, intent.year, t);
+    return this.clarify(t.unknownRequest);
   }
 
   private clarify(answer: string): LiveFinancialAnswer {
@@ -204,19 +205,22 @@ export class LiveFinancialService {
     organizationId: string,
     dossierId: string,
     intent: LiveFinancialIntent,
+    t: LiveFinancialText,
   ): Promise<LiveFinancialAnswer> {
     const candidates = await this.findParty(organizationId, dossierId, intent);
     if (candidates && candidates.length !== 1) {
       return this.clarify(
         candidates.length
-          ? `Plusieurs tiers correspondent. Précisez le nom complet et le type client/fournisseur : ${candidates
-              .slice(0, 20)
-              .map(
-                (row) =>
-                  `${display(row.name)} (${row.type}, MF ${display(row.tax_identifier ?? 'non renseigné')})`,
-              )
-              .join('; ')}.`
-          : `Aucun tiers ou nom de facture comptabilisée ne correspond à « ${display(intent.partyName!)} » dans ce dossier. Vérifiez le nom; cela ne signifie pas que le solde est nul.`,
+          ? t.severalParties(
+              candidates
+                .slice(0, 20)
+                .map(
+                  (row) =>
+                    `${display(row.name)} (${row.type}, ${t.taxId} ${display(row.tax_identifier ?? t.notProvided)})`,
+                )
+                .join('; '),
+            )
+          : t.noParty(display(intent.partyName!)),
       );
     }
     const party = candidates?.[0];
@@ -250,44 +254,56 @@ export class LiveFinancialService {
       citations,
       dossierId,
       party?.id ?? dossierId,
-      party ? `Soldes de ${party.name}` : 'Soldes clients et fournisseurs',
+      party ? t.partyBalances(party.name) : t.allBalances,
       'PARTY_BALANCE',
     );
     // Balances use canonical outstanding_amount. Never subtract payments or credit notes again.
     const totals = rows[0];
     const lines = [
-      `Soldes actuels${party ? ` de « ${display(party.name)} »` : ' du dossier'}, au ${new Date().toISOString()}. Factures comptabilisées uniquement; montants comptables en TND. ${source}`,
+      t.balancesHeader(
+        party ? display(party.name) : null,
+        new Date().toISOString(),
+        source,
+      ),
     ];
     if (intent.partyType !== 'CUSTOMER')
       lines.push(
-        `À payer aux fournisseurs : ${totals?.supplier_due ?? '0.000'} TND; à récupérer des fournisseurs : ${totals?.supplier_refund ?? '0.000'} TND. ${source}`,
+        t.supplierLine(
+          totals?.supplier_due ?? '0.000',
+          totals?.supplier_refund ?? '0.000',
+          source,
+        ),
       );
     if (intent.partyType !== 'SUPPLIER')
       lines.push(
-        `À recevoir des clients : ${totals?.customer_due ?? '0.000'} TND; à rembourser aux clients : ${totals?.customer_refund ?? '0.000'} TND. ${source}`,
+        t.customerLine(
+          totals?.customer_due ?? '0.000',
+          totals?.customer_refund ?? '0.000',
+          source,
+        ),
       );
-    lines.push(
-      'Les règlements comptabilisés, avoirs et corrections sont déjà reflétés dans ces soldes. Les chèques enregistrés ne prouvent pas leur encaissement bancaire.',
-    );
-    if (party?.id)
-      lines.push(
-        'Périmètre : factures rattachées à ce tiers. Les factures saisies sans tiers lié ne sont pas automatiquement assimilées à ce compte.',
-      );
+    lines.push(t.balancesNote);
+    if (party?.id) lines.push(t.partyScope);
     for (const row of rows.slice(0, 30)) {
       const citation = this.cite(
         citations,
         dossierId,
         row.id,
-        `Facture ${row.number}`,
+        t.invoice(row.number),
       );
       lines.push(
-        `${display(row.number)} — ${display(row.third_party_name)} — ${row.type} — solde signé ${row.outstanding_amount} TND — échéance ${row.due_date ?? 'non renseignée'}. ${citation}`,
+        t.balanceRow(
+          display(row.number),
+          display(row.third_party_name),
+          row.type,
+          row.outstanding_amount,
+          row.due_date ?? t.notProvided,
+          citation,
+        ),
       );
     }
     if (Number(totals?.record_count ?? 0) > 30)
-      lines.push(
-        `30 factures affichées sur ${totals.record_count}; les totaux couvrent toutes les factures correspondantes. ${source}`,
-      );
+      lines.push(t.moreInvoices(totals.record_count, source));
     return { answer: lines.join('\n'), citations };
   }
 
@@ -295,20 +311,18 @@ export class LiveFinancialService {
     organizationId: string,
     dossierId: string,
     intent: LiveFinancialIntent,
+    t: LiveFinancialText,
   ): Promise<LiveFinancialAnswer> {
     if (!intent.invoiceNumber && !intent.paymentReference)
-      return this.clarify(
-        'Quel numéro de facture ou quelle référence de règlement voulez-vous consulter ?',
-      );
+      return this.clarify(t.askReference);
     if (intent.invoiceNumber && intent.paymentReference)
-      return this.clarify(
-        'Précisez soit le numéro de facture, soit la référence du règlement à consulter.',
-      );
+      return this.clarify(t.oneReference);
     if (intent.paymentReference)
       return this.paymentDetails(
         organizationId,
         dossierId,
         intent.paymentReference,
+        t,
       );
     const invoices = await this.dataSource.query<InvoiceRow[]>(
       `SELECT i.*, i.invoice_date::text AS invoice_date, i.due_date::text AS due_date FROM accounting.business_invoices i WHERE organization_id=$1 AND dossier_id=$2
@@ -318,15 +332,10 @@ export class LiveFinancialService {
     );
     if (!invoices.length)
       return {
-        ...this.clarify(
-          'Aucune facture métier ne correspond à ce numéro dans ce dossier. Un fichier seul n’est pas nécessairement une facture métier.',
-        ),
+        ...this.clarify(t.noInvoice),
         searchDocuments: true,
       };
-    if (invoices.length !== 1)
-      return this.clarify(
-        'Ce numéro correspond à plusieurs factures/avoirs. Précisez achat ou vente, ou utilisez une référence unique.',
-      );
+    if (invoices.length !== 1) return this.clarify(t.severalInvoices);
     const invoice = invoices[0];
     const [payments, credits] = await Promise.all([
       this.dataSource.query<PaymentRow[]>(
@@ -347,18 +356,28 @@ export class LiveFinancialService {
       citations,
       dossierId,
       invoice.id,
-      `Facture ${invoice.number}`,
+      t.invoice(invoice.number),
     );
     const lines = [
       `${display(invoice.number)} — ${invoice.type} / ${invoice.kind} — ${invoice.status} — ${display(invoice.third_party_name)}. ${source}`,
-      `Date ${invoice.invoice_date}; échéance ${invoice.due_date ?? 'non renseignée'}. HT ${invoice.net_amount}; TVA ${invoice.vat_amount}; TTC ${invoice.gross_amount}; net à payer ${invoice.net_payable} TND. ${source}`,
-      `Règlements nets pris en compte ${invoice.paid_amount}; avoirs comptabilisés ${invoice.credited_amount}; solde signé ${invoice.outstanding_amount} TND (négatif = remboursement attendu). ${source}`,
-      'Montants comptables en TND après conversion éventuelle. Seuls les mouvements effectivement comptabilisés affectent le solde; un règlement annulé/brouillon est affiché comme historique, pas comme paiement effectif.',
+      t.invoiceDates(
+        invoice.invoice_date,
+        invoice.due_date ?? t.notProvided,
+        invoice.net_amount,
+        invoice.vat_amount,
+        invoice.gross_amount,
+        invoice.net_payable,
+        source,
+      ),
+      t.invoiceSettlement(
+        invoice.paid_amount,
+        invoice.credited_amount,
+        invoice.outstanding_amount,
+        source,
+      ),
+      t.invoiceNote,
     ];
-    if (invoice.status !== 'COMPTABILISEE')
-      lines.push(
-        'Cette facture n’est pas comptabilisée : ses montants ne constituent pas une dette/créance comptable publiée.',
-      );
+    if (invoice.status !== 'COMPTABILISEE') lines.push(t.notPosted);
     for (const payment of payments.slice(0, 50))
       lines.push(
         this.paymentLine(
@@ -367,32 +386,62 @@ export class LiveFinancialService {
             citations,
             dossierId,
             payment.id,
-            `Règlement ${payment.reference ?? payment.id}`,
+            t.payment(payment.reference ?? payment.id),
             'PAYMENT',
           ),
+          t,
         ),
       );
     for (const credit of credits.slice(0, 50))
       lines.push(
-        `Avoir ${display(credit.number)} : ${credit.net_payable} TND — ${credit.status}. ${this.cite(citations, dossierId, credit.id, `Avoir ${credit.number}`)}`,
+        t.creditLine(
+          display(credit.number),
+          credit.net_payable,
+          credit.status,
+          this.cite(
+            citations,
+            dossierId,
+            credit.id,
+            t.creditNote(credit.number),
+          ),
+        ),
       );
-    if (!payments.length)
-      lines.push(`Aucun règlement affecté à cette facture. ${source}`);
+    if (!payments.length) lines.push(t.noPayment(source));
     if (payments.length > 50 || credits.length > 50)
-      lines.push(
-        'Historique limité aux 50 premiers règlements et 50 premiers avoirs; le solde ci-dessus reste le solde complet enregistré.',
-      );
+      lines.push(t.historyLimited);
     return { answer: lines.join('\n'), citations };
   }
 
-  private paymentLine(payment: PaymentRow, citation: string): string {
-    return `Règlement ${display(payment.reference ?? payment.id)} — ${payment.payment_date} — ${payment.direction} — ${payment.method} — ${payment.status} : ${payment.amount} TND${payment.allocated_amount ? `; affectation à cette facture ${payment.allocated_amount} TND` : ''}${payment.instrument_status ? `; instrument ${payment.instrument_status}` : ''}${payment.correction_type ? `; correction ${payment.correction_type} le ${payment.correction_date ?? '?'} (${display(payment.correction_reason ?? '')})` : ''}. ${citation}`;
+  private paymentLine(
+    payment: PaymentRow,
+    citation: string,
+    t: LiveFinancialText,
+  ): string {
+    return t.paymentLine(
+      display(payment.reference ?? payment.id),
+      payment.payment_date,
+      payment.direction,
+      payment.method,
+      payment.status,
+      payment.amount,
+      payment.allocated_amount,
+      payment.instrument_status,
+      payment.correction_type
+        ? {
+            type: payment.correction_type,
+            date: payment.correction_date ?? '?',
+            reason: display(payment.correction_reason ?? ''),
+          }
+        : null,
+      citation,
+    );
   }
 
   private async paymentDetails(
     organizationId: string,
     dossierId: string,
     reference: string,
+    t: LiveFinancialText,
   ): Promise<LiveFinancialAnswer> {
     const payments = await this.dataSource.query<PaymentRow[]>(
       `SELECT p.*, p.payment_date::text AS payment_date, p.correction_date::text AS correction_date FROM accounting.third_party_payments p WHERE organization_id=$1 AND dossier_id=$2
@@ -401,9 +450,7 @@ export class LiveFinancialService {
     );
     if (payments.length !== 1)
       return this.clarify(
-        payments.length
-          ? 'Plusieurs règlements portent cette référence. Consultez les règlements pour identifier la facture concernée.'
-          : 'Aucun règlement ne correspond à cette référence dans ce dossier.',
+        payments.length ? t.severalPayments : t.noPaymentReference,
       );
     const payment = payments[0];
     const allocations = await this.dataSource.query<
@@ -419,19 +466,25 @@ export class LiveFinancialService {
       citations,
       dossierId,
       payment.id,
-      `Règlement ${reference}`,
+      t.payment(reference),
       'PAYMENT',
     );
-    const lines = [
-      this.paymentLine(payment, source),
-      'Ce règlement est un enregistrement comptable; il ne prouve pas à lui seul un transfert bancaire ou l’encaissement d’un chèque.',
-    ];
+    const lines = [this.paymentLine(payment, source, t), t.paymentNote];
     for (const invoice of allocations.slice(0, 50))
       lines.push(
-        `Facture ${display(invoice.number)} : affectation ${invoice.allocated_amount} TND; solde actuel ${invoice.outstanding_amount} TND. ${this.cite(citations, dossierId, invoice.id, `Facture ${invoice.number}`)}`,
+        t.allocationLine(
+          display(invoice.number),
+          invoice.allocated_amount,
+          invoice.outstanding_amount,
+          this.cite(
+            citations,
+            dossierId,
+            invoice.id,
+            t.invoice(invoice.number),
+          ),
+        ),
       );
-    if (allocations.length > 50)
-      lines.push('Affichage limité à 50 affectations.');
+    if (allocations.length > 50) lines.push(t.allocationsLimited);
     return { answer: lines.join('\n'), citations };
   }
 
@@ -440,11 +493,9 @@ export class LiveFinancialService {
     dossierId: string,
     userId: string,
     year: number | null,
+    t: LiveFinancialText,
   ): Promise<LiveFinancialAnswer> {
-    if (!year)
-      return this.clarify(
-        'Pour quel exercice annuel souhaitez-vous le résumé financier ? Par exemple : « Résumé financier pour 2026 ».',
-      );
+    if (!year) return this.clarify(t.askYear);
     const report = await this.statements.getReport(
       organizationId,
       dossierId,
@@ -456,18 +507,48 @@ export class LiveFinancialService {
       citations,
       dossierId,
       report.snapshot?.id ?? `${dossierId}:${year}`,
-      `États financiers ${year}`,
+      t.statements(year),
       'FINANCIAL_REPORT',
       year,
     );
     const currency = report.currencyCode;
     const lines = [
-      `Résumé comptable de « ${display(report.dossier.legalName)} » pour l’exercice ${year} (${report.period.startsOn} au ${report.period.endsOn}). ${source}`,
-      `Source : ${report.source === 'SNAPSHOT_DEFINITIF' ? `états finalisés, version ${report.snapshot?.version ?? '?'}, le ${report.snapshot?.finalizedAtUtc ?? '?'}` : `états en temps réel générés le ${report.generatedAtUtc}, à partir des écritures comptabilisées`}. ${source}`,
-      `Résultat d’exploitation : ${report.incomeStatement.operatingResult.current} ${currency}; résultat avant impôt : ${report.incomeStatement.ordinaryResultBeforeTax.current} ${currency}; résultat net : ${report.incomeStatement.netResult.current} ${currency}. ${source}`,
-      `Total actif : ${report.balanceSheet.totalAssets.current} ${currency}; capitaux propres et passifs : ${report.balanceSheet.totalEquityAndLiabilities.current} ${currency}. ${source}`,
-      `Trésorerie comptable de clôture : ${report.cashFlowStatement.closingCash.current} ${currency}; variation : ${report.cashFlowStatement.cashVariation.current} ${currency}. Ce n’est pas un solde bancaire vérifié en direct. ${source}`,
-      'Produits/charges du compte de résultat :',
+      t.summaryHeader(
+        display(report.dossier.legalName),
+        year,
+        report.period.startsOn,
+        report.period.endsOn,
+        source,
+      ),
+      t.summarySource(
+        report.source === 'SNAPSHOT_DEFINITIF'
+          ? t.summaryFinal(
+              String(report.snapshot?.version ?? '?'),
+              String(report.snapshot?.finalizedAtUtc ?? '?'),
+            )
+          : t.summaryLive(String(report.generatedAtUtc)),
+        source,
+      ),
+      t.results(
+        report.incomeStatement.operatingResult.current,
+        report.incomeStatement.ordinaryResultBeforeTax.current,
+        report.incomeStatement.netResult.current,
+        currency,
+        source,
+      ),
+      t.balanceSheet(
+        report.balanceSheet.totalAssets.current,
+        report.balanceSheet.totalEquityAndLiabilities.current,
+        currency,
+        source,
+      ),
+      t.cash(
+        report.cashFlowStatement.closingCash.current,
+        report.cashFlowStatement.cashVariation.current,
+        currency,
+        source,
+      ),
+      t.incomeLines,
       ...report.incomeStatement.lines
         .filter((line) => line.current !== '0.000')
         .map(
@@ -479,15 +560,11 @@ export class LiveFinancialService {
     );
     for (const anomaly of anomalies)
       lines.push(
-        `Contrôle à vérifier : ${display(anomaly.label)} — ${display(anomaly.message)}. ${source}`,
+        t.control(display(anomaly.label), display(anomaly.message), source),
       );
     if (report.mappingWarnings.length)
-      lines.push(
-        `${report.mappingWarnings.length} compte(s) avec correspondance manquante : le résumé peut être incomplet. Vérifiez les mappings dans les états financiers. ${source}`,
-      );
-    lines.push(
-      'Ces chiffres représentent les données enregistrées/finalisées, pas une certification de complétude ni un conseil fiscal. Un exercice vide peut afficher zéro.',
-    );
+      lines.push(t.mappings(report.mappingWarnings.length, source));
+    lines.push(t.summaryNote);
     return { answer: lines.join('\n'), citations };
   }
 }

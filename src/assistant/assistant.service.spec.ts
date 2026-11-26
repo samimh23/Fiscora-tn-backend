@@ -211,6 +211,50 @@ describe('AssistantService source-aware follow-ups', () => {
     expect(insert[1][8]).toBeInstanceOf(Date);
     expect(t.routeLiveFinancialQuestion).not.toHaveBeenCalled();
   });
+  it('asks Gemini again once when it answers an English question in French', async () => {
+    const t = setup();
+    t.answer
+      .mockResolvedValueOnce({
+        text: 'Le client est à Tunis [S1]. Une validation humaine reste nécessaire pour toute décision comptable ou fiscale.',
+        model: 'gemini',
+        usage: null,
+      })
+      .mockResolvedValueOnce({
+        text: 'The customer is in Tunis [S1]. A human review is still required for any accounting or tax decision.',
+        model: 'gemini',
+        usage: null,
+      });
+    t.query
+      .mockResolvedValueOnce([
+        { question: 'Describe the scan', citations: [documentCitation] },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'chunk',
+          source_id: docId,
+          source_name: 'approved-scan.png',
+          page_number: null,
+          content: 'Client: Test; Adresse: Tunis',
+          metadata: { kind: 'PARTIES' },
+          evidence: {},
+          distance: 0.1,
+          text_score: 1,
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'turn' }]);
+    const result = await t.service.ask(
+      'org',
+      'dossier',
+      'user',
+      'What about its delivery address?',
+    );
+    expect(t.answer).toHaveBeenCalledTimes(2);
+    const calls = t.answer.mock.calls as unknown[][];
+    expect(calls[0][3]).toBe('en');
+    expect(calls[1][4]).toBe(true);
+    expect(result.answer).toContain('The customer is in Tunis [S1].');
+  });
   it('resolves a live invoice follow-up then re-reads facts instead of recycling the previous amount', async () => {
     const t = setup();
     t.query
@@ -233,6 +277,7 @@ describe('AssistantService source-aware follow-ups', () => {
       'dossier',
       'user',
       expect.objectContaining({ invoiceNumber: 'A-001' }),
+      'en',
     );
     expect(result.scope).toBe('LIVE_FINANCIAL');
     expect(result.answer).toContain('60.000');
@@ -463,6 +508,7 @@ describe('AssistantService live financial integration', () => {
       'dossier',
       'user',
       expect.objectContaining({ operation: 'BALANCES' }),
+      'en',
     );
     expect(test.embed).not.toHaveBeenCalled();
     expect(test.answerProductHelp).not.toHaveBeenCalled();
@@ -522,6 +568,7 @@ describe('AssistantService live financial integration', () => {
       'dossier',
       'user',
       expect.objectContaining({ year: 2026 }),
+      'fr',
     );
   });
   it('does not answer a supplier-filtered total with an unfiltered dossier sum', async () => {

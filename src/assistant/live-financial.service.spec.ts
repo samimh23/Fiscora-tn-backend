@@ -483,3 +483,54 @@ describe('LiveFinancialService financial summary', () => {
     expect(test.getReport).not.toHaveBeenCalled();
   });
 });
+
+describe('LiveFinancialService answer language', () => {
+  it('answers in English when the question is in English', async () => {
+    const test = setup();
+    test.query.mockResolvedValueOnce([]);
+    const result = await test.service.answer(
+      'org',
+      'dossier',
+      'user',
+      { ...baseIntent, partyName: 'steg' },
+      'en',
+    );
+    expect(result.answer).toBe(
+      'No third party or posted invoice name matches “steg” in this file. Check the name; this does not mean the balance is zero.',
+    );
+  });
+
+  it('keeps amounts unchanged and translates the balance lines', async () => {
+    const test = setup();
+    test.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const result = await test.service.answer(
+      'org',
+      'dossier',
+      'user',
+      { ...baseIntent, partyName: null, partyType: 'ANY' },
+      'en',
+    );
+    expect(result.answer).toContain('Owed to suppliers: 0.000 TND');
+    expect(result.answer).toContain('Owed by customers: 0.000 TND');
+    expect(result.answer).not.toMatch(/Soldes|fournisseurs/);
+  });
+
+  it('answers in Arabic and stays French by default', async () => {
+    const arabic = setup();
+    arabic.query.mockResolvedValueOnce([]);
+    const result = await arabic.service.answer(
+      'org',
+      'dossier',
+      'user',
+      { ...baseIntent, partyName: 'steg' },
+      'ar',
+    );
+    expect(result.answer).toContain('«steg»');
+    expect(result.answer).toMatch(/\p{Script=Arabic}/u);
+    const french = setup();
+    french.query.mockResolvedValueOnce([]);
+    expect((await french.ask({ partyName: 'steg' })).answer).toContain(
+      'ne signifie pas que le solde est nul',
+    );
+  });
+});
